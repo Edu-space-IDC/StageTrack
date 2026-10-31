@@ -1,0 +1,17 @@
+REAPER CONTROL STUDIO - INSTALACIÓN
+
+1. Instalar el helper Lua
+1. Pulsa Win + R, escribe appdata y pulsa Enter.
+2. En la carpeta que se abre, entra en Roaming\REAPER\Scripts. La ruta completa es %APPDATA%\REAPER\Scripts.
+3. Copia __startup.lua en esa carpeta. Si Scripts no existe, créala. REAPER ejecutará este archivo al iniciar.
+4. Si REAPER ya estaba abierto, ciérralo y vuelve a abrirlo para iniciar el helper. Si quieres ejecutarlo manualmente en la sesión actual: abre Actions > Show action list > New action > Load ReaScript, selecciona __startup.lua y pulsa Open/Run. No lo ejecutes manualmente si ya se inició junto con REAPER.
+5. Si REAPER pregunta por una instancia anterior, elige Terminate instances y vuelve a ejecutar el script.
+
+2. Instalar la interfaz HTML
+1. En REAPER abre Options > Preferences > Control/OSC/web y pulsa Add.
+2. En Control surface mode selecciona Web browser interface.
+3. Pulsa User pages... para abrir la carpeta de interfaces personalizadas y copia alli Reaper Control Studio.html y app-icon.png; deja los dos archivos juntos. Built-in pages contiene las interfaces incluidas con REAPER; no se pega el archivo personalizado alli.
+4. Cierra Preferences con OK. Vuelve a abrir Options > Preferences > Control/OSC/web y selecciona Reaper Control Studio.html en Default interface.
+5. Pulsa Apply settings y luego OK. Abre el Access URL que muestra REAPER en un navegador para usar el control web.
+
+Los nombres de los menús pueden variar según el idioma o la versión de REAPER.
