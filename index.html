@@ -1,62 +1,452 @@
-<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>StageTracks — By Juan Camilo Mina</title>
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/styles.css">  <link rel="icon" type="image/png" href="/assets/app-icon.png">
-</head><body><div id="pg"></div>
-<!-- LOGO: cambia el src de <img class="logo"> para usar otro logo -->
-<nav><a class="lg" href="#"><img class="logo" src="/assets/app-icon.png" alt="">StageTracks</a>
-<ul id="navMenu"><li><a href="#caracteristicas">Características</a></li><li><a href="#reaper">Extensión a Reaper</a></li><li><a href="#secuencias">Comunidad</a></li><li><a href="#acerca">Acerca de</a></li></ul>
-<button class="btn o sm" id="th" aria-label="Cambiar tema">🌙</button><div class="nav-priority"><a class="btn sm nav-donate" href="#donar">Donar</a><a class="btn sm nav-download" href="#descargar">Descargar</a></div><button class="nav-more" id="navMore" type="button" aria-label="Abrir navegacion" aria-expanded="false" aria-controls="navMenu">&#8942;</button></nav>
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <title>StageTracks — By Juan Camilo Mina</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;800&family=Inter:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="icon" type="image/png" href="/assets/app-icon.png" />
+  </head>
+  <body>
+    <div id="pg"></div>
+    <!-- LOGO: cambia el src de <img class="logo"> para usar otro logo -->
+    <nav>
+      <a class="lg" href="#"
+        ><img class="logo" src="/assets/app-icon.png" alt="" />StageTracks</a
+      >
+      <ul id="navMenu">
+        <li><a href="#caracteristicas">Características</a></li>
+        <li><a href="#reaper">Extensión a Reaper</a></li>
+        <li><a href="#secuencias">Comunidad</a></li>
+        <li><a href="#acerca">Acerca de</a></li>
+      </ul>
+      <button class="btn o sm" id="th" aria-label="Cambiar tema">🌙</button>
+      <div class="nav-priority">
+        <a class="btn sm nav-donate" href="#donar">Donar</a
+        ><a class="btn sm nav-download" href="#descargar">Descargar</a>
+      </div>
+      <button
+        class="nav-more"
+        id="navMore"
+        type="button"
+        aria-label="Abrir navegacion"
+        aria-expanded="false"
+        aria-controls="navMenu"
+      >
+        &#8942;
+      </button>
+    </nav>
 
-<div id="hm">
-<header class="hero"><div>
-<h1 class="in">StageTracks</h1><div class="by in" style="animation-delay:.15s">By Juan Camilo Mina</div>
-<p class="in" style="animation-delay:.3s">Durante años los programas para secuencias se han encontrado limitados a dispositivos iOS o Mac. Hasta ahora. La finalidad del proyecto es llevar a los usuarios de Windows la misma sensación.</p>
-<form class="search in" style="animation-delay:.45s" id="hs"><input id="hq" placeholder="Buscar secuencias de la comunidad…" aria-label="Buscar"><button class="btn">Buscar</button></form>
-<div class="in" style="animation-delay:.6s;margin-top:14px"><a class="btn" href="#descargar">Descargar para Windows</a> <a class="btn o" href="#reaper">Reaper Control Studio</a></div>
-<div class="eq" aria-hidden="true"></div></div>
-<div class="stage in" style="animation-delay:.4s"><div class="win" id="win"><div class="bar"><i></i><i></i><i></i></div><img src="/assets/original-2.webp" alt="Mezclador de StageTracks con pistas, secciones de colores y master">
-<button class="hs" style="left:49%;top:18%"><span>Play, stop y reinicio</span></button>
-<button class="hs" style="left:44%;top:52%"><span>Secciones con color (Intro, Verso…)</span></button>
-<button class="hs" style="left:13%;top:70%"><span>Fader, Solo y Mute por pista</span></button>
-<button class="hs" style="left:87%;top:64%"><span>Buses: ruteo de salidas</span></button>
-<button class="hs" style="left:95%;top:70%"><span>Volumen Master</span></button></div></div></header>
-<div class="mq" aria-hidden="true"><div id="mq"></div></div>
+    <div id="hm">
+      <header class="hero">
+        <div>
+          <h1 class="in">StageTracks</h1>
+          <div class="by in" style="animation-delay: 0.15s">
+            By Juan Camilo Mina
+          </div>
+          <p class="in" style="animation-delay: 0.3s">
+            Durante años los programas para secuencias se han encontrado
+            limitados a dispositivos iOS o Mac. Hasta ahora. La finalidad del
+            proyecto es llevar a los usuarios de Windows la misma sensación.
+          </p>
+          <form class="search in" style="animation-delay: 0.45s" id="hs">
+            <input
+              id="hq"
+              placeholder="Buscar secuencias de la comunidad…"
+              aria-label="Buscar"
+            /><button class="btn">Buscar</button>
+          </form>
+          <div class="in" style="animation-delay: 0.6s; margin-top: 14px">
+            <a class="btn" href="#descargar">Descargar para Windows</a>
+            <a class="btn o" href="#reaper">Reaper Control Studio</a>
+          </div>
+          <div class="eq" aria-hidden="true"></div>
+        </div>
+        <div class="stage in" style="animation-delay: 0.4s">
+          <div class="win" id="win">
+            <div class="bar"><i></i><i></i><i></i></div>
+            <img
+              src="/assets/original-2.webp"
+              alt="Mezclador de StageTracks con pistas, secciones de colores y master"
+            />
+            <button class="hs" style="left: 49%; top: 18%">
+              <span>Play, stop y reinicio</span>
+            </button>
+            <button class="hs" style="left: 44%; top: 52%">
+              <span>Secciones con color (Intro, Verso…)</span>
+            </button>
+            <button class="hs" style="left: 13%; top: 70%">
+              <span>Fader, Solo y Mute por pista</span>
+            </button>
+            <button class="hs" style="left: 87%; top: 64%">
+              <span>Buses: ruteo de salidas</span>
+            </button>
+            <button class="hs" style="left: 95%; top: 70%">
+              <span>Volumen Master</span>
+            </button>
+          </div>
+        </div>
+      </header>
+      <div class="mq" aria-hidden="true"><div id="mq"></div></div>
 
-<section id="caracteristicas"><h2 class="rv">Todo lo que necesitas para tocar en vivo</h2><p class="ld rv">Pasa el cursor sobre los puntos de la captura para explorar la interfaz.</p>
-<div class="g"><div class="c rv"><span class="tag">Incluido</span><h3>Pads incorporados</h3><p>Atmósferas por tonalidad en loop continuo, sin programas extra.</p></div>
-<div class="c rv"><span class="tag">Incluido</span><h3>Ruteo de salidas</h3><p>Envía cada pista o bus a la salida de audio que necesites.</p></div>
-<div class="c rv"><span class="tag">Crea</span><h3>Tus propias secuencias</h3><p>Arma secuencias desde el programa, con secciones y colores.</p></div>
-<div class="c rv"><span class="tag">Y más</span><h3>Mucho más</h3><p>Solo, mute, master, buses, repertorio, importación desde Reaper.</p></div></div></section>
+      <section id="caracteristicas">
+        <h2 class="rv">Todo lo que necesitas para tocar en vivo</h2>
+        <p class="ld rv">
+          Pasa el cursor sobre los puntos de la captura para explorar la
+          interfaz.
+        </p>
+        <div class="g">
+          <div class="c rv">
+            <span class="tag">Incluido</span>
+            <h3>Pads incorporados</h3>
+            <p>
+              Atmósferas por tonalidad en loop continuo, sin programas extra.
+            </p>
+          </div>
+          <div class="c rv">
+            <span class="tag">Incluido</span>
+            <h3>Ruteo de salidas</h3>
+            <p>Envía cada pista o bus a la salida de audio que necesites.</p>
+          </div>
+          <div class="c rv">
+            <span class="tag">Crea</span>
+            <h3>Tus propias secuencias</h3>
+            <p>Arma secuencias desde el programa, con secciones y colores.</p>
+          </div>
+          <div class="c rv">
+            <span class="tag">Y más</span>
+            <h3>Mucho más</h3>
+            <p>
+              Solo, mute, master, buses, repertorio, importación desde Reaper.
+            </p>
+          </div>
+        </div>
+      </section>
 
-<section class="band"><div class="two"><div class="rv"><h2>Pads incorporados</h2><p class="ld">Elige la tonalidad y deja sonar la atmósfera. Toca una nota y ajusta el fader.</p><div class="pad-demo-controls"><div class="pad-volume"><input type="range" id="pv" min="0" max="100" value="60" aria-label="Volumen de pads" style="writing-mode:vertical-lr;direction:rtl;height:200px;accent-color:var(--bl)"><div class="meta">Pads</div></div><div class="keys" id="keys" style="flex:1;margin:0"></div></div></div>
-<div class="rv"><div class="win"><div class="bar"><i></i><i></i><i></i></div><img src="/assets/original-3.webp" alt="Panel de pads de StageTracks"></div></div></div></section>
+      <section class="band">
+        <div class="two">
+          <div class="rv">
+            <h2>Pads incorporados</h2>
+            <p class="ld">
+              Elige la tonalidad y deja sonar la atmósfera. Toca una nota y
+              ajusta el fader.
+            </p>
+            <div class="pad-demo-controls">
+              <div class="pad-volume">
+                <input
+                  type="range"
+                  id="pv"
+                  min="0"
+                  max="100"
+                  value="60"
+                  aria-label="Volumen de pads"
+                  style="
+                    writing-mode: vertical-lr;
+                    direction: rtl;
+                    height: 200px;
+                    accent-color: var(--bl);
+                  "
+                />
+                <div class="meta">Pads</div>
+              </div>
+              <div class="keys" id="keys" style="flex: 1; margin: 0"></div>
+            </div>
+          </div>
+          <div class="rv">
+            <div class="win">
+              <div class="bar"><i></i><i></i><i></i></div>
+              <img
+                src="/assets/original-3.webp"
+                alt="Panel de pads de StageTracks"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
 
-<section id="descargar"><h2 class="rv">Descargar</h2><p class="ld rv">Dos proyectos, un ecosistema.</p><div class="g">
-<div class="c rv"><span class="tag">Proyecto 1</span><h3>StageTracks</h3><p>El reproductor de secuencias para Windows.</p><a class="btn" id="downloadStage" href="/downloads/StageTracks-Setup-windows-x64.exe">Instalador .exe</a> <a class="btn o" id="downloadPortable" href="/downloads/StageTracks-portable-windows-x64.zip">Portable .zip</a></div>
-<div class="c rv"><span class="tag">Proyecto 2</span><h3>Reaper Control Studio</h3><p>Control web de Reaper con la interfaz de StageTracks.</p><a class="btn" href="/downloads/Reaper-Control-Studio-Reaper-files.zip">HTML + Lua para REAPER</a> <a class="btn o" aria-disabled="true" id="downloadStudioExe">App .exe</a></div></div></section>
+      <section id="descargar">
+        <h2 class="rv">Descargar</h2>
+        <p class="ld rv">Dos proyectos, un ecosistema.</p>
+        <div class="g">
+          <div class="c rv">
+            <span class="tag">Proyecto 1</span>
+            <h3>StageTracks</h3>
+            <p>El reproductor de secuencias para Windows.</p>
+            <a
+              class="btn"
+              id="downloadStage"
+              href="/downloads/StageTracks-Setup-windows-x64.exe"
+              >Instalador .exe</a
+            >
+            <a
+              class="btn o"
+              id="downloadPortable"
+              href="/downloads/StageTracks-portable-windows-x64.zip"
+              >Portable .zip</a
+            >
+          </div>
+          <div class="c rv">
+            <span class="tag">Proyecto 2</span>
+            <h3>Reaper Control Studio</h3>
+            <p>Control web de Reaper con la interfaz de StageTracks.</p>
+            <a
+              class="btn"
+              href="/downloads/Reaper-Control-Studio-Reaper-files.zip"
+              >HTML + Lua para REAPER</a
+            >
+            <a class="btn o" aria-disabled="true" id="downloadStudioExe"
+              >App .exe</a
+            >
+          </div>
+        </div>
+      </section>
 
-<section id="reaper" class="band"><h2 class="rv">Extensión a Reaper</h2><p class="ld rv">Controla Reaper con una app nativa, sin abrir el link que genera desde la web. Exporta tus secuencias con secciones, colores y tracks, e impórtalas completas en StageTracks.</p>
-<div class="flow rv"><span>Reaper</span><i>›</i><span>Reaper Control Studio.exe · exportar</span><i>›</i><span>StageTracks · importar</span></div></section>
+      <section id="reaper" class="band">
+        <h2 class="rv">Extensión a Reaper</h2>
+        <p class="ld rv">
+          Controla Reaper con una app nativa, sin abrir el link que genera desde
+          la web. Exporta tus secuencias con secciones, colores y tracks, e
+          impórtalas completas en StageTracks.
+        </p>
+        <div class="flow rv">
+          <span>Reaper</span><i>›</i
+          ><span>Reaper Control Studio.exe · exportar</span><i>›</i
+          ><span>StageTracks · importar</span>
+        </div>
+      </section>
 
-<section><div class="hd"><div><h2 class="rv">Más descargados</h2><p class="ld rv" style="margin:0">Lo mejor de la comunidad.</p></div><a class="btn" href="#secuencias">Explorar secuencias</a></div><div class="g w" id="top" style="margin-top:28px"></div></section>
+      <section>
+        <div class="hd">
+          <div>
+            <h2 class="rv">Más descargados</h2>
+            <p class="ld rv" style="margin: 0">Lo mejor de la comunidad.</p>
+          </div>
+          <a class="btn" href="#secuencias">Explorar secuencias</a>
+        </div>
+        <div class="g w" id="top" style="margin-top: 28px"></div>
+      </section>
 
-<section id="acerca" class="band"><h2 class="rv">Acerca de</h2><p class="ld rv">StageTracks nace de la necesidad de tener, en Windows, una herramienta de secuencias en vivo a la altura. Lo crea Juan Camilo Mina. <em>(Agrega aquí tu historia.)</em></p></section>
-<section id="donar" class="dn"><div class="donate-card rv"><span class="donate-kicker">Apoya el desarrollo independiente</span><h2>¿Quieres contribuir al desarrollo de este proyecto?</h2><p class="ld">Tu aporte ayuda a mantener StageTracks y permite seguir creando nuevas funciones para músicos.</p><a class="btn donate-button" href="https://www.paypal.com/donate/?cmd=_donations&amp;business=jminaq26%40gmail.com&amp;currency_code=USD&amp;item_name=StageTracks" target="_blank" rel="noopener noreferrer">♥ Donar y apoyar StageTracks</a></div></section></div>
+      <section id="acerca" class="band">
+        <h2 class="rv">Acerca de</h2>
+        <p class="ld rv">
+          StageTracks nace de la necesidad de tener, en Windows, una herramienta
+          de secuencias en vivo a la altura. Lo crea Juan Camilo Mina.
+          <em>(Agrega aquí tu historia.)</em>
+        </p>
+      </section>
+      <section id="donar" class="dn">
+        <div class="donate-card rv">
+          <span class="donate-kicker">Apoya el desarrollo independiente</span>
+          <h2>¿Quieres contribuir al desarrollo de este proyecto?</h2>
+          <p class="ld">
+            Tu aporte ayuda a mantener StageTracks y permite seguir creando
+            nuevas funciones para músicos.
+          </p>
+          <a
+            class="btn donate-button"
+            href="https://www.paypal.com/donate/?cmd=_donations&amp;business=jminaq26%40gmail.com&amp;currency_code=USD&amp;item_name=StageTracks"
+            target="_blank"
+            rel="noopener noreferrer"
+            >♥ Donar y apoyar StageTracks</a
+          >
+        </div>
+      </section>
+    </div>
 
-<main id="vs"><section><h2>Secuencias de la comunidad</h2><p class="ld">Busca, filtra y descarga secuencias para importarlas en StageTracks.</p>
-<div class="f"><input id="q" placeholder="Buscar canción o artista…" aria-label="Buscar"><select id="k"><option value="">Tonalidad</option></select><select id="gn"><option value="">Género</option><option>Adoración</option><option>Gospel</option><option>Contemporáneo</option><option>Acústico</option></select><select id="o"><option value="d">Más descargados</option><option value="n">Más recientes</option><option value="a">A–Z</option></select><button class="btn" id="up" type="button">Subir secuencia</button></div>
-<h3 id="tt" style="margin-bottom:16px">Más descargados</h3><div class="g w" id="res"></div></section></main>
+    <main id="vs">
+      <section>
+        <h2>Secuencias de la comunidad</h2>
+        <p class="ld">
+          Busca, filtra y descarga secuencias para importarlas en StageTracks.
+        </p>
+        <div class="f">
+          <input
+            id="q"
+            placeholder="Buscar canción o artista…"
+            aria-label="Buscar"
+          /><select id="k">
+            <option value="">Tonalidad</option></select
+          ><select id="gn">
+            <option value="">Género</option>
+            <option>Adoración</option>
+            <option>Gospel</option>
+            <option>Contemporáneo</option>
+            <option>Acústico</option></select
+          ><select id="o">
+            <option value="d">Más descargados</option>
+            <option value="n">Más recientes</option>
+            <option value="a">A–Z</option></select
+          ><button class="btn" id="up" type="button">Subir secuencia</button>
+        </div>
+        <h3 id="tt" style="margin-bottom: 16px">Más descargados</h3>
+        <div class="g w" id="res"></div>
+      </section>
+    </main>
 
-<footer><div class="fg"><div><b style="font:800 1.2rem Sora">StageTracks</b><p class="meta">Secuencias en vivo para Windows.</p></div><div><h4>Producto</h4><a href="#descargar">Descargar</a><a href="#reaper">Reaper</a></div><div><h4>Comunidad</h4><a href="#secuencias">Secuencias</a><a href="#">Subir</a></div><div><h4>Proyecto</h4><a href="#acerca">Acerca de</a><a href="#donar">Donar</a></div></div><small>© 2026 StageTracks — By Juan Camilo Mina</small></footer>
-<dialog id="dg"><form id="fm"><h2 style="font-size:1.6rem">Subir secuencia</h2><p class="meta">Completa los datos que verán todos en la comunidad.</p>
-<label for="n">Nombre de la canción</label><input id="n" name="n" required maxlength="80">
-<label for="a">Grupo o autor original</label><input id="a" name="a" required maxlength="80">
-<div class="r2"><div><label for="fk">Tonalidad</label><select id="fk" name="k" required></select></div><div><label for="b">BPM</label><input id="b" name="b" type="number" min="40" max="240" required></div></div>
-<label for="fg">Género</label><select id="fg" name="g"><option>Adoración</option><option>Gospel</option><option>Contemporáneo</option><option>Acústico</option><option>Rock</option><option>Otro</option></select>
-<label for="meter">Compás</label><select id="meter" name="meter"><option>4/4</option><option>2/4</option><option>3/4</option><option>5/4</option><option>6/4</option><option>7/4</option><option>3/8</option><option>6/8</option><option>9/8</option><option>12/8</option></select>
-<label for="im">Carátula</label><div class="cover-tools"><button class="btn o sm" type="button" id="coverSearch">Buscar carátula automáticamente</button><span class="meta">Busca por canción y artista, o sube una imagen.</span></div><div id="coverChoices" class="cover-choices"></div><input id="im" name="im" type="file" accept="image/png,image/jpeg,image/webp"><img id="pvw" alt="Vista previa de la carátula" hidden style="width:84px;height:84px;object-fit:cover;border-radius:10px;margin-top:8px">
-<label for="sq">Paquete de secuencia (.rpseq o .zip)</label><input id="sq" name="sq" type="file" accept=".rpseq,.zip,application/zip" required><small class="meta">El paquete debe contener el manifiesto .rpseq y todos los audios que utiliza (máximo 1 GB).</small><p id="uploadStatus" class="meta" role="status" aria-live="polite"></p>
-<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:22px"><button class="btn o" type="button" id="cx">Cancelar</button><button class="btn" type="submit">Publicar</button></div></form></dialog>
-<button class="feedback-fab" id="feedbackOpen" type="button" aria-haspopup="dialog">💬 Enviar sugerencia</button>
-<dialog id="feedbackDialog"><form id="feedbackForm"><h2>Cuéntanos tu idea</h2><p class="meta">Puedes enviar recomendaciones o sugerencias de forma anónima. No pedimos tu nombre ni tu correo.</p><label for="feedbackMessage">Tu sugerencia</label><textarea id="feedbackMessage" name="message" minlength="10" maxlength="2000" required placeholder="¿Qué te gustaría que mejoráramos o agregáramos?" rows="6"></textarea><label class="feedback-trap" aria-hidden="true">Deja este campo vacío<input name="website" tabindex="-1" autocomplete="off"></label><p id="feedbackStatus" class="meta" role="status" aria-live="polite"></p><div class="feedback-actions"><button class="btn o" id="feedbackCancel" type="button">Cancelar</button><button class="btn" type="submit">Enviar sugerencia</button></div></form></dialog>
-<script src="/community-config.js"></script><script src="/app.js" defer></script></body></html>
+    <footer>
+      <div class="fg">
+        <div>
+          <b style="font: 800 1.2rem Sora">StageTracks</b>
+          <p class="meta">Secuencias en vivo para Windows.</p>
+        </div>
+        <div>
+          <h4>Producto</h4>
+          <a href="#descargar">Descargar</a><a href="#reaper">Reaper</a>
+        </div>
+        <div>
+          <h4>Comunidad</h4>
+          <a href="#secuencias">Secuencias</a><a href="#">Subir</a>
+        </div>
+        <div>
+          <h4>Proyecto</h4>
+          <a href="#acerca">Acerca de</a><a href="#donar">Donar</a>
+        </div>
+      </div>
+      <small>© 2026 StageTracks — By Juan Camilo Mina</small>
+    </footer>
+    <dialog id="dg">
+      <form id="fm">
+        <h2 style="font-size: 1.6rem">Subir secuencia</h2>
+        <p class="meta">Completa los datos que verán todos en la comunidad.</p>
+        <label for="n">Nombre de la canción</label
+        ><input id="n" name="n" required maxlength="80" />
+        <label for="a">Grupo o autor original</label
+        ><input id="a" name="a" required maxlength="80" />
+        <div class="r2">
+          <div>
+            <label for="fk">Tonalidad</label
+            ><select id="fk" name="k" required></select>
+          </div>
+          <div>
+            <label for="b">BPM</label
+            ><input id="b" name="b" type="number" min="40" max="240" required />
+          </div>
+        </div>
+        <label for="fg">Género</label
+        ><select id="fg" name="g">
+          <option>Adoración</option>
+          <option>Gospel</option>
+          <option>Contemporáneo</option>
+          <option>Acústico</option>
+          <option>Rock</option>
+          <option>Otro</option>
+        </select>
+        <label for="meter">Compás</label
+        ><select id="meter" name="meter">
+          <option>4/4</option>
+          <option>2/4</option>
+          <option>3/4</option>
+          <option>5/4</option>
+          <option>6/4</option>
+          <option>7/4</option>
+          <option>3/8</option>
+          <option>6/8</option>
+          <option>9/8</option>
+          <option>12/8</option>
+        </select>
+        <label for="im">Carátula</label>
+        <div class="cover-tools">
+          <button class="btn o sm" type="button" id="coverSearch">
+            Buscar carátula automáticamente</button
+          ><span class="meta"
+            >Busca por canción y artista, o sube una imagen.</span
+          >
+        </div>
+        <div id="coverChoices" class="cover-choices"></div>
+        <input
+          id="im"
+          name="im"
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+        /><img
+          id="pvw"
+          alt="Vista previa de la carátula"
+          hidden
+          style="
+            width: 84px;
+            height: 84px;
+            object-fit: cover;
+            border-radius: 10px;
+            margin-top: 8px;
+          "
+        />
+        <label for="sq">Paquete de secuencia (.rpseq o .zip)</label
+        ><input
+          id="sq"
+          name="sq"
+          type="file"
+          accept=".rpseq,.zip,application/zip"
+          required
+        /><small class="meta"
+          >El paquete debe contener el manifiesto .rpseq y todos los audios que
+          utiliza (máximo 1 GB).</small
+        >
+        <p id="uploadStatus" class="meta" role="status" aria-live="polite"></p>
+        <div
+          style="
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 22px;
+          "
+        >
+          <button class="btn o" type="button" id="cx">Cancelar</button
+          ><button class="btn" type="submit">Publicar</button>
+        </div>
+      </form>
+    </dialog>
+    <button
+      class="feedback-fab"
+      id="feedbackOpen"
+      type="button"
+      aria-haspopup="dialog"
+    >
+      💬 Enviar sugerencia
+    </button>
+    <dialog id="feedbackDialog">
+      <form id="feedbackForm">
+        <h2>Cuéntanos tu idea</h2>
+        <p class="meta">
+          Puedes enviar recomendaciones o sugerencias de forma anónima. No
+          pedimos tu nombre ni tu correo.
+        </p>
+        <label for="feedbackMessage">Tu sugerencia</label
+        ><textarea
+          id="feedbackMessage"
+          name="message"
+          minlength="10"
+          maxlength="2000"
+          required
+          placeholder="¿Qué te gustaría que mejoráramos o agregáramos?"
+          rows="6"
+        ></textarea
+        ><label class="feedback-trap" aria-hidden="true"
+          >Deja este campo vacío<input
+            name="website"
+            tabindex="-1"
+            autocomplete="off"
+        /></label>
+        <p
+          id="feedbackStatus"
+          class="meta"
+          role="status"
+          aria-live="polite"
+        ></p>
+        <div class="feedback-actions">
+          <button class="btn o" id="feedbackCancel" type="button">
+            Cancelar</button
+          ><button class="btn" type="submit">Enviar sugerencia</button>
+        </div>
+      </form>
+    </dialog>
+    <script src="/community-config.js"></script>
+    <script src="/app.js" defer></script>
+  </body>
+</html>
