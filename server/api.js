@@ -12,9 +12,13 @@ const root = path.resolve(here, '..');
 const dataDir = path.resolve(process.env.COMMUNITY_DATA_DIR || path.join(here, 'data'));
 const packageDir = path.join(dataDir, 'packages');
 const coverDir = path.join(dataDir, 'covers');
+const incomingDir = path.join(dataDir, 'incoming');
 const indexFile = path.join(dataDir, 'sequences.json');
 const feedbackFile = path.join(dataDir, 'feedback.json');
 const feedbackAppsScriptUrl = String(process.env.FEEDBACK_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbzeM_yfegYr6_wtJ9KvNf0g4VF8PL25DnuV-hQFx0tw9ANIlPmejGYOCADnyywmPRnp6Q/exec').trim();
+const googleDriveAppsScriptUrl = String(process.env.GOOGLE_DRIVE_APPS_SCRIPT_URL || feedbackAppsScriptUrl).trim();
+const googleDriveAppsScriptToken = String(process.env.GOOGLE_DRIVE_APPS_SCRIPT_TOKEN || '').trim();
+const driveStorageEnabled = Boolean(googleDriveAppsScriptUrl && googleDriveAppsScriptToken);
 const port = Number(process.env.PORT || 47822);
 const host = process.env.HOST || '0.0.0.0';
 const maxUploadBytes = Number(process.env.MAX_UPLOAD_MB || 1024) * 1024 * 1024;
@@ -22,26 +26,78 @@ const allowedAudio = new Set(['mp3','wav','wave','flac','ogg','m4a','aif','aiff'
 const uploadsPerMinute = new Map();
 const feedbackPerMinute = new Map();
 
-await Promise.all([mkdir(packageDir, { recursive: true }), mkdir(coverDir, { recursive: true }), mkdir(path.join(dataDir, 'incoming'), { recursive: true })]);
+await Promise.all([mkdir(packageDir, { recursive: true }), mkdir(coverDir, { recursive: true }), mkdir(incomingDir, { recursive: true })]);
 let entries = [];
 try { entries = JSON.parse(await readFile(indexFile, 'utf8')); if (!Array.isArray(entries)) entries = []; } catch {}
 let feedbackEntries = [];
 try { feedbackEntries = JSON.parse(await readFile(feedbackFile, 'utf8')); if (!Array.isArray(feedbackEntries)) feedbackEntries = []; } catch {}
+
+async function driveStoreCall(action, data = {}) {
+  if (!driveStorageEnabled) throw new Error('Google Drive todavía no está configurado en la API.');
+  const response = await fetch(googleDriveAppsScriptUrl, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, token: googleDriveAppsScriptToken, ...data }),
+    signal: AbortSignal.timeout(30_000), redirect: 'follow',
+  });
+  let result = {};
+  try { result = await response.json(); } catch {}
+  if (!response.ok || result.ok !== true) throw new Error(result.error || `Google Drive respondió ${response.status}.`);
+  return result;
+}
+
+async function uploadFileToDrive(filePath, name, mimeType) {
+  const size = (await stat(filePath)).size;
+  const { uploadUrl } = await driveStoreCall('begin-upload', { name, mimeType, size });
+  if (!uploadUrl) throw new Error('Apps Script no devolvió una sesión de carga a Google Drive.');
+  const stream = createReadStream(filePath);
+  let response;
+  try {
+    response = await fetch(uploadUrl, {
+      method: 'PUT', headers: { 'Content-Length': String(size) }, body: stream, duplex: 'half',
+      signal: AbortSignal.timeout(10 * 60_000),
+    });
+  } catch (error) {
+    stream.destroy();
+    throw new Error(`No se pudo subir ${name} a Google Drive: ${error.message}`);
+  }
+  let uploaded = {};
+  try { uploaded = await response.json(); } catch {}
+  if (!response.ok || !uploaded.id) throw new Error(`Google Drive rechazó ${name} (${response.status}).`);
+  await driveStoreCall('finish-upload', { fileId: uploaded.id });
+  return uploaded.id;
+}
+
+async function removeStoredFile(fileId) {
+  if (!fileId) return;
+  if (driveStorageEnabled) await driveStoreCall('delete-file', { fileId });
+}
+
+if (driveStorageEnabled) {
+  const remoteState = await driveStoreCall('load-state');
+  entries = Array.isArray(remoteState.sequences) ? remoteState.sequences : [];
+  feedbackEntries = Array.isArray(remoteState.feedback) ? remoteState.feedback : [];
+}
 let writes = Promise.resolve();
 const persist = () => {
   writes = writes.then(async () => {
-    const tmp = indexFile + '.tmp';
-    await writeFile(tmp, JSON.stringify(entries, null, 2));
-    await rename(tmp, indexFile);
+    if (driveStorageEnabled) await driveStoreCall('save-sequences', { sequences: entries });
+    else {
+      const tmp = indexFile + '.tmp';
+      await writeFile(tmp, JSON.stringify(entries, null, 2));
+      await rename(tmp, indexFile);
+    }
   });
   return writes;
 };
 let feedbackWrites = Promise.resolve();
 const persistFeedback = () => {
   feedbackWrites = feedbackWrites.then(async () => {
-    const tmp = feedbackFile + '.tmp';
-    await writeFile(tmp, JSON.stringify(feedbackEntries, null, 2));
-    await rename(tmp, feedbackFile);
+    if (driveStorageEnabled) await driveStoreCall('save-feedback', { feedback: feedbackEntries });
+    else {
+      const tmp = feedbackFile + '.tmp';
+      await writeFile(tmp, JSON.stringify(feedbackEntries, null, 2));
+      await rename(tmp, feedbackFile);
+    }
   });
   return feedbackWrites;
 };
@@ -54,7 +110,7 @@ function rateLimit(req, res, next) {
 }
 
 const upload = multer({
-  dest: path.join(dataDir, 'incoming'),
+  dest: incomingDir,
   limits: { fileSize: maxUploadBytes, files: 2, fields: 12, fieldSize: 16_384 },
   fileFilter(_req, file, cb) {
     if (file.fieldname === 'package' && /\.(zip|rpseq)$/i.test(file.originalname)) return cb(null, true);
@@ -131,7 +187,15 @@ app.use((req, res, next) => {
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
-app.use('/media', express.static(coverDir, { fallthrough: false, maxAge: '1d' }));
+if (driveStorageEnabled) {
+  app.get('/media/:fileId', (req, res) => {
+    const fileId = String(req.params.fileId || '');
+    if (!entries.some((item) => item.coverDriveFileId === fileId)) return res.status(404).json({ error: 'No encontramos esa carátula.' });
+    res.redirect(302, `https://drive.google.com/uc?export=view&id=${encodeURIComponent(fileId)}`);
+  });
+} else {
+  app.use('/media', express.static(coverDir, { fallthrough: false, maxAge: '1d' }));
+}
 app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'StageTracks Community', version: 1 }));
 app.post('/api/feedback', async (req, res, next) => {
   const now = Date.now(), key = req.ip || req.socket.remoteAddress || 'unknown';
@@ -167,13 +231,18 @@ app.get('/api/sequences', (req, res) => {
   const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
   const results = entries.filter((item) => item.status === 'approved' && (!query || `${item.name} ${item.artist} ${item.key} ${item.genre}`.toLocaleLowerCase().includes(query)))
     .sort((a, b) => b.downloads - a.downloads || a.name.localeCompare(b.name)).slice(0, limit)
-    .map(({ id, name, artist, bpm, meter, key, genre, cover, downloads, fileSize, createdAt }) => ({ id, name, artist, bpm, meter, key, genre, cover: cover ? `/media/${cover}` : '', downloads, fileSize, createdAt }));
+    .map((item) => ({ id: item.id, name: item.name, artist: item.artist, bpm: item.bpm, meter: item.meter, key: item.key, genre: item.genre, cover: item.coverDriveFileId ? `/media/${item.coverDriveFileId}` : (item.cover ? `/media/${item.cover}` : ''), downloads: item.downloads, fileSize: item.fileSize, createdAt: item.createdAt }));
   res.json({ results, total: entries.filter((item) => item.status === 'approved' && (!query || `${item.name} ${item.artist} ${item.key} ${item.genre}`.toLocaleLowerCase().includes(query))).length });
 });
 app.get('/api/sequences/:id/download', async (req, res, next) => {
   const item = entries.find((row) => row.id === req.params.id && row.status === 'approved');
   if (!item) return res.status(404).json({ error: 'No encontramos esa secuencia.' });
   try {
+    if (driveStorageEnabled) {
+      if (!item.packageDriveFileId) return res.status(404).json({ error: 'El archivo de la secuencia ya no está disponible.' });
+      item.downloads++; await persist();
+      return res.redirect(302, `https://drive.google.com/uc?export=download&id=${encodeURIComponent(item.packageDriveFileId)}`);
+    }
     const file = path.join(packageDir, item.packageFile);
     await stat(file);
     item.downloads++; await persist();
@@ -182,6 +251,7 @@ app.get('/api/sequences/:id/download', async (req, res, next) => {
 });
 app.post('/api/sequences', rateLimit, upload.fields([{ name: 'package', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), async (req, res, next) => {
   const packageUpload = req.files?.package?.[0], coverUpload = req.files?.cover?.[0];
+  let packageDriveFileId = '', coverDriveFileId = '', tempCoverPath = '', itemId = '';
   try {
     if (!packageUpload) return res.status(400).json({ error: 'Adjunta el paquete de secuencia.' });
     const name = String(req.body.name || '').trim(), artist = String(req.body.artist || '').trim();
@@ -190,13 +260,16 @@ app.post('/api/sequences', rateLimit, upload.fields([{ name: 'package', maxCount
     if (!Number.isFinite(bpm) || bpm < 40 || bpm > 240 || !/^\d{1,2}\/(1|2|4|8|16|32)$/.test(meter)) throw new Error('Revisa el BPM y el compás.');
     const info = await inspectArchive(packageUpload.path);
     const id = randomUUID(), ext = path.extname(packageUpload.originalname).toLowerCase() === '.zip' ? '.zip' : '.rpseq';
+    itemId = id;
     const packageFile = `${id}${ext}`, downloadName = `${name.replace(/[\\/:*?"<>|]/g, '-').trim()}${ext}`;
-    await rename(packageUpload.path, path.join(packageDir, packageFile));
+    if (driveStorageEnabled) packageDriveFileId = await uploadFileToDrive(packageUpload.path, downloadName, 'application/octet-stream');
+    else await rename(packageUpload.path, path.join(packageDir, packageFile));
     let cover = '';
     if (coverUpload) {
       const coverExt = ({ 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' })[coverUpload.mimetype];
       if (!coverExt || coverUpload.size > 8 * 1024 * 1024) throw new Error('La carátula debe ser PNG/JPG/WebP de hasta 8 MB.');
-      cover = `${id}${coverExt}`; await rename(coverUpload.path, path.join(coverDir, cover));
+      if (driveStorageEnabled) coverDriveFileId = await uploadFileToDrive(coverUpload.path, `${id}${coverExt}`, coverUpload.mimetype);
+      else { cover = `${id}${coverExt}`; await rename(coverUpload.path, path.join(coverDir, cover)); }
     } else if (req.body.coverUrl) {
       let imageUrl;
       try { imageUrl = new URL(String(req.body.coverUrl)); } catch { throw new Error('La URL de la carátula no es válida.'); }
@@ -207,14 +280,21 @@ app.post('/api/sequences', rateLimit, upload.fields([{ name: 'package', maxCount
       if (!response.ok || !coverExt) throw new Error('No se pudo descargar la carátula seleccionada.');
       const bytes = Buffer.from(await response.arrayBuffer());
       if (bytes.length > 8 * 1024 * 1024) throw new Error('La carátula supera el límite de 8 MB.');
-      cover = `${id}${coverExt}`; await writeFile(path.join(coverDir, cover), bytes);
+      tempCoverPath = path.join(incomingDir, `${id}${coverExt}`);
+      await writeFile(tempCoverPath, bytes);
+      if (driveStorageEnabled) coverDriveFileId = await uploadFileToDrive(tempCoverPath, `${id}${coverExt}`, mime);
+      else { cover = `${id}${coverExt}`; await rename(tempCoverPath, path.join(coverDir, cover)); tempCoverPath = ''; }
     }
-    const item = { id, name, artist, bpm, meter, key: String(req.body.key || '').slice(0, 8), genre: String(req.body.genre || '').slice(0, 40), cover, packageFile, downloadName, fileSize: packageUpload.size, songCount: info.songCount, downloads: 0, status: process.env.AUTO_APPROVE === 'true' ? 'approved' : 'pending', createdAt: new Date().toISOString() };
+    const item = { id, name, artist, bpm, meter, key: String(req.body.key || '').slice(0, 8), genre: String(req.body.genre || '').slice(0, 40), cover, packageFile, packageDriveFileId, coverDriveFileId, downloadName, fileSize: packageUpload.size, songCount: info.songCount, downloads: 0, status: process.env.AUTO_APPROVE === 'true' ? 'approved' : 'pending', createdAt: new Date().toISOString() };
+    if (driveStorageEnabled && item.status === 'approved') await driveStoreCall('publish-files', { fileIds: [packageDriveFileId, coverDriveFileId].filter(Boolean) });
     entries.unshift(item); await persist();
     res.status(201).json({ id, status: item.status, message: item.status === 'approved' ? 'Secuencia publicada.' : 'Recibimos la secuencia. Quedará visible cuando la apruebe el equipo.' });
   } catch (error) {
+    if (itemId) entries = entries.filter((entry) => entry.id !== itemId);
+    await Promise.all([removeStoredFile(packageDriveFileId).catch(() => {}), removeStoredFile(coverDriveFileId).catch(() => {})]);
     if (packageUpload?.path) await unlink(packageUpload.path).catch(() => {});
     if (coverUpload?.path) await unlink(coverUpload.path).catch(() => {});
+    if (tempCoverPath) await unlink(tempCoverPath).catch(() => {});
     next(error);
   }
 });
@@ -237,13 +317,15 @@ app.delete('/api/admin/feedback/:id', adminAuth, async (req, res) => {
 app.post('/api/admin/sequences/:id/approve', adminAuth, async (req, res) => {
   const item = entries.find((row) => row.id === req.params.id);
   if (!item) return res.status(404).json({ error: 'No encontramos esa secuencia.' });
+  if (driveStorageEnabled) await driveStoreCall('publish-files', { fileIds: [item.packageDriveFileId, item.coverDriveFileId].filter(Boolean) });
   item.status = 'approved'; await persist(); res.json({ ok: true });
 });
 app.delete('/api/admin/sequences/:id', adminAuth, async (req, res) => {
   const index = entries.findIndex((row) => row.id === req.params.id);
   if (index < 0) return res.status(404).json({ error: 'No encontramos esa secuencia.' });
   const [item] = entries.splice(index, 1); await persist();
-  await Promise.all([unlink(path.join(packageDir, item.packageFile)).catch(() => {}), item.cover ? unlink(path.join(coverDir, item.cover)).catch(() => {}) : Promise.resolve()]);
+  if (driveStorageEnabled) await Promise.all([removeStoredFile(item.packageDriveFileId), removeStoredFile(item.coverDriveFileId)]);
+  else await Promise.all([unlink(path.join(packageDir, item.packageFile)).catch(() => {}), item.cover ? unlink(path.join(coverDir, item.cover)).catch(() => {}) : Promise.resolve()]);
   res.json({ ok: true });
 });
 

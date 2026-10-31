@@ -1,15 +1,16 @@
 # StageTracks: publicar en Vercel y conectar la API de Comunidad
 
-La pagina se despliega en Vercel como sitio estatico. La API de Comunidad es un servicio Node/Express separado: recibe secuencias, mantiene el indice JSON y guarda paquetes y caratulas en disco persistente.
+La pagina se despliega en Vercel como sitio estatico. La API de Comunidad corre en Render y usa Google Apps Script para guardar el indice, las sugerencias, los paquetes y las caratulas en una carpeta privada de Google Drive. Los archivos se comparten con enlace publico solo cuando una secuencia queda aprobada.
 
 ## Como queda conectado
 
 - Web: esta carpeta (raiz del repositorio) -> Vercel -> `dist/`.
-- API: `server/api.js` -> un servicio Node publico con almacenamiento persistente.
+- API: `server/api.js` -> `https://stagetracks-api.onrender.com`.
+- Datos duraderos: Google Apps Script -> carpeta `StageTracks Community` en el Drive de la cuenta que despliega el script.
 - La web llama a `${STAGETRACKS_COMMUNITY_API}/api/...` y `${STAGETRACKS_COMMUNITY_API}/media/...`.
 - `STAGETRACKS_COMMUNITY_API` es solo el origen, por ejemplo `https://stagetracks-api.onrender.com`. No agregues `/api` al final.
 
-No ejecutes esta API como Vercel Function para las publicaciones: el sitio admite paquetes de hasta 1 GB y las Vercel Functions limitan cada cuerpo de solicitud/respuesta a 4.5 MB. Ademas, este servidor guarda archivos en disco. Usa un servicio Node de larga duracion con un volumen persistente. [Limites de Vercel Functions](https://vercel.com/docs/functions/limitations)
+No ejecutes esta API como Vercel Function para las publicaciones: Vercel Functions limita cada cuerpo de solicitud/respuesta a 4.5 MB. Render recibe y valida el paquete; cuando se configura Apps Script, la API inicia una carga reanudable y transmite el archivo directamente a Drive. En el plan gratuito de Render el disco local es temporal, por eso los archivos finales no deben depender de ese disco. [Limites de Vercel Functions](https://vercel.com/docs/functions/limitations), [cargas reanudables de Drive](https://developers.google.com/workspace/drive/api/guides/manage-uploads)
 
 ## Preparar este proyecto para GitHub
 
@@ -26,27 +27,24 @@ Reemplaza la URL de ejemplo por la URL de tu repositorio. No agregues secretos, 
 
 ## 1. Publicar la API
 
-Este ejemplo usa un Web Service de Render. Puedes usar otro proveedor si admite Node.js 20.19 o posterior, solicitudes del tamano que configures y un disco persistente.
+La API ya esta desplegada como Web Service gratuito de Render desde el repositorio `Edu-space-IDC/StageTrack`, rama `main`. Su URL es `https://stagetracks-api.onrender.com`; el puerto lo proporciona Render.
 
-1. Sube el repositorio a GitHub y conecta ese repositorio en Render: **New > Web Service**.
-2. Si conectas el repositorio de esta carpeta, deja **Root Directory** en `.`.
-3. Configura **Runtime** `Node`, **Build Command** `npm ci` y **Start Command** `npm start`.
-4. En **Advanced**, agrega un disco persistente con punto de montaje `/var/data`. Elige capacidad para el indice, las caratulas y todos los paquetes que esperas recibir.
-5. Configura la comprobacion de salud en `/api/health`.
-6. Agrega estas variables en **Environment Variables** del servicio:
+1. En Render abre el servicio `stagetracks-api`.
+2. Confirma **Runtime** `Node`, **Build Command** `npm ci` y **Start Command** `npm start`.
+3. Agrega o conserva estas variables en **Environment Variables**:
 
 | Variable | Valor |
 | --- | --- |
 | `HOST` | `0.0.0.0` |
-| `COMMUNITY_DATA_DIR` | `/var/data/stagetracks` |
-| `MAX_UPLOAD_MB` | `1024` para permitir hasta 1 GB por paquete |
-| `CORS_ORIGIN` | El origen publico de la web, por ejemplo `https://tu-proyecto.vercel.app` |
+| `COMMUNITY_DATA_DIR` | `/tmp/stagetracks` para archivos temporales durante la validacion |
+| `MAX_UPLOAD_MB` | `100` en el servicio gratuito actual |
+| `CORS_ORIGIN` | `https://stagetrack-ten.vercel.app` |
 | `COMMUNITY_ADMIN_TOKEN` | Un token largo y privado para moderar publicaciones |
 | `AUTO_APPROVE` | `false` o deja la variable sin definir para revisar las publicaciones antes de mostrarlas |
 
-Render proporciona `PORT` automaticamente y el servidor lo utiliza. No fijes un puerto manual. El disco debe estar montado en `/var/data`; la API crea dentro `stagetracks/packages`, `stagetracks/covers` y `stagetracks/sequences.json`. Los discos persistentes de Render requieren un servicio de pago; sin disco, los cambios locales se pierden al reiniciar o desplegar. [Desplegar Node/Express en Render](https://render.com/docs/deploy-node-express-app), [Web Services](https://render.com/docs/web-services), [Persistent Disks](https://render.com/docs/disks).
+Render proporciona `PORT` automaticamente; no lo fijes manualmente. Sin la integracion de Drive, los datos locales de `/tmp/stagetracks` se pierden cuando Render duerme, se reinicia o se vuelve a desplegar. Render Free duerme despues de inactividad y no admite discos persistentes; la seccion siguiente configura Drive para conservar los datos. [Limites de Render Free](https://render.com/docs/free).
 
-Espera a que el servicio este activo y copia su URL publica HTTPS, por ejemplo `https://stagetracks-api.onrender.com`. Prueba estas rutas:
+La API activa es `https://stagetracks-api.onrender.com`. Prueba estas rutas:
 
 ```text
 https://stagetracks-api.onrender.com/api/health
@@ -55,7 +53,7 @@ https://stagetracks-api.onrender.com/api/sequences
 
 La primera debe devolver JSON con `"ok": true`; la segunda, `results` y `total`. Usa la URL base de este servicio en la siguiente seccion.
 
-**Tamano de las subidas:** `MAX_UPLOAD_MB` es el limite de la aplicacion. El proveedor tambien debe permitir solicitudes de ese tamano y duracion. Si tu proveedor limita las solicitudes, reduce `MAX_UPLOAD_MB` a ese limite o cambia la API para subir directamente a almacenamiento de objetos. No apuntes las subidas grandes a una Vercel Function.
+**Tamano de las subidas:** `MAX_UPLOAD_MB` limita el paquete recibido por Render. El servicio actual acepta hasta 100 MB; Drive usa una carga reanudable para guardar el archivo sin enviarlo en una solicitud de Apps Script de 100 MB.
 
 ## 2. Configurar el proyecto Vercel
 
@@ -114,92 +112,71 @@ Vuelve a cargar la comunidad; ya debe aparecer y poder descargarse. Los paquetes
 
 ### Donde se guardan las secuencias
 
-Las subidas no se guardan en Vercel ni en GitHub. La API las guarda en el directorio definido por `COMMUNITY_DATA_DIR`. En la configuracion recomendada de Render, el disco persistente esta montado en `/var/data` y el directorio de datos es `/var/data/stagetracks`:
+Cuando Apps Script queda configurado, la API guarda los datos en la cuenta Google que autorizó el script, dentro de la carpeta **StageTracks Community**:
 
-- Indice y estado de cada secuencia: `/var/data/stagetracks/sequences.json`.
-- Paquetes `.rpseq` y `.zip`: `/var/data/stagetracks/packages/`.
-- Portadas: `/var/data/stagetracks/covers/`.
-- Sugerencias: `/var/data/stagetracks/feedback.json`.
+- **sequences.json**: datos y estado de las secuencias.
+- **feedback.json**: sugerencias anónimas.
+- **files/**: paquetes .rpseq/.zip y carátulas.
 
-Si usas otro proveedor, revisa el valor de `COMMUNITY_DATA_DIR` y confirma que apunta a un volumen persistente. Sin ese disco, los archivos locales pueden borrarse al reiniciar o volver a desplegar la API.
+Los archivos permanecen privados mientras una publicación está pendiente. Al aprobarla, el script activa **Cualquier persona con el enlace puede ver** para el paquete y la carátula, porque la comunidad necesita descargarlos. La carpeta y los archivos de moderación siguen privados. El almacenamiento está sujeto al espacio disponible en la cuenta Google.
 
-En una ejecucion local sin `COMMUNITY_DATA_DIR`, la misma estructura queda dentro de `server/data/`.
+Hasta configurar Apps Script y sus variables en Render, la API sigue usando su carpeta temporal local. Ese almacenamiento se borra cuando Render Free suspende o reinicia el servicio.
 
-### Leer las sugerencias anónimas
+### Consultar y moderar sugerencias
 
-El botón flotante **Enviar sugerencia** guarda los mensajes en `feedback.json`, dentro de `COMMUNITY_DATA_DIR`. El formulario no pregunta nombre ni correo y la API no guarda la IP ni otros datos del visitante. Para consultar los mensajes, usa la terminal de PowerShell en tu computadora; no pongas el token en la web ni lo compartas:
+El botón **Enviar sugerencia** no pide nombre ni correo. Con la integración lista, la API guarda el mensaje en feedback.json de Drive y Apps Script lo reenvía a jminaq26@gmail.com.
+
+Para consultar sugerencias o secuencias pendientes, usa PowerShell. El token de moderación es el valor privado de COMMUNITY_ADMIN_TOKEN en Render:
 
 ```powershell
-$api = 'https://TU-API.onrender.com'
+$api = 'https://stagetracks-api.onrender.com'
 $token = Read-Host 'Token privado de COMMUNITY_ADMIN_TOKEN'
 $headers = @{ Authorization = "Bearer $token" }
 $feedback = Invoke-RestMethod -Uri "$api/api/admin/feedback" -Headers $headers
 $feedback.results | Format-List id, createdAt, message
+$pending = Invoke-RestMethod -Uri "$api/api/admin/pending" -Headers $headers
+$pending.results
 ```
 
-Reemplaza `https://TU-API.onrender.com` por la URL real de tu API. El token es el mismo `COMMUNITY_ADMIN_TOKEN` privado configurado en Render. Para borrar una sugerencia después de revisarla:
+Para borrar una sugerencia después de revisarla:
 
 ```powershell
 $id = 'ID_DE_LA_SUGERENCIA'
 Invoke-RestMethod -Method Delete -Uri "$api/api/admin/feedback/$id" -Headers $headers
 ```
 
-Las sugerencias se conservan entre despliegues si `COMMUNITY_DATA_DIR` está dentro del disco persistente de Render, como en `/var/data/stagetracks`. Si el disco no está montado, se perderán al reiniciar el servicio.
+### Conectar Google Drive y activar el correo de feedback
 
-### Enviar cada sugerencia a tu correo con Google Apps Script
+El código completo de Apps Script está en apps-script/Code.gs; sus permisos están en apps-script/appsscript.json. No pegues tokens en el sitio ni los subas a GitHub.
 
-La API ya tiene configurada la URL de Apps Script que compartiste. Apps Script manda el correo a `jminaq26@gmail.com`; tambien se conserva una copia en `feedback.json`.
+1. Abre el proyecto de Apps Script asociado a la URL que ya compartiste. Reemplaza el contenido de Code.gs por apps-script/Code.gs.
+2. En Project Settings, activa Show "appsscript.json" manifest file in editor y reemplaza ese archivo por apps-script/appsscript.json.
+3. En el editor, ejecuta authorizeServices una vez y acepta los permisos para Drive, solicitudes HTTPS y correo. El script crea StageTracks Community y files/ al recibir la primera llamada.
+4. En Project Settings > Script Properties, agrega:
+   - API_TOKEN: secreto compartido entre Apps Script y Render.
+   - FEEDBACK_RECIPIENT: jminaq26@gmail.com.
+5. Para generar un secreto en PowerShell, ejecuta este bloque y conserva el resultado para pegarlo en los dos servicios:
 
-1. Abre [script.google.com](https://script.google.com) con la cuenta Gmail donde quieres recibir las sugerencias y crea un proyecto.
-2. Reemplaza el contenido del editor por este codigo:
-
-```javascript
-const RECIPIENT = 'jminaq26@gmail.com';
-
-function doPost(e) {
-  try {
-    const data = JSON.parse(e.postData.contents || '{}');
-    const expected = PropertiesService.getScriptProperties().getProperty('FEEDBACK_TOKEN');
-    if (!expected || data.token !== expected) return output({ ok: false, error: 'Unauthorized' });
-    const message = String(data.message || '').trim();
-    if (message.length < 10 || message.length > 2000) return output({ ok: false, error: 'Invalid message' });
-    const date = String(data.createdAt || new Date().toISOString());
-    MailApp.sendEmail({
-      to: RECIPIENT,
-      subject: 'Nueva sugerencia para StageTracks',
-      body: 'Recibiste una sugerencia anonima para StageTracks.\n\n' + message + '\n\nFecha: ' + date + '\nID: ' + String(data.id || '')
-    });
-    return output({ ok: true });
-  } catch (error) {
-    return output({ ok: false, error: String(error) });
-  }
-}
-
-function output(value) {
-  return ContentService.createTextOutput(JSON.stringify(value))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-// Run this function once in the editor to authorize sending email.
-function authorizeMail() {
-  MailApp.getRemainingDailyQuota();
-}
+```powershell
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$bytes = New-Object byte[] 32
+$rng.GetBytes($bytes)
+$token = [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+$token
 ```
 
-3. En **Project Settings > Script Properties**, crea `FEEDBACK_TOKEN`. Pon como valor un secreto largo aleatorio (por ejemplo, 32 o mas caracteres). Usa exactamente ese mismo valor en Render, pero no lo incluyas en la pagina ni lo subas a GitHub.
-4. Ejecuta `authorizeMail` una vez desde el editor y acepta el permiso para enviar correo.
-5. Pulsa **Deploy > New deployment > Web app**. Elige **Execute as: Me** y **Who has access: Anyone**. El codigo valida el token compartido antes de enviar. Pulsa **Deploy** y copia la URL que termina en `/exec`.
-6. En Render, abre el servicio de la API y agrega estas variables privadas:
+6. En Apps Script, abre Deploy > Manage deployments > Edit en la implementación actual y selecciona New version. Déjala como Web app, Execute as: Me y Who has access: Anyone. Actualizar la implementación conserva la URL /exec que ya usa el proyecto.
+7. En Render > stagetracks-api > Environment, define estos valores privados. Usa la URL /exec que ya compartiste y el mismo secreto en ambas variables de token:
 
 | Variable | Valor |
 | --- | --- |
-| `FEEDBACK_APPS_SCRIPT_TOKEN` | El mismo secreto configurado como `FEEDBACK_TOKEN` en Apps Script |
+| GOOGLE_DRIVE_APPS_SCRIPT_URL | URL del Web App de Apps Script que termina en /exec |
+| GOOGLE_DRIVE_APPS_SCRIPT_TOKEN | El mismo secreto de API_TOKEN |
+| FEEDBACK_APPS_SCRIPT_TOKEN | El mismo secreto de API_TOKEN |
 
-La URL ya esta definida como destino predeterminado en `server/api.js`; si en el futuro cambia, puedes sobrescribirla con la variable opcional `FEEDBACK_APPS_SCRIPT_URL`.
+8. Guarda los cambios y redepliega stagetracks-api. Cuando /api/health responda correctamente, secuencias, carátulas e índice se guardarán en Drive. Envía una sugerencia de prueba desde la web y confirma que llegue al correo.
 
-7. Guarda el token y redepliega el servicio API de Render. Envia una sugerencia de prueba desde la web y confirma que llegue al correo. Si el correo falla, la API conserva el mensaje y la interfaz avisara que no se pudo enviar.
-
-Al editar el codigo de Apps Script mas adelante, crea una nueva version desde **Deploy > Manage deployments > Edit > New version**. Si generas otro token, actualizalo en ambos lugares.
+Si el correo no llega, confirma que API_TOKEN coincida exactamente con ambos tokens de Render, que ejecutaste authorizeServices y que FEEDBACK_RECIPIENT sea correcto. Al cambiar el código en el futuro, crea una nueva versión desde Manage deployments.
 
 ## 4. Desarrollo y prueba local
 
@@ -224,7 +201,7 @@ Antes de iniciar Vite, ejecuta `packaging/windows/build-release.ps1` desde la ra
 - **CORS o `Failed to fetch`:** confirma que `STAGETRACKS_COMMUNITY_API` sea el origen HTTPS base y que `CORS_ORIGIN` en la API sea el dominio de la web, sin `/` final. Guarda cambios y vuelve a desplegar la web.
 - **`404` en `/api/sequences`:** revisa que el servicio API este activo y que la variable no termine en `/api`; el codigo agrega esa ruta.
 - **`413 Payload Too Large`:** redujiste `MAX_UPLOAD_MB` o el proveedor tiene un limite de solicitud inferior. El limite de Vercel Functions es 4.5 MB, por eso las publicaciones van directamente al servicio Node externo.
-- **Las publicaciones desaparecen tras reiniciar:** el disco no esta conectado, o `COMMUNITY_DATA_DIR` no apunta dentro del punto de montaje persistente.
+- **Las publicaciones desaparecen tras reiniciar:** configura `GOOGLE_DRIVE_APPS_SCRIPT_URL` y `GOOGLE_DRIVE_APPS_SCRIPT_TOKEN` en Render, actualiza la implementación de Apps Script y confirma que la carpeta `StageTracks Community` aparezca en Drive.
 - **La publicacion se recibe pero no aparece:** con moderacion activada hay que aprobarla mediante `/api/admin/pending` y `/api/admin/sequences/:id/approve`.
 - **Los botones de instalador no descargan:** define sus variables `STAGETRACKS_*_URL` con enlaces HTTPS publicos y vuelve a desplegar Vercel.
 
