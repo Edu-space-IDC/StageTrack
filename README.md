@@ -210,3 +210,11 @@ Antes de iniciar Vite, ejecuta `packaging/windows/build-release.ps1` desde la ra
 `packaging/windows/ControlStudio/` contiene el proyecto original de escritorio .NET 8/WinForms/WebView2. `packaging/windows/build-release.ps1` integra allí la interfaz HTML y el icono actuales, publica el `.exe` con `dotnet publish`, crea el ZIP para REAPER con `__startup.lua`, `Reaper Control Studio.html`, `app-icon.png` y `LEEME-REAPER.txt`, y recompila StageTracks desde `web/studio.html`.
 
 En Vercel los ejecutables se eliminan de `dist/` porque se alojan como assets externos. Configura `STAGETRACKS_REAPER_STUDIO_EXE_URL` con la URL del ejecutable recién publicado para habilitar ese botón en producción.
+
+## Descargas publicadas: 0.5.2
+
+- [Instalador de StageTracks](https://github.com/Edu-space-IDC/StageTrack/releases/download/v0.5.2/StageTracks-Setup-windows-x64.exe)
+- [StageTracks portable](https://github.com/Edu-space-IDC/StageTrack/releases/download/v0.5.2/StageTracks-portable-windows-x64.zip)
+- [Reaper Control Studio](https://github.com/Edu-space-IDC/StageTrack/releases/download/v0.5.2/Reaper.Control.Studio.exe)
+
+La web de Vercel usa estos mismos enlaces en las variables `STAGETRACKS_INSTALLER_URL`, `STAGETRACKS_PORTABLE_URL` y `STAGETRACKS_REAPER_STUDIO_EXE_URL` para Production y Preview.
