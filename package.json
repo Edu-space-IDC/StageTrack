@@ -1,0 +1,27 @@
+{
+  "name": "stagetracks-official-site",
+  "version": "0.5.0",
+  "private": true,
+  "description": "Página oficial modular de StageTracks y API comunitaria de secuencias",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "api": "node server/api.js",
+    "start": "node server/api.js",
+    "vercel-build": "vite build"
+  },
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "dependencies": {
+    "express": "^5.3.0",
+    "multer": "^2.5.0",
+    "yauzl": "^3.4.0"
+  },
+  "devDependencies": {
+    "vite": "^8.3.5"
+  }
+}
