@@ -33,7 +33,7 @@ section{padding:10vh 5vw}h2{font-size:clamp(1.9rem,4vw,3rem);margin-bottom:12px}
 .c h3{font-size:1.25rem;margin-bottom:8px}.c p{color:var(--mu);margin:0 0 14px}.tag{font-size:.78rem;color:var(--bl);border:1px solid var(--bl);border-radius:99px;padding:2px 11px;display:inline-block;margin-bottom:12px}
 .rv{opacity:0;transform:translateY(30px);transition:.7s cubic-bezier(.2,.7,.2,1)}.rv.on{opacity:1;transform:none}
 .band{background:var(--s);border-block:1px solid var(--ln)}.two{display:grid;grid-template-columns:1fr 1.2fr;gap:4vw;align-items:center}@media(max-width:900px){.two{grid-template-columns:1fr}}
-.keys{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:18px}.keys button{aspect-ratio:1;background:var(--bg);border:1px solid var(--ln);border-radius:10px;color:var(--mu);font:600 1rem Sora;cursor:pointer;transition:.2s}
+.pad-demo-controls{display:flex;align-items:flex-start;gap:18px;width:100%;min-width:0;margin-top:18px}.pad-volume{flex:0 0 60px;min-width:0;text-align:center}.pad-volume input{display:block;width:24px;max-width:100%;margin:0 auto;padding:0}.keys{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;flex:1 1 0%;width:100%;min-width:0;margin-top:18px}.keys button{aspect-ratio:1;min-width:0;padding:4px;background:var(--bg);border:1px solid var(--ln);border-radius:10px;color:var(--mu);font:600 1rem Sora;cursor:pointer;transition:.2s}
 .keys button.on{background:var(--bl);color:var(--bt);box-shadow:0 0 28px var(--bl)}
 .flow{display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-family:Sora}.flow span{padding:12px 16px;border:1px solid var(--ln);border-radius:8px;background:var(--s)}.flow i{color:var(--bl);font-style:normal}
 .wide{border:1px solid var(--ln);border-radius:12px;margin-top:20px}
@@ -89,6 +89,12 @@ dialog::backdrop{background:#0009;backdrop-filter:blur(4px)}dialog label{display
   .hs{width:20px;height:20px}
   .g{grid-template-columns:minmax(0,1fr);gap:14px}
   .two{gap:24px}
+  .two>*{min-width:0}
+  .pad-demo-controls{gap:12px;align-items:flex-start}
+  .pad-volume{flex-basis:40px}
+  .pad-volume input{height:180px!important}
+  .keys{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:0}
+  .keys button{font-size:clamp(.78rem,3vw,.95rem)}
   .flow{align-items:stretch}
   .flow span{min-width:0;overflow-wrap:anywhere}
   #descargar .c .btn{display:flex;width:100%;justify-content:center;align-items:center;min-height:46px;margin:8px 0 0;text-align:center}
@@ -108,7 +114,7 @@ dialog::backdrop{background:#0009;backdrop-filter:blur(4px)}dialog label{display
   section{padding-inline:16px}
   .hero{padding-inline:12px}
   .hero h1{font-size:2.55rem}
-  .keys{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .keys{grid-template-columns:repeat(3,minmax(0,1fr))}
   .feedback-actions{flex-direction:column-reverse}
   .feedback-actions .btn{width:100%}
 }
