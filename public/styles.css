@@ -115,5 +115,21 @@ dialog::backdrop{background:#0009;backdrop-filter:blur(4px)}dialog label{display
 @media(hover:none){.c:hover{transform:none}.btn:hover{transform:none}.btn::after{display:none}}
 
 /* Llamado visible para apoyar el proyecto */
-nav ul li:last-child a{display:inline-block;padding:7px 13px;border-radius:8px;background:var(--bl);color:var(--bt);font-weight:600;box-shadow:0 4px 16px var(--gl)}nav ul li:last-child a:hover{background:var(--bd);color:#fff}
-.dn{padding-block:9vh;background:radial-gradient(800px 400px at 50% 100%,var(--gl),transparent 75%)}.donate-card{max-width:900px;margin:auto;padding:clamp(30px,6vw,64px) 24px;border:1px solid color-mix(in srgb,var(--bl),var(--ln) 45%);border-radius:24px;background:linear-gradient(140deg,var(--s),color-mix(in srgb,var(--bl),var(--s) 91%));box-shadow:0 22px 65px #0002}.donate-kicker{display:inline-block;margin-bottom:15px;padding:6px 13px;border-radius:99px;background:var(--gl);color:var(--bl);font-weight:700;font-size:.82rem;letter-spacing:.04em;text-transform:uppercase}.donate-card h2{max-width:740px;margin:0 auto 14px}.donate-card .ld{margin:0 auto 25px}.donate-button{font-size:1.08rem;padding:15px 26px;box-shadow:0 9px 28px var(--gl)}.donate-button:hover{transform:translateY(-3px) scale(1.02)}@media(max-width:860px){nav ul li:last-child a{padding:5px 10px}}
+.nav-priority{display:contents}.nav-donate{white-space:nowrap;box-shadow:0 4px 16px var(--gl)}.nav-donate:hover{background:var(--bd);color:#fff}.nav-more{display:none}
+.dn{padding-block:9vh;background:radial-gradient(800px 400px at 50% 100%,var(--gl),transparent 75%)}.donate-card{max-width:900px;margin:auto;padding:clamp(30px,6vw,64px) 24px;border:1px solid color-mix(in srgb,var(--bl),var(--ln) 45%);border-radius:24px;background:linear-gradient(140deg,var(--s),color-mix(in srgb,var(--bl),var(--s) 91%));box-shadow:0 22px 65px #0002}.donate-kicker{display:inline-block;margin-bottom:15px;padding:6px 13px;border-radius:99px;background:var(--gl);color:var(--bl);font-weight:700;font-size:.82rem;letter-spacing:.04em;text-transform:uppercase}.donate-card h2{max-width:740px;margin:0 auto 14px}.donate-card .ld{margin:0 auto 25px}.donate-button{font-size:1.08rem;padding:15px 26px;box-shadow:0 9px 28px var(--gl)}.donate-button:hover{transform:translateY(-3px) scale(1.02)}@media(max-width:860px){.nav-donate{padding:5px 10px}}
+
+
+/* Menu compacto para telefonos y tabletas estrechas */
+@media(max-width:700px){
+  nav{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;padding:10px max(14px,4vw)}
+  nav .lg{grid-column:1;grid-row:1;min-width:0;margin:0}
+  nav #th{grid-column:2;grid-row:1;min-width:42px;min-height:42px}
+  nav .nav-more{display:inline-flex;grid-column:3;grid-row:1;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:1px solid var(--ln);border-radius:8px;background:var(--s);color:var(--tx);font:700 1.6rem/1 Inter,system-ui,sans-serif;cursor:pointer;touch-action:manipulation}
+  nav .nav-priority{grid-column:1/-1;grid-row:2;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:100%}
+  nav .nav-priority .nav-donate,nav .nav-priority .nav-download{display:flex;align-items:center;justify-content:center;width:100%;min-width:0;min-height:44px;padding:8px 10px;text-align:center}
+  nav ul#navMenu{display:none;position:absolute;top:calc(100% + 7px);right:max(12px,env(safe-area-inset-right));z-index:60;order:initial;width:min(280px,calc(100vw - 24px));margin:0;padding:8px;flex-direction:column;flex-wrap:nowrap;gap:2px;overflow:visible;overflow-x:visible;border:1px solid var(--ln);border-radius:12px;background:var(--s);box-shadow:0 16px 42px #0004}
+  nav ul#navMenu.nav-open{display:flex}
+  nav ul#navMenu li{width:100%}
+  nav ul#navMenu a{display:block;padding:12px;border-radius:8px;color:var(--tx);white-space:normal}
+  nav ul#navMenu a:hover{background:var(--s2)}
+}

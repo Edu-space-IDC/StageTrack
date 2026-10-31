@@ -162,6 +162,18 @@ function setTheme(theme) { document.documentElement.dataset.theme = theme; theme
 let theme = "light"; try { theme = localStorage.getItem("th") || "light"; } catch {} setTheme(theme);
 themeButton.onclick = () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
 
+const navMenu = $("#navMenu"), navMore = $("#navMore");
+function closeNavMenu() { navMenu.classList.remove("nav-open"); navMore.setAttribute("aria-expanded", "false"); }
+navMore.onclick = () => {
+  const open = !navMenu.classList.contains("nav-open");
+  navMenu.classList.toggle("nav-open", open); navMore.setAttribute("aria-expanded", String(open));
+};
+navMenu.querySelectorAll("a").forEach((link) => link.addEventListener("click", closeNavMenu));
+document.addEventListener("click", (event) => { if (!event.target.closest("nav")) closeNavMenu(); });
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && navMenu.classList.contains("nav-open")) { closeNavMenu(); navMore.focus(); }
+});
+
 const dialog = $("#dg"), form = $("#fm"), coverInput = $("#im"), coverPreview = $("#pvw"), status = $("#uploadStatus");
 const feedbackDialog = $("#feedbackDialog"), feedbackForm = $("#feedbackForm"), feedbackStatus = $("#feedbackStatus");
 $("#feedbackOpen").onclick = () => { feedbackStatus.textContent = ""; feedbackStatus.className = "meta"; feedbackDialog.showModal(); };
