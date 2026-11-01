@@ -70,8 +70,11 @@ function saveJson_(name, value, mustBeArray) {
 }
 
 function beginUpload_(data) {
+  // Apps Script solo inicia la sesión resumible; el archivo se transmite desde
+  // la API directamente a Drive, por lo que este límite no es una carga POST de 1 GB.
+  const maxDriveUploadBytes = 1024 * 1024 * 1024;
   const size = Number(data.size);
-  if (!Number.isFinite(size) || size <= 0 || size > 110 * 1024 * 1024) throw new Error('El archivo supera el límite de carga configurado.');
+  if (!Number.isFinite(size) || size <= 0 || size > maxDriveUploadBytes) throw new Error('El archivo supera el límite de carga configurado (1 GB).');
   const name = String(data.name || '').replace(/[\\/:*?"<>|]/g, '-').slice(0, 180);
   const mimeType = String(data.mimeType || 'application/octet-stream').slice(0, 120);
   if (!name) throw new Error('Falta el nombre del archivo.');

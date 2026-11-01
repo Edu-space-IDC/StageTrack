@@ -167,7 +167,8 @@ $token
 ```
 
 6. En Apps Script, abre Deploy > Manage deployments > Edit en la implementación actual y selecciona New version. Déjala como Web app, Execute as: Me y Who has access: Anyone. Actualizar la implementación conserva la URL /exec que ya usa el proyecto.
-7. En Render > stagetracks-api > Environment, define estos valores privados. Usa la URL /exec que ya compartiste y el mismo secreto en ambas variables de token:
+7. **Para aceptar paquetes de hasta 1 GB**, vuelve a desplegar una nueva version despues de copiar el `Code.gs` actualizado. Apps Script solo inicia la sesion de carga; la API envia el archivo directamente a Drive. La version desplegada anteriormente rechazaba archivos mayores a 110 MB.
+8. En Render > stagetracks-api > Environment, define estos valores privados. Usa la URL /exec que ya compartiste y el mismo secreto en ambas variables de token:
 
 | Variable | Valor |
 | --- | --- |
