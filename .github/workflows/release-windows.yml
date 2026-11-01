@@ -56,7 +56,19 @@ jobs:
 
       - name: Build StageTracks, Reaper Control Studio, and installer
         shell: pwsh
-        run: ./packaging/windows/build-release.ps1
+        run: |
+          $ErrorActionPreference = 'Stop'
+          try {
+            ./packaging/windows/build-release.ps1
+          } catch {
+            $message = $_.Exception.Message
+            $stack = $_.ScriptStackTrace
+            $details = if ($stack) { "$message`n$stack" } else { $message }
+            $annotation = $details.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A').Replace(':', '%3A').Replace(',', '%2C')
+            Write-Output "::error title=Windows release build failed::$annotation"
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "## Windows release build failed`n`n````text`n$details`n````"
+            throw
+          }
 
       - name: Publish release assets
         shell: pwsh
