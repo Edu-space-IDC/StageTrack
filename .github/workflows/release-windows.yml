@@ -34,19 +34,22 @@ jobs:
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $archive = [System.IO.Compression.ZipFile]::OpenRead($archivePath)
           $root = [System.IO.Path]::GetFullPath($env:GITHUB_WORKSPACE)
+          $hasDefaultPads = $archive.Entries | Where-Object { $_.FullName.Replace('\', '/').StartsWith('Pads/Default/', [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
           try {
-            foreach ($entry in $archive.Entries | Where-Object { $_.FullName -like 'Pads/*' }) {
-              $relative = $entry.FullName.Replace('/', [System.IO.Path]::DirectorySeparatorChar)
+            foreach ($entry in $archive.Entries) {
+              $normalizedPath = $entry.FullName.Replace('\', '/')
+              if (-not $normalizedPath.StartsWith('Pads/', [System.StringComparison]::OrdinalIgnoreCase)) { continue }
+              $relative = $normalizedPath.Replace('/', [System.IO.Path]::DirectorySeparatorChar)
               $destination = [System.IO.Path]::GetFullPath((Join-Path $root $relative))
               if (-not $destination.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) { throw "Invalid archive path: $relative" }
-              if ($entry.FullName.EndsWith('/')) { [System.IO.Directory]::CreateDirectory($destination) | Out-Null; continue }
+              if ($normalizedPath.EndsWith('/')) { [System.IO.Directory]::CreateDirectory($destination) | Out-Null; continue }
               [System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($destination)) | Out-Null
               $source = $entry.Open()
               $target = [System.IO.File]::Create($destination)
               try { $source.CopyTo($target) } finally { $target.Dispose(); $source.Dispose() }
             }
           } finally { $archive.Dispose() }
-          if (-not (Test-Path (Join-Path $root 'Pads/Default'))) { throw 'Pad audio was not restored from the previous release.' }
+          if (-not $hasDefaultPads -or -not (Test-Path (Join-Path $root 'Pads/Default'))) { throw 'Pad audio was not restored from the previous release.' }
 
       - name: Install web dependencies
         run: npm ci
