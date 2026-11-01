@@ -56,8 +56,12 @@ $studioBuilt = Join-Path $studioPublish 'Reaper Control Studio.exe'
 if (-not (Test-Path -LiteralPath $studioBuilt)) { throw 'No se encontró el ejecutable compilado de Reaper Control Studio.' }
 Copy-Item -LiteralPath $studioBuilt -Destination $studioExe -Force
 $compilerArgs = @('/nologo','/target:winexe','/codepage:65001',('/out:"' + $targetName + '"'),('/win32icon:"' + $installerIcon + '"'),'/reference:System.Windows.Forms.dll','/reference:System.Drawing.dll','/reference:System.dll','/reference:System.IO.Compression.dll','/reference:System.IO.Compression.FileSystem.dll',('/resource:"' + $installerIcon + '",StageTracks.app-icon.ico'),('/resource:"' + (Join-Path $root 'assets/app-icon.png') + '",StageTracks.app-icon.png'),('/resource:"' + (Join-Path $installerStage 'StageTracks-portable-windows-x64.zip') + '",StageTracks.StageTracks-portable-windows-x64.zip'),('/resource:"' + (Join-Path $installerStage 'uninstall.ps1') + '",StageTracks.uninstall.ps1'),('"' + (Join-Path $PSScriptRoot 'InstallerBootstrap.cs') + '"'))
-& $csc @compilerArgs
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path $targetName)) { throw 'No se pudo compilar el instalador de StageTracks.' }
+$compilerOutput = & $csc @compilerArgs 2>&1
+$compilerExitCode = $LASTEXITCODE
+if ($compilerExitCode -ne 0 -or -not (Test-Path $targetName)) {
+    $compilerDiagnostic = ($compilerOutput | Out-String).Trim()
+    throw "No se pudo compilar el instalador de StageTracks (csc exit code $compilerExitCode). $compilerDiagnostic"
+}
 [ordered]@{version='0.5.3';portable='/downloads/StageTracks-portable-windows-x64.zip';installer='/downloads/StageTracks-Setup-windows-x64.exe';reaperStudioExe='/downloads/Reaper%20Control%20Studio.exe';updated=(Get-Date).ToUniversalTime().ToString('o')} | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $publicDownloads 'release.json')
 $publicAssets = Join-Path $site 'public/assets'
 Copy-Item -LiteralPath (Join-Path $root 'assets/app-icon.png') -Destination (Join-Path $publicAssets 'app-icon.png') -Force
