@@ -37,7 +37,8 @@ La API ya esta desplegada como Web Service gratuito de Render desde el repositor
 | --- | --- |
 | `HOST` | `0.0.0.0` |
 | `COMMUNITY_DATA_DIR` | `/tmp/stagetracks` para archivos temporales durante la validacion |
-| `MAX_UPLOAD_MB` | `100` en el servicio gratuito actual |
+| `MAX_UPLOAD_MB` | `100` para la ruta multipart antigua |
+| `MAX_CHUNKED_UPLOAD_MB` | `1024` para publicaciones de hasta 1 GB en bloques de 8 MB |
 | `CORS_ORIGIN` | `https://stagetrack-ten.vercel.app` |
 | `COMMUNITY_ADMIN_TOKEN` | Un token largo y privado para moderar publicaciones |
 | `AUTO_APPROVE` | `false` o deja la variable sin definir para revisar las publicaciones antes de mostrarlas |
@@ -53,7 +54,7 @@ https://stagetracks-api.onrender.com/api/sequences
 
 La primera debe devolver JSON con `"ok": true`; la segunda, `results` y `total`. Usa la URL base de este servicio en la siguiente seccion.
 
-**Tamano de las subidas:** `MAX_UPLOAD_MB` limita el paquete recibido por Render. El servicio actual acepta hasta 100 MB; Drive usa una carga reanudable para guardar el archivo sin enviarlo en una solicitud de Apps Script de 100 MB.
+**Tamano de las subidas:** la web envia paquetes de hasta 1 GB en bloques de 8 MB al servicio Node; configura `MAX_CHUNKED_UPLOAD_MB=1024` en Render. Render los guarda temporalmente en `COMMUNITY_DATA_DIR`, valida el ZIP y luego envia el archivo a Google Drive. El disco temporal debe tener espacio libre para el paquete completo y no conserva datos tras reiniciar o desplegar; Drive sigue siendo el almacenamiento permanente. La ruta multipart antigua conserva el limite `MAX_UPLOAD_MB`.
 
 ## 2. Configurar el proyecto Vercel
 
@@ -82,7 +83,7 @@ Las tres variables de descarga son opcionales para la Comunidad, pero necesarias
 `vite.config.js` inserta estas variables durante el build en `dist/community-config.js`. Son valores publicos que llegan al navegador: **no pongas** `COMMUNITY_ADMIN_TOKEN` ni otros secretos en Vercel para la web. El token de moderacion va unicamente en las variables privadas del servicio API.
 
 5. Pulsa **Deploy**. Despues de guardar o modificar variables, crea un nuevo deployment de Production para que Vite regenere la configuracion publica.
-6. Revisa que `CORS_ORIGIN` o `CORS_ORIGINS` en el servicio API contenga cada origen de Production de Vercel, separados por coma y sin rutas ni barras finales (por ejemplo, `https://stagetrack-ten.vercel.app,https://stagetrack-project.vercel.app`). Los dos dominios de StageTracks ya estan permitidos por la API. Si agregas otro dominio, anadelo a `CORS_ORIGINS` en Render y vuelve a desplegar la API.
+6. Revisa que `CORS_ORIGIN` o `CORS_ORIGINS` en el servicio API contenga cada origen de Production de Vercel, separados por coma y sin rutas ni barras finales (por ejemplo, `https://stagetrack-ten.vercel.app,https://stagetrack-project.vercel.app`). Los dos dominios de StageTracks ya estan permitidos por la API. Si agregas otro dominio, anadelo a `CORS_ORIGINS` en Render y vuelve a desplegar la API. StageTracks de escritorio usa origenes loopback en los puertos 47821-47840, tambien permitidos por la API.
 
 Puedes configurar la API sin variables de Vercel editando `public/community-config.js` y reemplazando `window.location.origin` con la URL base HTTPS de la API; despues guarda el cambio y vuelve a desplegar. Si defines una variable de Vercel, su valor sustituye la configuracion de ese archivo durante el build.
 
@@ -200,7 +201,7 @@ Antes de iniciar Vite, ejecuta `packaging/windows/build-release.ps1` desde la ra
 
 - **CORS o `Failed to fetch`:** confirma que `STAGETRACKS_COMMUNITY_API` sea el origen HTTPS base y que `CORS_ORIGIN` en la API sea el dominio de la web, sin `/` final. Guarda cambios y vuelve a desplegar la web.
 - **`404` en `/api/sequences`:** revisa que el servicio API este activo y que la variable no termine en `/api`; el codigo agrega esa ruta.
-- **`413 Payload Too Large`:** redujiste `MAX_UPLOAD_MB` o el proveedor tiene un limite de solicitud inferior. El limite de Vercel Functions es 4.5 MB, por eso las publicaciones van directamente al servicio Node externo.
+- **`413 Payload Too Large`:** confirma `MAX_CHUNKED_UPLOAD_MB=1024` en Render y que la web use la nueva carga por bloques. Cada bloque es de 8 MB y se envia directamente al servicio Node externo, no a una Vercel Function.
 - **Las publicaciones desaparecen tras reiniciar:** configura `GOOGLE_DRIVE_APPS_SCRIPT_URL` y `GOOGLE_DRIVE_APPS_SCRIPT_TOKEN` en Render, actualiza la implementación de Apps Script y confirma que la carpeta `StageTracks Community` aparezca en Drive.
 - **La publicacion se recibe pero no aparece:** con moderacion activada hay que aprobarla mediante `/api/admin/pending` y `/api/admin/sequences/:id/approve`.
 - **Los botones de instalador no descargan:** define sus variables `STAGETRACKS_*_URL` con enlaces HTTPS publicos y vuelve a desplegar Vercel.

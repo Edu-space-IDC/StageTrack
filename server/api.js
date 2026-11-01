@@ -3,7 +3,7 @@ import multer from 'multer';
 import yauzl from 'yauzl';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -22,6 +22,9 @@ const driveStorageEnabled = Boolean(googleDriveAppsScriptUrl && googleDriveAppsS
 const port = Number(process.env.PORT || 47822);
 const host = process.env.HOST || '0.0.0.0';
 const maxUploadBytes = Number(process.env.MAX_UPLOAD_MB || 1024) * 1024 * 1024;
+const maxChunkedUploadBytes = Number(process.env.MAX_CHUNKED_UPLOAD_MB || 1024) * 1024 * 1024;
+const uploadChunkBytes = 8 * 1024 * 1024;
+const sequenceUploadSessions = new Map();
 const allowedAudio = new Set(['mp3','wav','wave','flac','ogg','m4a','aif','aiff','wma']);
 const uploadsPerMinute = new Map();
 const feedbackPerMinute = new Map();
@@ -54,7 +57,7 @@ async function uploadFileToDrive(filePath, name, mimeType) {
   try {
     response = await fetch(uploadUrl, {
       method: 'PUT', headers: { 'Content-Length': String(size) }, body: stream, duplex: 'half',
-      signal: AbortSignal.timeout(10 * 60_000),
+      signal: AbortSignal.timeout(90 * 60_000),
     });
   } catch (error) {
     stream.destroy();
@@ -184,12 +187,20 @@ const allowedCorsOrigins = new Set([
   ...String(process.env.CORS_ORIGINS || '').split(','),
   'https://stagetrack-project.vercel.app',
 ].map((origin) => origin.trim()).filter(Boolean));
+function isStageTracksLoopbackOrigin(origin) {
+  try {
+    const url = new URL(origin);
+    const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname.toLowerCase());
+    const port = Number(url.port);
+    return url.protocol === 'http:' && loopback && port >= 47821 && port <= 47840;
+  } catch { return false; }
+}
 app.use((req, res, next) => {
   const origin = req.get('Origin');
   if (!origin || allowedCorsOrigins.has('*')) res.setHeader('Access-Control-Allow-Origin', '*');
-  else if (allowedCorsOrigins.has(origin)) res.setHeader('Access-Control-Allow-Origin', origin);
+  else if (allowedCorsOrigins.has(origin) || isStageTracksLoopbackOrigin(origin)) res.setHeader('Access-Control-Allow-Origin', origin);
   res.vary('Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,Range');
   res.setHeader('Access-Control-Expose-Headers', 'Content-Length,Content-Disposition,Content-Range,Accept-Ranges');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
@@ -257,8 +268,7 @@ app.get('/api/sequences/:id/download', async (req, res, next) => {
     res.download(file, item.downloadName, (error) => { if (error && !res.headersSent) next(error); });
   } catch { res.status(404).json({ error: 'El archivo de la secuencia ya no está disponible.' }); }
 });
-app.post('/api/sequences', rateLimit, upload.fields([{ name: 'package', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), async (req, res, next) => {
-  const packageUpload = req.files?.package?.[0], coverUpload = req.files?.cover?.[0];
+async function processSequenceUpload(req, res, next, packageUpload, coverUpload) {
   let packageDriveFileId = '', coverDriveFileId = '', tempCoverPath = '', itemId = '';
   try {
     if (!packageUpload) return res.status(400).json({ error: 'Adjunta el paquete de secuencia.' });
@@ -296,6 +306,7 @@ app.post('/api/sequences', rateLimit, upload.fields([{ name: 'package', maxCount
     const item = { id, name, artist, bpm, meter, key: String(req.body.key || '').slice(0, 8), genre: String(req.body.genre || '').slice(0, 40), cover, packageFile, packageDriveFileId, coverDriveFileId, downloadName, fileSize: packageUpload.size, songCount: info.songCount, downloads: 0, status: process.env.AUTO_APPROVE === 'true' ? 'approved' : 'pending', createdAt: new Date().toISOString() };
     if (driveStorageEnabled && item.status === 'approved') await driveStoreCall('publish-files', { fileIds: [packageDriveFileId, coverDriveFileId].filter(Boolean) });
     entries.unshift(item); await persist();
+    await Promise.all([packageUpload.path, coverUpload?.path].filter(Boolean).map((filePath) => unlink(filePath).catch(() => {})));
     res.status(201).json({ id, status: item.status, message: item.status === 'approved' ? 'Secuencia publicada.' : 'Recibimos la secuencia. Quedará visible cuando la apruebe el equipo.' });
   } catch (error) {
     if (itemId) entries = entries.filter((entry) => entry.id !== itemId);
@@ -305,6 +316,68 @@ app.post('/api/sequences', rateLimit, upload.fields([{ name: 'package', maxCount
     if (tempCoverPath) await unlink(tempCoverPath).catch(() => {});
     next(error);
   }
+}
+
+app.post('/api/sequences', rateLimit, upload.fields([{ name: 'package', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), (req, res, next) =>
+  processSequenceUpload(req, res, next, req.files?.package?.[0], req.files?.cover?.[0])
+);
+
+function removeSequenceUploadSession(id) {
+  const session = sequenceUploadSessions.get(id);
+  if (!session) return;
+  sequenceUploadSessions.delete(id);
+  for (const file of Object.values(session.files)) unlink(file.path).catch(() => {});
+}
+
+setInterval(() => {
+  const expiredBefore = Date.now() - 2 * 60 * 60_000;
+  for (const [id, session] of sequenceUploadSessions) if (session.createdAt < expiredBefore) removeSequenceUploadSession(id);
+}, 10 * 60_000).unref();
+
+app.post('/api/sequences/uploads', rateLimit, (req, res) => {
+  const packageSize = Number(req.body?.packageSize), coverSize = Number(req.body?.coverSize || 0);
+  if (!Number.isSafeInteger(packageSize) || packageSize < 1 || packageSize > maxChunkedUploadBytes) return res.status(413).json({ error: `El paquete debe pesar hasta ${Math.floor(maxChunkedUploadBytes / 1024 ** 3)} GB.` });
+  if (!Number.isSafeInteger(coverSize) || coverSize < 0 || coverSize > 8 * 1024 * 1024) return res.status(413).json({ error: 'La carátula debe pesar hasta 8 MB.' });
+  const metadata = { ...req.body };
+  delete metadata.packageSize; delete metadata.coverSize;
+  const id = randomUUID();
+  const files = {
+    package: { name: String(req.body.packageName || 'sequence.rpseq').slice(0, 180), size: packageSize, path: path.join(incomingDir, `${id}.package.part`), received: 0, nextPart: 0 },
+  };
+  if (coverSize) files.cover = { name: String(req.body.coverName || 'cover.png').slice(0, 180), size: coverSize, path: path.join(incomingDir, `${id}.cover.part`), received: 0, nextPart: 0 };
+  sequenceUploadSessions.set(id, { id, metadata, files, createdAt: Date.now() });
+  Promise.all(Object.values(files).map((file) => writeFile(file.path, Buffer.alloc(0)))).then(() => {
+    if (!res.headersSent) res.status(201).json({ uploadId: id, chunkSize: uploadChunkBytes });
+  }).catch((error) => { removeSequenceUploadSession(id); if (!res.headersSent) res.status(500).json({ error: `No se pudo preparar la carga: ${error.message}` }); });
+});
+
+app.put('/api/sequences/uploads/:id/:field/:part', express.raw({ type: 'application/octet-stream', limit: `${uploadChunkBytes}b` }), async (req, res) => {
+  const session = sequenceUploadSessions.get(req.params.id), field = req.params.field, file = session?.files[field], part = Number(req.params.part);
+  if (!session || !file) return res.status(404).json({ error: 'La sesión de carga venció. Inicia la publicación otra vez.' });
+  if (!Number.isSafeInteger(part) || part !== file.nextPart) return res.status(409).json({ error: 'El bloque no llegó en el orden esperado.' });
+  if (!Buffer.isBuffer(req.body) || req.body.length < 1 || req.body.length > uploadChunkBytes || file.received + req.body.length > file.size) return res.status(400).json({ error: 'El bloque de archivo no es válido.' });
+  try {
+    await appendFile(file.path, req.body);
+    file.received += req.body.length; file.nextPart++;
+    res.json({ received: file.received, total: file.size });
+  } catch (error) { res.status(500).json({ error: `No se pudo guardar un bloque: ${error.message}` }); }
+});
+
+app.post('/api/sequences/uploads/:id/complete', rateLimit, async (req, res, next) => {
+  const session = sequenceUploadSessions.get(req.params.id);
+  if (!session) return res.status(404).json({ error: 'La sesión de carga venció. Inicia la publicación otra vez.' });
+  const incomplete = Object.values(session.files).find((file) => file.received !== file.size);
+  if (incomplete) return res.status(400).json({ error: `La carga de ${incomplete.name} está incompleta.` });
+  sequenceUploadSessions.delete(session.id);
+  const packageFile = session.files.package;
+  const packageUpload = { path: packageFile.path, originalname: packageFile.name, size: packageFile.size, mimetype: 'application/octet-stream' };
+  const coverFile = session.files.cover;
+  const coverUpload = coverFile ? { path: coverFile.path, originalname: coverFile.name, size: coverFile.size, mimetype: ({ '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' })[path.extname(coverFile.name).toLowerCase()] || 'application/octet-stream' } : undefined;
+  req.body = session.metadata;
+  await processSequenceUpload(req, res, (error) => {
+    for (const file of Object.values(session.files)) unlink(file.path).catch(() => {});
+    next(error);
+  }, packageUpload, coverUpload);
 });
 
 function adminAuth(req, res, next) {

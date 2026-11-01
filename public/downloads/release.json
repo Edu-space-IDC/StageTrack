@@ -1,7 +1,7 @@
 ﻿{
-    "version":  "0.5.2",
+    "version":  "0.5.3",
     "portable":  "/downloads/StageTracks-portable-windows-x64.zip",
     "installer":  "/downloads/StageTracks-Setup-windows-x64.exe",
     "reaperStudioExe":  "/downloads/Reaper%20Control%20Studio.exe",
-    "updated":  "2026-10-31T23:21:35.7696065Z"
+    "updated":  "2026-11-01T01:20:01.8303953Z"
 }

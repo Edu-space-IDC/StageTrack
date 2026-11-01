@@ -2,6 +2,7 @@ const $ = (selector) => document.querySelector(selector);
 const PAD_KEYS = "C Db D Eb E F Gb G Ab A Bb B".split(" ");
 const KEYS = "C C# Db D D# Eb E F F# Gb G G# Ab A A# Bb B Cm C#m Dbm Dm D#m Ebm Em Fm F#m Gbm Gm G#m Abm Am A#m Bbm Bm".split(" ");
 const API = String(window.STAGETRACKS_COMMUNITY_API || window.location.origin).replace(/\/+$/, "");
+const MAX_COMMUNITY_UPLOAD_BYTES = 1024 * 1024 * 1024;
 let sequences = [];
 let searchTimer = 0;
 let selectedCoverUrl = "";
@@ -225,20 +226,59 @@ $("#coverSearch").onclick = async () => {
   } catch { status.textContent = "No se pudo buscar la carátula ahora. Puedes subir una imagen."; }
   finally { button.disabled = false; button.textContent = "Buscar carátula automáticamente"; }
 };
+async function uploadCommunitySequence(metadata, packageFile, coverFile, status) {
+  const totalBytes = packageFile.size + (coverFile?.size || 0);
+  const start = await fetch(`${API}/api/sequences/uploads`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...metadata, packageSize: packageFile.size, packageName: packageFile.name, coverSize: coverFile?.size || 0, coverName: coverFile?.name || "" }),
+  });
+  const session = await start.json().catch(() => ({}));
+  if (!start.ok) throw new Error(session.error || `La API respondió HTTP ${start.status}.`);
+  let sentBytes = 0;
+  const files = [{ field: "package", file: packageFile }, ...(coverFile ? [{ field: "cover", file: coverFile }] : [])];
+  for (const { field, file } of files) {
+    const parts = Math.ceil(file.size / session.chunkSize);
+    for (let part = 0; part < parts; part++) {
+      const blob = file.slice(part * session.chunkSize, Math.min(file.size, (part + 1) * session.chunkSize));
+      await new Promise((resolve, reject) => {
+        const request = new XMLHttpRequest();
+        request.open("PUT", `${API}/api/sequences/uploads/${session.uploadId}/${field}/${part}`);
+        request.timeout = 10 * 60 * 1000;
+        request.upload.onprogress = (event) => {
+          const current = sentBytes + (event.lengthComputable ? event.loaded : 0);
+          status.textContent = `Subiendo ${Math.min(100, Math.round(current / totalBytes * 100))} % (${field === "package" ? "paquete" : "carátula"})…`;
+        };
+        request.onload = () => {
+          let result = {};
+          try { result = JSON.parse(request.responseText || "{}"); } catch {}
+          if (request.status < 200 || request.status >= 300) { reject(new Error(result.error || `La API respondió HTTP ${request.status}.`)); return; }
+          sentBytes += blob.size; resolve();
+        };
+        request.onerror = () => reject(new Error("Se perdió la conexión con la API. Revisa internet e inténtalo otra vez."));
+        request.ontimeout = () => reject(new Error("Un bloque tardó demasiado. Revisa tu conexión y vuelve a intentarlo."));
+        request.send(blob);
+      });
+    }
+  }
+  status.textContent = "Archivo recibido. Validando la secuencia y guardándola en Drive…";
+  const complete = await fetch(`${API}/api/sequences/uploads/${session.uploadId}/complete`, { method: "POST" });
+  const result = await complete.json().catch(() => ({}));
+  if (!complete.ok) throw new Error(result.error || `La API respondió HTTP ${complete.status}.`);
+  return result;
+}
+
 form.onsubmit = async (event) => {
   event.preventDefault();
   const file = $("#sq").files[0], publish = form.querySelector('button[type="submit"]');
   if (!file) { status.textContent = "Adjunta un paquete de secuencia .rpseq o .zip."; return; }
-  if (file.size > 1024 ** 3) { status.textContent = "El archivo supera el límite de 1 GB."; return; }
-  const body = new FormData();
-  body.set("name", $("#n").value.trim()); body.set("artist", $("#a").value.trim());
-  body.set("key", $("#fk").value); body.set("bpm", $("#b").value); body.set("meter", $("#meter").value);
-  body.set("genre", $("#fg").value); body.set("package", file);
-  if (coverInput.files[0]) body.set("cover", coverInput.files[0]); else if (selectedCoverUrl) body.set("coverUrl", selectedCoverUrl);
-  publish.disabled = true; status.textContent = "Validando y subiendo la secuencia…";
+  if (file.size > MAX_COMMUNITY_UPLOAD_BYTES) { status.textContent = "El paquete supera el límite de 1 GB."; return; }
+  const coverFile = coverInput.files[0] || null;
+  if (coverFile?.size > 8 * 1024 * 1024) { status.textContent = "La carátula debe pesar hasta 8 MB."; return; }
+  const metadata = { name: $("#n").value.trim(), artist: $("#a").value.trim(), key: $("#fk").value, bpm: $("#b").value, meter: $("#meter").value, genre: $("#fg").value };
+  if (!coverFile && selectedCoverUrl) metadata.coverUrl = selectedCoverUrl;
+  publish.disabled = true; status.textContent = "Preparando la carga…";
   try {
-    const response = await fetch(`${API}/api/sequences`, { method: "POST", body });
-    const result = await response.json(); if (!response.ok) throw new Error(result.error || "No se pudo publicar la secuencia.");
+    const result = await uploadCommunitySequence(metadata, file, coverFile, status);
     status.textContent = result.message; await refreshCommunity($("#q").value.trim());
     if (result.status === "approved") { form.reset(); coverPreview.hidden = true; $("#coverChoices").replaceChildren(); selectedCoverUrl = ""; setTimeout(() => dialog.close(), 900); }
   } catch (error) { status.textContent = error.message || "No se pudo conectar con la comunidad."; }
