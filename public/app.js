@@ -243,6 +243,7 @@ async function uploadCommunitySequence(metadata, packageFile, coverFile, status)
       await new Promise((resolve, reject) => {
         const request = new XMLHttpRequest();
         request.open("PUT", `${API}/api/sequences/uploads/${session.uploadId}/${field}/${part}`);
+        request.setRequestHeader("Content-Type", "application/octet-stream");
         request.timeout = 10 * 60 * 1000;
         request.upload.onprogress = (event) => {
           const current = sentBytes + (event.lengthComputable ? event.loaded : 0);

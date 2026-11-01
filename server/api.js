@@ -351,7 +351,7 @@ app.post('/api/sequences/uploads', rateLimit, (req, res) => {
   }).catch((error) => { removeSequenceUploadSession(id); if (!res.headersSent) res.status(500).json({ error: `No se pudo preparar la carga: ${error.message}` }); });
 });
 
-app.put('/api/sequences/uploads/:id/:field/:part', express.raw({ type: 'application/octet-stream', limit: `${uploadChunkBytes}b` }), async (req, res) => {
+app.put('/api/sequences/uploads/:id/:field/:part', express.raw({ type: () => true, limit: `${uploadChunkBytes}b` }), async (req, res) => {
   const session = sequenceUploadSessions.get(req.params.id), field = req.params.field, file = session?.files[field], part = Number(req.params.part);
   if (!session || !file) return res.status(404).json({ error: 'La sesión de carga venció. Inicia la publicación otra vez.' });
   if (!Number.isSafeInteger(part) || part !== file.nextPart) return res.status(409).json({ error: 'El bloque no llegó en el orden esperado.' });
