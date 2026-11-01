@@ -25,6 +25,26 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Install WebView2 SDK required by JUCE
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '1.0.3485.44'
+          $packagesRoot = Join-Path $env:USERPROFILE 'AppData/Local/PackageManagement/NuGet/Packages'
+          $packageRoot = Join-Path $packagesRoot "Microsoft.Web.WebView2.$version"
+          $header = Join-Path $packageRoot 'build/native/include/WebView2.h'
+          if (-not (Test-Path -LiteralPath $header)) {
+            $packageFile = Join-Path $env:RUNNER_TEMP "Microsoft.Web.WebView2.$version.nupkg"
+            $extractRoot = Join-Path $env:RUNNER_TEMP 'webview2-sdk-extract'
+            Invoke-WebRequest -Uri "https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/$version/microsoft.web.webview2.$version.nupkg" -OutFile $packageFile
+            if (Test-Path -LiteralPath $extractRoot) { Remove-Item -LiteralPath $extractRoot -Recurse -Force }
+            New-Item -ItemType Directory -Force -Path $extractRoot, $packageRoot | Out-Null
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            [System.IO.Compression.ZipFile]::ExtractToDirectory($packageFile, $extractRoot)
+            Get-ChildItem -LiteralPath $extractRoot | Copy-Item -Destination $packageRoot -Recurse -Force
+          }
+          if (-not (Test-Path -LiteralPath $header)) { throw "WebView2 SDK $version was not installed correctly." }
+
       - name: Restore bundled pad audio from previous release
         shell: pwsh
         run: |
