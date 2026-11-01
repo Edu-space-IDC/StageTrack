@@ -1,0 +1,70 @@
+name: Build and publish Windows release
+
+on:
+  push:
+    tags:
+      - 'v0.5.3'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-2022
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore bundled pad audio from previous release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archivePath = Join-Path $env:RUNNER_TEMP 'stagetracks-previous-portable.zip'
+          Invoke-WebRequest -Uri 'https://github.com/Edu-space-IDC/StageTrack/releases/download/v0.5.2/StageTracks-portable-windows-x64.zip' -OutFile $archivePath
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($archivePath)
+          $root = [System.IO.Path]::GetFullPath($env:GITHUB_WORKSPACE)
+          try {
+            foreach ($entry in $archive.Entries | Where-Object { $_.FullName -like 'Pads/*' }) {
+              $relative = $entry.FullName.Replace('/', [System.IO.Path]::DirectorySeparatorChar)
+              $destination = [System.IO.Path]::GetFullPath((Join-Path $root $relative))
+              if (-not $destination.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) { throw "Invalid archive path: $relative" }
+              if ($entry.FullName.EndsWith('/')) { [System.IO.Directory]::CreateDirectory($destination) | Out-Null; continue }
+              [System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($destination)) | Out-Null
+              $source = $entry.Open()
+              $target = [System.IO.File]::Create($destination)
+              try { $source.CopyTo($target) } finally { $target.Dispose(); $source.Dispose() }
+            }
+          } finally { $archive.Dispose() }
+          if (-not (Test-Path (Join-Path $root 'Pads/Default'))) { throw 'Pad audio was not restored from the previous release.' }
+
+      - name: Install web dependencies
+        run: npm ci
+
+      - name: Build StageTracks, Reaper Control Studio, and installer
+        shell: pwsh
+        run: ./packaging/windows/build-release.ps1
+
+      - name: Publish release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          gh release create $env:GITHUB_REF_NAME `
+            'release-artifacts/StageTracks-Setup-windows-x64.exe' `
+            'release-artifacts/StageTracks-portable-windows-x64.zip' `
+            'release-artifacts/Reaper Control Studio.exe' `
+            --repo $env:GITHUB_REPOSITORY `
+            --title 'StageTracks 0.5.3' `
+            --notes 'Incluye conexión funcional con la comunidad, búsqueda y descarga de secuencias, y publicación de paquetes .rpseq/.zip desde StageTracks.'
