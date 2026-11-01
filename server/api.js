@@ -179,8 +179,16 @@ function inspectArchive(filePath) {
 const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '8kb' }));
+const allowedCorsOrigins = new Set([
+  ...String(process.env.CORS_ORIGIN || '').split(','),
+  ...String(process.env.CORS_ORIGINS || '').split(','),
+  'https://stagetrack-project.vercel.app',
+].map((origin) => origin.trim()).filter(Boolean));
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', process.env.CORS_ORIGIN || '*');
+  const origin = req.get('Origin');
+  if (!origin || allowedCorsOrigins.has('*')) res.setHeader('Access-Control-Allow-Origin', '*');
+  else if (allowedCorsOrigins.has(origin)) res.setHeader('Access-Control-Allow-Origin', origin);
+  res.vary('Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,Range');
   res.setHeader('Access-Control-Expose-Headers', 'Content-Length,Content-Disposition,Content-Range,Accept-Ranges');

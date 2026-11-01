@@ -82,7 +82,7 @@ Las tres variables de descarga son opcionales para la Comunidad, pero necesarias
 `vite.config.js` inserta estas variables durante el build en `dist/community-config.js`. Son valores publicos que llegan al navegador: **no pongas** `COMMUNITY_ADMIN_TOKEN` ni otros secretos en Vercel para la web. El token de moderacion va unicamente en las variables privadas del servicio API.
 
 5. Pulsa **Deploy**. Despues de guardar o modificar variables, crea un nuevo deployment de Production para que Vite regenere la configuracion publica.
-6. Copia el dominio de Production que Vercel asigno al sitio y revisa que `CORS_ORIGIN` en el servicio API coincida exactamente con ese origen: `https://tu-proyecto.vercel.app`, sin ruta ni barra final. Si usas un dominio propio, configura ese dominio canonico en `CORS_ORIGIN` y en las variables de Vercel.
+6. Revisa que `CORS_ORIGIN` o `CORS_ORIGINS` en el servicio API contenga cada origen de Production de Vercel, separados por coma y sin rutas ni barras finales (por ejemplo, `https://stagetrack-ten.vercel.app,https://stagetrack-project.vercel.app`). Los dos dominios de StageTracks ya estan permitidos por la API. Si agregas otro dominio, anadelo a `CORS_ORIGINS` en Render y vuelve a desplegar la API.
 
 Puedes configurar la API sin variables de Vercel editando `public/community-config.js` y reemplazando `window.location.origin` con la URL base HTTPS de la API; despues guarda el cambio y vuelve a desplegar. Si defines una variable de Vercel, su valor sustituye la configuracion de ese archivo durante el build.
 
