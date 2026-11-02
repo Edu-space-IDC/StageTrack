@@ -284,9 +284,9 @@ $("#coverSearch").onclick = async () => {
 async function uploadCommunitySequence(metadata, packageFile, coverFile, status) {
   const totalBytes = packageFile.size + (coverFile?.size || 0);
   const start = await fetch(`${API}/api/sequences/uploads`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
+    method: "POST", mode: "cors", credentials: "omit", cache: "no-store", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...metadata, packageSize: packageFile.size, packageName: packageFile.name, coverSize: coverFile?.size || 0, coverName: coverFile?.name || "" }),
-  });
+  }).catch((error) => { throw new Error(`No se pudo conectar con la API para iniciar la subida. ${error?.message || "Comprueba internet e inténtalo de nuevo."}`); });
   const session = await start.json().catch(() => ({}));
   if (!start.ok) throw new Error(session.error || `La API respondió HTTP ${start.status}.`);
   let sentBytes = 0;
@@ -316,10 +316,24 @@ async function uploadCommunitySequence(metadata, packageFile, coverFile, status)
       });
     }
   }
-  status.textContent = "Archivo recibido. Validando la secuencia y guardándola en Drive…";
-  const complete = await fetch(`${API}/api/sequences/uploads/${session.uploadId}/complete`, { method: "POST" });
-  const result = await complete.json().catch(() => ({}));
+  status.textContent = "Archivo recibido. Guardándolo en Drive en segundo plano…";
+  const complete = await fetch(`${API}/api/sequences/uploads/${session.uploadId}/complete`, { method: "POST", mode: "cors", credentials: "omit", cache: "no-store" })
+    .catch((error) => { throw new Error(`La secuencia se transfirió, pero se perdió la conexión al iniciar el guardado. Revisa la comunidad antes de volver a subirla. ${error?.message || ""}`); });
+  let result = await complete.json().catch(() => ({}));
   if (!complete.ok) throw new Error(result.error || `La API respondió HTTP ${complete.status}.`);
+  if (result.status === "processing") {
+    const deadline = Date.now() + 30 * 60 * 1000;
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const response = await fetch(`${API}/api/sequences/uploads/${session.uploadId}/status`, { mode: "cors", credentials: "omit", cache: "no-store" }).catch(() => null);
+      if (!response) { status.textContent = "Drive sigue guardando la secuencia. Reintentando conexión…"; continue; }
+      result = await response.json().catch(() => ({}));
+      if (response.ok && result.jobStatus === "complete") return result;
+      if (!response.ok) throw new Error(result.error || `La API respondió HTTP ${response.status}.`);
+      status.textContent = "Drive sigue guardando la secuencia…";
+    }
+    throw new Error("La transferencia terminó, pero Drive sigue procesando el archivo. Revisa la comunidad antes de volver a subirlo.");
+  }
   return result;
 }
 
@@ -330,7 +344,7 @@ async function publishSelectedSequence({ background = false } = {}) {
   if (file.size > MAX_COMMUNITY_UPLOAD_BYTES) { status.textContent = "El paquete supera el límite de 1 GB."; return; }
   const coverFile = coverInput.files[0] || null;
   if (coverFile?.size > 8 * 1024 * 1024) { status.textContent = "La carátula debe pesar hasta 8 MB."; return; }
-  const metadata = { name: $("#n").value.trim(), artist: $("#a").value.trim(), key: $("#fk").value, bpm: $("#b").value, meter: $("#meter").value, genre: $("#fg").value };
+  const metadata = { name: $("#n").value.trim(), artist: $("#a").value.trim(), key: $("#fk").value, bpm: String(Math.round(Number($("#b").value))), meter: $("#meter").value, genre: $("#fg").value };
   if (!coverFile && selectedCoverUrl) metadata.coverUrl = selectedCoverUrl;
   publish.disabled = true; progressStatus.textContent = "Preparando la carga…";
   if (background) progressStatus.hidden = false;
