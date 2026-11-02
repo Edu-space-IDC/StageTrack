@@ -27,6 +27,7 @@ public:
     void queueScript(const juce::String& js);
     void toast(const juce::String& message, bool error);
     void shutdown(bool savePending = true);
+    bool saveSequenceFile(const juce::File&, juce::String& error);
 
 private:
     struct SrcTrack {
@@ -104,7 +105,6 @@ private:
                      juce::StringArray volumes = {}, juce::StringArray pans = {}, juce::StringArray mutes = {},
                      juce::StringArray solos = {}, juce::StringArray colors = {}, bool rememberSources = true);
     void loadSequence(const juce::File&);
-    bool saveSequenceFile(const juce::File&, juce::String& error);
     void appendSequenceSong(const juce::var& model, const juce::File& baseDirectory, bool activateIt);
     void runBackground(std::function<void()> fn);
 

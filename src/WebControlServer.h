@@ -22,6 +22,8 @@ public:
     juce::String getUrl() const { return "http://127.0.0.1:" + juce::String(port) + "/"; }
     std::function<void(const juce::String&)> onHostMessage;   // se llama desde un hilo del servidor
     std::function<void(const juce::File&)> onCommunityDownload;
+    std::function<juce::File()> onCommunityExportFile;
+    std::function<void()> onCommunityExportCleanup;
 private:
     void run() override;
     void serve(juce::StreamingSocket&);

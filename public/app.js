@@ -104,6 +104,7 @@ function sequenceCard(item) {
   card.append(cover, info, actions); return card;
 }
 const editDialog = $("#editSequenceDialog"), editForm = $("#editSequenceForm"), editStatus = $("#editSequenceStatus");
+const editCoverInput = $("#editCover"), editCoverPreview = $("#editCoverPreview"), editCoverUrlInput = $("#editCoverUrl");
 function openSequenceEditor(item) {
   editForm.dataset.id = item.id;
   editForm.elements.name.value = item.name || "";
@@ -113,10 +114,28 @@ function openSequenceEditor(item) {
   editForm.elements.meter.value = item.meter || "4/4";
   editForm.elements.genre.value = item.genre || "Otro";
   editForm.elements.cover.value = "";
+  editCoverUrlInput.value = "";
+  editCoverPreview.hidden = !item.cover;
+  editCoverPreview.src = item.cover ? (/^https?:/i.test(item.cover) ? item.cover : `${API}${item.cover}`) : "";
   editStatus.textContent = "";
   editDialog.showModal();
 }
 $("#editSequenceCancel").onclick = () => editDialog.close();
+$("#editCoverSearch").onclick = async () => {
+  const title = editForm.elements.name.value.trim(), artist = editForm.elements.artist.value.trim(), button = $("#editCoverSearch");
+  if (!title) { editStatus.textContent = "Escribe primero el nombre de la canción para buscar su carátula."; return; }
+  button.disabled = true; button.textContent = "Buscando carátula…";
+  try {
+    const url = await artworkLookup(title, artist);
+    editCoverUrlInput.value = url; editCoverInput.value = ""; editCoverPreview.src = url; editCoverPreview.hidden = false;
+    editStatus.textContent = "Carátula seleccionada. Guarda los cambios para publicarla.";
+  } catch { editStatus.textContent = "No encontramos carátula. Puedes subir una imagen."; }
+  finally { button.disabled = false; button.textContent = "Buscar carátula automáticamente"; }
+};
+editCoverInput.onchange = () => {
+  const file = editCoverInput.files[0]; if (!file) return;
+  editCoverUrlInput.value = ""; editCoverPreview.src = URL.createObjectURL(file); editCoverPreview.hidden = false;
+};
 editForm.onsubmit = async (event) => {
   event.preventDefault();
   const submit = editForm.querySelector('button[type="submit"]');
@@ -134,7 +153,8 @@ editForm.onsubmit = async (event) => {
   finally { submit.disabled = false; }
 };
 function setCoverImage(element, url) {
-  element.style.backgroundImage = `url("${String(url).replace(/["\\]/g, "")}")`;
+  const resolved = /^https?:/i.test(String(url)) ? url : `${API}${url}`;
+  element.style.backgroundImage = `url("${String(resolved).replace(/["\\]/g, "")}")`;
   element.dataset.ok = "1"; const fallback = element.querySelector("span"); if (fallback) fallback.hidden = true;
 }
 function coverColor(name) { return `hsl(${[...name].reduce((sum, char) => sum + char.charCodeAt(0), 0) * 7 % 60 + 195} 55% 42%)`; }

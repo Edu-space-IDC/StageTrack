@@ -76,9 +76,29 @@ async function removeStoredFile(fileId) {
   if (driveStorageEnabled) await driveStoreCall('delete-file', { fileId });
 }
 
+function normalizeSequenceIdentity(value) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function assertUniqueSequence({ name, artist, key }, ignoreId = '') {
+  const title = normalizeSequenceIdentity(name), author = normalizeSequenceIdentity(artist), tone = normalizeSequenceIdentity(key);
+  for (const item of entries) {
+    if (item.id === ignoreId || item.status !== 'approved' || normalizeSequenceIdentity(item.name) !== title) continue;
+    if (normalizeSequenceIdentity(item.artist) === author) throw new Error('Ya existe una secuencia con ese mismo nombre y autor, cambia el nombre o cambia el autor.');
+    if (normalizeSequenceIdentity(item.key) === tone) throw new Error('Ya existe una secuencia con ese nombre y tonalidad. Usa otra tonalidad para diferenciar esta versión.');
+  }
+}
+
 if (driveStorageEnabled) {
   const remoteState = await driveStoreCall('load-state');
   entries = Array.isArray(remoteState.sequences) ? remoteState.sequences : [];
+  const newestFirst = [...entries].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  const seenSongs = new Set(), duplicateEntries = [];
+  entries = newestFirst.filter((item) => {
+    const identity = `${normalizeSequenceIdentity(item.name)}|${normalizeSequenceIdentity(item.artist)}`;
+    if (seenSongs.has(identity)) { duplicateEntries.push(item); return false; }
+    seenSongs.add(identity); return true;
+  });
   // Las cargas anteriores quedaron guardadas como pendientes y la API solo
   // muestra las aprobadas. Publicarlas al iniciar recupera esas secuencias.
   const pendingEntries = entries.filter((item) => item.status === 'pending');
@@ -87,8 +107,12 @@ if (driveStorageEnabled) {
       await driveStoreCall('publish-files', { fileIds: [item.packageDriveFileId, item.coverDriveFileId].filter(Boolean) });
       item.status = 'approved';
     }
-    await driveStoreCall('save-sequences', { sequences: entries });
   }
+  if (duplicateEntries.length) {
+    const retainedFiles = new Set(entries.flatMap((item) => [item.packageDriveFileId, item.coverDriveFileId]).filter(Boolean));
+    for (const item of duplicateEntries) for (const fileId of [item.packageDriveFileId, item.coverDriveFileId].filter((id) => id && !retainedFiles.has(id))) await removeStoredFile(fileId).catch(() => {});
+  }
+  if (pendingEntries.length || duplicateEntries.length) await driveStoreCall('save-sequences', { sequences: entries });
   feedbackEntries = Array.isArray(remoteState.feedback) ? remoteState.feedback : [];
 }
 let writes = Promise.resolve();
@@ -276,6 +300,8 @@ app.put('/api/sequences/:id', (req, res, next) => {
   if (!item) return res.status(404).json({ error: 'No encontramos esa secuencia.' });
   const coverUpload = req.files?.cover?.[0];
   let nextCoverDriveFileId = '', nextCover = item.cover || '';
+  let coverPath = coverUpload?.path || '', coverMime = coverUpload?.mimetype || '';
+  let downloadedCoverPath = '';
   const previous = Object.fromEntries(['name', 'artist', 'key', 'bpm', 'meter', 'genre', 'cover', 'coverDriveFileId'].map((key) => [key, item[key]]));
   try {
     const name = String(req.body.name || '').trim(), artist = String(req.body.artist || '').trim();
@@ -283,22 +309,37 @@ app.put('/api/sequences/:id', (req, res, next) => {
     const key = String(req.body.key || '').slice(0, 8), genre = String(req.body.genre || '').slice(0, 40);
     if (name.length < 2 || name.length > 120 || artist.length > 120) throw new Error('Revisa el nombre y el artista (máximo 120 caracteres).');
     if (!Number.isFinite(bpm) || bpm < 40 || bpm > 240 || !/^\d{1,2}\/(1|2|4|8|16|32)$/.test(meter)) throw new Error('Revisa el BPM y el compás.');
-    if (coverUpload) {
-      const ext = ({ 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' })[coverUpload.mimetype];
-      if (!ext || coverUpload.size > 8 * 1024 * 1024) throw new Error('La carátula debe ser PNG, JPG o WebP de hasta 8 MB.');
-      if (driveStorageEnabled) nextCoverDriveFileId = await uploadFileToDrive(coverUpload.path, `${item.id}-cover-${Date.now()}${ext}`, coverUpload.mimetype);
-      else { nextCover = `${item.id}-cover-${Date.now()}${ext}`; await rename(coverUpload.path, path.join(coverDir, nextCover)); }
+    assertUniqueSequence({ name, artist, key }, item.id);
+    if (!coverUpload && req.body.coverUrl) {
+      let imageUrl;
+      try { imageUrl = new URL(String(req.body.coverUrl)); } catch { throw new Error('La URL de la carátula no es válida.'); }
+      if (imageUrl.protocol !== 'https:' || !/^is\d+-ssl\.mzstatic\.com$/i.test(imageUrl.hostname)) throw new Error('La carátula automática debe provenir del catálogo de Apple Music.');
+      const response = await fetch(imageUrl, { signal: AbortSignal.timeout(8_000), headers: { Accept: 'image/jpeg,image/png,image/webp' } });
+      coverMime = (response.headers.get('content-type') || '').split(';')[0].toLowerCase();
+      if (!response.ok || !['image/jpeg', 'image/png', 'image/webp'].includes(coverMime)) throw new Error('No se pudo descargar la carátula seleccionada.');
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (bytes.length > 8 * 1024 * 1024) throw new Error('La carátula supera el límite de 8 MB.');
+      downloadedCoverPath = path.join(incomingDir, `${item.id}-cover-${Date.now()}`);
+      await writeFile(downloadedCoverPath, bytes); coverPath = downloadedCoverPath;
+    }
+    if (coverPath) {
+      const ext = ({ 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' })[coverMime];
+      if (!ext || (coverUpload && coverUpload.size > 8 * 1024 * 1024)) throw new Error('La carátula debe ser PNG, JPG o WebP de hasta 8 MB.');
+      if (driveStorageEnabled) nextCoverDriveFileId = await uploadFileToDrive(coverPath, `${item.id}-cover-${Date.now()}${ext}`, coverMime);
+      else { nextCover = `${item.id}-cover-${Date.now()}${ext}`; await rename(coverPath, path.join(coverDir, nextCover)); }
       if (driveStorageEnabled) await driveStoreCall('publish-files', { fileIds: [nextCoverDriveFileId] });
     }
     item.editHistory = [...(item.editHistory || []), { at: new Date().toISOString(), previous }].slice(-10);
     Object.assign(item, { name, artist, key, bpm, meter, genre, cover: nextCover, coverDriveFileId: nextCoverDriveFileId || item.coverDriveFileId || '' });
     await persist();
     if (coverUpload?.path) await unlink(coverUpload.path).catch(() => {});
+    if (downloadedCoverPath) await unlink(downloadedCoverPath).catch(() => {});
     res.json({ ok: true, message: 'Cambios guardados y visibles para todos.' });
   } catch (error) {
     Object.assign(item, previous);
     if (nextCoverDriveFileId) await removeStoredFile(nextCoverDriveFileId).catch(() => {});
     if (coverUpload?.path) await unlink(coverUpload.path).catch(() => {});
+    if (downloadedCoverPath) await unlink(downloadedCoverPath).catch(() => {});
     res.status(400).json({ error: error.message || 'No se pudieron guardar los cambios.' });
   }
 });
@@ -309,7 +350,7 @@ app.get('/api/sequences/:id/download', async (req, res, next) => {
     if (driveStorageEnabled) {
       if (!item.packageDriveFileId) return res.status(404).json({ error: 'El archivo de la secuencia ya no está disponible.' });
       item.downloads++; await persist();
-      return res.redirect(302, `https://drive.google.com/uc?export=download&id=${encodeURIComponent(item.packageDriveFileId)}`);
+      return res.redirect(302, `https://drive.usercontent.google.com/download?id=${encodeURIComponent(item.packageDriveFileId)}&export=download&confirm=t`);
     }
     const file = path.join(packageDir, item.packageFile);
     await stat(file);
@@ -323,7 +364,9 @@ async function processSequenceUpload(req, res, next, packageUpload, coverUpload)
     if (!packageUpload) return res.status(400).json({ error: 'Adjunta el paquete de secuencia.' });
     const name = String(req.body.name || '').trim(), artist = String(req.body.artist || '').trim();
     const requestedBpm = Number(req.body.bpm), requestedMeter = String(req.body.meter || '4/4');
+    const key = String(req.body.key || '').slice(0, 8);
     if (name.length < 2 || name.length > 120 || artist.length > 120) throw new Error('Escribe el nombre de la canción y un artista de máximo 120 caracteres.');
+    assertUniqueSequence({ name, artist, key });
     const info = await inspectArchive(packageUpload.path);
     const bpm = info.bpm || requestedBpm, meter = info.bpm ? info.meter : requestedMeter;
     if (!Number.isFinite(bpm) || bpm < 40 || bpm > 240 || !/^\d{1,2}\/(1|2|4|8|16|32)$/.test(meter)) throw new Error('Revisa el BPM y el compás.');
@@ -353,7 +396,7 @@ async function processSequenceUpload(req, res, next, packageUpload, coverUpload)
       if (driveStorageEnabled) coverDriveFileId = await uploadFileToDrive(tempCoverPath, `${id}${coverExt}`, mime);
       else { cover = `${id}${coverExt}`; await rename(tempCoverPath, path.join(coverDir, cover)); tempCoverPath = ''; }
     }
-    const item = { id, name, artist, bpm, meter, key: String(req.body.key || '').slice(0, 8), genre: String(req.body.genre || '').slice(0, 40), cover, packageFile, packageDriveFileId, coverDriveFileId, downloadName, fileSize: packageUpload.size, songCount: info.songCount, downloads: 0, status: 'approved', createdAt: new Date().toISOString() };
+    const item = { id, name, artist, bpm, meter, key, genre: String(req.body.genre || '').slice(0, 40), cover, packageFile, packageDriveFileId, coverDriveFileId, downloadName, fileSize: packageUpload.size, songCount: info.songCount, downloads: 0, status: 'approved', createdAt: new Date().toISOString() };
     if (driveStorageEnabled) await driveStoreCall('publish-files', { fileIds: [packageDriveFileId, coverDriveFileId].filter(Boolean) });
     entries.unshift(item); await persist();
     await Promise.all([packageUpload.path, coverUpload?.path].filter(Boolean).map((filePath) => unlink(filePath).catch(() => {})));

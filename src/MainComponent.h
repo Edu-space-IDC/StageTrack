@@ -34,6 +34,8 @@ private:
     std::unique_ptr<WebControlServer> server;
     std::unique_ptr<juce::WebBrowserComponent> browser;
     std::unique_ptr<juce::FileChooser> chooser;
+    juce::CriticalSection communityExportLock;
+    juce::File communityExportFile;
     juce::String lastDeviceKey;
     int reconnectCooldown = 0;
     bool hadDevice = false;

@@ -551,7 +551,6 @@ bool PlayerBridge::saveSequenceFile(const juce::File& destination, juce::String&
         track->setProperty("mute", source.mute);
         track->setProperty("solo", source.solo);
         if (source.color.isNotEmpty()) track->setProperty("color", source.color);
-        if (source.routing.isNotEmpty()) track->setProperty("routing", source.routing);
         auto* item = new juce::DynamicObject();
         item->setProperty("file", relative);
         item->setProperty("pos", 0.0);

@@ -38,7 +38,7 @@ document.documentElement.classList.add('stagetracks-native');
 })();
 </script>)JS";
 
-struct Request { juce::String method, path, body; bool ok = false; };
+struct Request { juce::String method, path, body, range; bool ok = false; };
 
 Request readRequest(juce::StreamingSocket& client)
 {
@@ -67,8 +67,10 @@ Request readRequest(juce::StreamingSocket& client)
     const auto target = first.fromFirstOccurrenceOf(" ", false, false).upToFirstOccurrenceOf(" ", false, false);
     r.path = target;
     int contentLength = 0;
-    for (const auto& line : juce::StringArray::fromLines(head))
+    for (const auto& line : juce::StringArray::fromLines(head)) {
         if (line.startsWithIgnoreCase("content-length:")) contentLength = line.fromFirstOccurrenceOf(":", false, false).trim().getIntValue();
+        else if (line.startsWithIgnoreCase("range:")) r.range = line.fromFirstOccurrenceOf(":", false, false).trim();
+    }
     contentLength = juce::jlimit(0, 16 * 1024 * 1024, contentLength);
     const size_t bodyStart = (size_t) headerEnd + 4;
     while (data.getSize() < bodyStart + (size_t) contentLength && juce::Time::getMillisecondCounter() < deadline) {
@@ -85,7 +87,8 @@ Request readRequest(juce::StreamingSocket& client)
 
 void sendResponse(juce::StreamingSocket& client, int status, const juce::String& type, const void* body, int length)
 {
-    const auto head = "HTTP/1.1 " + juce::String(status) + (status == 200 ? " OK" : " Not Found")
+    const auto reason = status == 200 ? "OK" : status == 206 ? "Partial Content" : status == 416 ? "Range Not Satisfiable" : status == 404 ? "Not Found" : "Error";
+    const auto head = "HTTP/1.1 " + juce::String(status) + " " + reason
         + "\r\nContent-Type: " + type + "\r\nContent-Length: " + juce::String(length)
         + "\r\nCache-Control: no-store\r\nConnection: close\r\nX-Content-Type-Options: nosniff\r\n\r\n";
     auto write = [&](const void* p, int n) {
@@ -103,6 +106,50 @@ void sendResponse(juce::StreamingSocket& client, int status, const juce::String&
 void sendText(juce::StreamingSocket& client, int status, const juce::String& type, const juce::String& text)
 {
     sendResponse(client, status, type, text.toRawUTF8(), (int) text.getNumBytesAsUTF8());
+}
+
+void sendFileStream(juce::StreamingSocket& client, const juce::File& file, const juce::String& range)
+{
+    auto input = file.createInputStream();
+    if (input == nullptr) { sendText(client, 404, "text/plain; charset=utf-8", "No encontramos la secuencia exportada."); return; }
+    const auto fileLength = file.getSize();
+    int64_t start = 0, end = fileLength - 1;
+    const bool partial = range.startsWithIgnoreCase("bytes=");
+    if (partial) {
+        const auto bounds = juce::StringArray::fromTokens(range.fromFirstOccurrenceOf("=", false, false), "-", "");
+        if (bounds.size() != 2 || !bounds[0].containsOnly("0123456789")) { sendText(client, 416, "text/plain; charset=utf-8", "Rango no vÃ¡lido"); return; }
+        start = bounds[0].getLargeIntValue();
+        end = bounds[1].isEmpty() ? end : bounds[1].getLargeIntValue();
+        if (start < 0 || start >= fileLength || end < start) { sendText(client, 416, "text/plain; charset=utf-8", "Rango fuera del archivo"); return; }
+        end = juce::jmin(end, fileLength - 1);
+    }
+    const auto length = end - start + 1;
+    const auto status = partial ? 206 : 200;
+    const auto head = "HTTP/1.1 " + juce::String(status) + (partial ? " Partial Content" : " OK")
+        + "\r\nContent-Type: application/octet-stream\r\nContent-Length: " + juce::String(length)
+        + "\r\nAccept-Ranges: bytes\r\n"
+        + (partial ? "Content-Range: bytes " + juce::String(start) + "-" + juce::String(end) + "/" + juce::String(fileLength) + "\r\n" : juce::String())
+        + "Content-Disposition: attachment; filename=\"StageTracks-community.rpseq\"\r\nCache-Control: no-store\r\nConnection: close\r\nX-Content-Type-Options: nosniff\r\n\r\n";
+    auto writeAll = [&](const void* data, int bytes) {
+        int sent = 0;
+        while (sent < bytes) {
+            const int written = client.write(static_cast<const char*>(data) + sent, bytes - sent);
+            if (written <= 0) return false;
+            sent += written;
+        }
+        return true;
+    };
+    input->setPosition(start);
+    bool connected = writeAll(head.toRawUTF8(), (int) head.getNumBytesAsUTF8());
+    char buffer[64 * 1024];
+    int64_t remaining = length;
+    while (connected && remaining > 0) {
+        const int read = input->read(buffer, (int) juce::jmin<int64_t>(sizeof(buffer), remaining));
+        if (read <= 0) break;
+        connected = writeAll(buffer, read);
+        remaining -= read;
+    }
+    input.reset();
 }
 }
 
@@ -233,6 +280,17 @@ void WebControlServer::serve(juce::StreamingSocket& client)
     }
     if (path == "/host/poll") { sendText(client, 200, "text/plain; charset=utf-8", bridge.takeHostScript()); return; }
     if (path == "/host/info") { sendText(client, 200, "application/json; charset=utf-8", getRemoteInfo()); return; }
+    if (path == "/host/community/export") {
+        const auto file = onCommunityExportFile ? onCommunityExportFile() : juce::File();
+        if (!file.existsAsFile()) { sendText(client, 404, "application/json; charset=utf-8", "{\"error\":\"Primero exporta una secuencia desde Mi biblioteca.\"}"); return; }
+        sendFileStream(client, file, req.range);
+        return;
+    }
+    if (path == "/host/community/export/finish") {
+        if (onCommunityExportCleanup) onCommunityExportCleanup();
+        sendText(client, 200, "text/plain; charset=utf-8", "ok");
+        return;
+    }
     if (path == "/host/msg") {
         if (onHostMessage) onHostMessage(req.body);
         sendText(client, 200, "text/plain; charset=utf-8", "ok");

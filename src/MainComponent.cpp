@@ -68,6 +68,17 @@ MainComponent::MainComponent()
                 }
             });
         };
+        server->onCommunityExportFile = [safe = juce::Component::SafePointer<MainComponent>(this)] {
+            if (safe == nullptr) return juce::File();
+            const juce::ScopedLock lock(safe->communityExportLock);
+            return safe->communityExportFile;
+        };
+        server->onCommunityExportCleanup = [safe = juce::Component::SafePointer<MainComponent>(this)] {
+            if (safe == nullptr) return;
+            juce::File file;
+            { const juce::ScopedLock lock(safe->communityExportLock); file = safe->communityExportFile; safe->communityExportFile = {}; }
+            if (file.existsAsFile()) file.deleteFile();
+        };
         using Opt = juce::WebBrowserComponent::Options;
         const auto userData = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
                                   .getChildFile("StageTracks").getChildFile("WebView");
@@ -200,6 +211,23 @@ void MainComponent::onHostMessage(const juce::String& msg)
     else if (msg == "openProject") pickToOpen();
     else if (msg == "importMedia") pickToImport();
     else if (msg == "saveProject") pickToSave();
+    else if (msg == "exportCommunitySequence") {
+        const auto folder = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+                                .getChildFile("StageTracks").getChildFile("CommunityUploads");
+        folder.createDirectory();
+        juce::File oldExport;
+        { const juce::ScopedLock lock(communityExportLock); oldExport = communityExportFile; communityExportFile = {}; }
+        if (oldExport.existsAsFile()) oldExport.deleteFile();
+        const auto exportFile = folder.getChildFile(juce::Uuid().toString().removeCharacters("{}") + ".rpseq");
+        juce::String error;
+        if (!bridge->saveSequenceFile(exportFile, error)) {
+            exportFile.deleteFile();
+            bridge->queueScript("window.receiveCommunityExport(false," + juce::JSON::toString(juce::var(error)) + ")");
+        } else {
+            { const juce::ScopedLock lock(communityExportLock); communityExportFile = exportFile; }
+            bridge->queueScript("window.receiveCommunityExport(true," + juce::String(exportFile.getSize()) + ")");
+        }
+    }
     else if (msg.startsWith("exportSequence|")) {
         const auto payload = juce::JSON::parse(msg.fromFirstOccurrenceOf("|", false, false));
         const auto suggestedName = payload.getProperty("name", juce::String("StageTracks-sequence")).toString();
