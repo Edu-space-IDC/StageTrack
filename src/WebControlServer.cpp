@@ -250,7 +250,7 @@ juce::String WebControlServer::page() const
         if (configuredApi.startsWith("https://") || configuredApi.startsWith("http://")) communityApi = configuredApi.trimCharactersAtEnd("/");
     }
     const int at = html.indexOf("<head>");
-    const auto communityConfig = "<script>window.STAGETRACKS_COMMUNITY_API=" + juce::JSON::toString(juce::var(communityApi)) + ";</script>";
+    const auto communityConfig = "<script>window.STAGETRACKS_COMMUNITY_API=" + juce::JSON::toString(juce::var(communityApi)) + ";window.STAGETRACKS_APP_VERSION=" + juce::JSON::toString(juce::var(STAGETRACKS_APP_VERSION)) + ";</script>";
     if (at >= 0) html = html.substring(0, at + 6) + communityConfig + shim + html.substring(at + 6);
     return html;
 }

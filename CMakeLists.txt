@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(StageTracks VERSION 0.5.5 LANGUAGES C CXX)
+project(StageTracks VERSION 0.5.6 LANGUAGES C CXX)
 
 include(FetchContent)
 FetchContent_Declare(JUCE
@@ -13,7 +13,7 @@ juce_add_gui_app(StageTracks
     PRODUCT_NAME "StageTracks"
     COMPANY_NAME "StageTracks"
     BUNDLE_ID "com.stagetracks.player"
-    VERSION "0.5.5"
+    VERSION "0.5.6"
     ICON_BIG "${CMAKE_SOURCE_DIR}/assets/app-icon.png"
     ICON_SMALL "${CMAKE_SOURCE_DIR}/assets/app-icon.png"
     NEEDS_WEBVIEW2 TRUE)
@@ -51,13 +51,14 @@ else()
     message(WARNING "ASIO: NO activado (no se encontro el SDK de ASIO). Se usara WASAPI/DirectSound. Mira el README, seccion ASIO.")
 endif()
 target_compile_features(StageTracks PRIVATE cxx_std_17)
+target_compile_definitions(StageTracks PRIVATE STAGETRACKS_APP_VERSION="${PROJECT_VERSION}")
 if(MSVC)
     target_compile_options(StageTracks PRIVATE /utf-8)
 endif()
 target_compile_definitions(StageTracks PRIVATE
     JUCE_WEB_BROWSER=1 JUCE_USE_WIN_WEBVIEW2_WITH_STATIC_LINKING=1
     JUCE_USE_CURL=0 JUCE_APPLICATION_NAME_STRING="StageTracks"
-    JUCE_APPLICATION_VERSION_STRING="0.5.5")
+    JUCE_APPLICATION_VERSION_STRING="0.5.6")
 target_link_libraries(StageTracks PRIVATE
     StageTracksWeb
     juce::juce_audio_utils

@@ -5,7 +5,7 @@ class StageTracksApplication final : public juce::JUCEApplication
 {
 public:
     const juce::String getApplicationName() override { return "StageTracks"; }
-    const juce::String getApplicationVersion() override { return "0.4.0"; }
+    const juce::String getApplicationVersion() override { return STAGETRACKS_APP_VERSION; }
     bool moreThanOneInstanceAllowed() override { return true; }
     void initialise(const juce::String&) override
     {

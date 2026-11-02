@@ -9704,6 +9704,67 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           else if (e.key === "[") { e.preventDefault(); req(40172); }
           else if (e.key === "]") { e.preventDefault(); req(40173); }
         });
+        const stageTracksUpdateInfoUrl = "https://stagetrack-project.vercel.app/downloads/release.json";
+        let stageTracksUpdateInfo = null;
+        function compareStageTracksVersions(left, right) {
+          const a = String(left || "0").replace(/^v/i, "").split(/[.+-]/).map(Number);
+          const b = String(right || "0").replace(/^v/i, "").split(/[.+-]/).map(Number);
+          for (let i = 0; i < Math.max(a.length, b.length); i++) {
+            const difference = (a[i] || 0) - (b[i] || 0);
+            if (difference) return difference;
+          }
+          return 0;
+        }
+        function stageTracksInstallerUrl() {
+          return stageTracksUpdateInfo?.installerUrl || "https://github.com/Edu-space-IDC/StageTrack/releases/latest/download/StageTracks-Setup-windows-x64.exe";
+        }
+        function downloadStageTracksUpdate(autoInstall = false) {
+          const url = stageTracksInstallerUrl();
+          if (!url.startsWith("https://github.com/Edu-space-IDC/StageTrack/releases/")) {
+            toast("No se pudo abrir el instalador: enlace no reconocido.", true); return;
+          }
+          window.chrome?.webview?.postMessage("downloadUpdate|" + url + "|" + (autoInstall ? "1" : "0"));
+          toast(autoInstall ? "Descargando la actualización. Al terminar, te pedirá guardar y cerrar StageTracks para aplicarla." : "Descargando el instalador de StageTracks…", false);
+        }
+        function showStageTracksUpdateBanner() {
+          let banner = document.getElementById("stagetracksUpdateBanner");
+          if (!banner) {
+            banner = document.createElement("div"); banner.id = "stagetracksUpdateBanner";
+            banner.style.cssText = "position:fixed;z-index:12050;left:50%;bottom:20px;transform:translateX(-50%);display:flex;align-items:center;gap:14px;max-width:calc(100vw - 32px);padding:11px 14px;border:1px solid #3889d866;border-radius:13px;background:#17212af5;box-shadow:0 12px 38px #000a;color:#edf5fc;font:14px system-ui,sans-serif";
+            const label = document.createElement("strong"); label.dataset.updateLabel = "";
+            const download = document.createElement("button"); download.type = "button"; download.textContent = "Descargar";
+            download.style.cssText = "padding:8px 12px;border:0;border-radius:8px;background:#2c83df;color:white;font-weight:700;cursor:pointer";
+            download.onclick = downloadStageTracksUpdate;
+            const close = document.createElement("button"); close.type = "button"; close.textContent = "×"; close.setAttribute("aria-label", "Cerrar aviso");
+            close.style.cssText = "border:0;background:transparent;color:#c8d0d8;font-size:20px;cursor:pointer"; close.onclick = () => banner.remove();
+            banner.append(label, download, close); document.body.appendChild(banner);
+          }
+          banner.querySelector("[data-update-label]").textContent = `Nueva actualización ${stageTracksUpdateInfo.version} ¿Descargar?`;
+        }
+        async function checkStageTracksUpdate(manual = false) {
+          if (!window.STAGETRACKS_NATIVE) { if (manual) toast("La actualización solo está disponible en la aplicación de escritorio.", true); return false; }
+          try {
+            const response = await fetch(stageTracksUpdateInfoUrl + "?check=" + Date.now(), { cache: "no-store" });
+            if (!response.ok) throw new Error("No se pudo consultar la versión publicada.");
+            stageTracksUpdateInfo = await response.json();
+            const current = window.STAGETRACKS_APP_VERSION || "0.0.0";
+            const hasUpdate = compareStageTracksVersions(stageTracksUpdateInfo.version, current) > 0;
+            if (!hasUpdate) { if (manual) toast("No hay una nueva actualización disponible.", false); return false; }
+            showStageTracksUpdateBanner();
+            if (localStorage.getItem("stageTracksAutoUpdate") === "1") {
+              const key = "stageTracksAutoUpdateStarted:" + stageTracksUpdateInfo.version;
+              if (localStorage.getItem(key) !== "1") {
+                localStorage.setItem(key, "1"); downloadStageTracksUpdate(true);
+              }
+            } else if (manual) toast(`Nueva actualización disponible: ${stageTracksUpdateInfo.version}.`, false);
+            return true;
+          } catch (error) {
+            if (manual) toast(error.message || "No se pudo comprobar si hay actualizaciones.", true);
+            return false;
+          }
+        }
+        if (window.STAGETRACKS_NATIVE) setTimeout(() => checkStageTracksUpdate(false), 2200);
+
         function openSettingsMenu() {
           let overlay = $("studioSettingsOverlay");
           if (overlay) { overlay.remove(); return; }
@@ -9783,6 +9844,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             { id: "keyboard", title: "Atajos de teclado", description: "Crea teclas personalizadas para controlar la aplicación.", keys: ["shortcuts"] },
             { id: "midi", title: "Control MIDI", description: "Asigna notas MIDI a acciones de transporte.", keys: ["midi"] },
             { id: "audio", title: "Audio", description: "Configura el dispositivo y las salidas de audio de StageTracks.", keys: [] },
+            { id: "updates", title: "Actualización", description: "Comprueba y descarga la versión más reciente de StageTracks.", keys: [] },
             { id: "web-control", title: "Control web", description: "Conecta otro equipo a esta sesión de StageTracks dentro de la misma red.", keys: ["web-control"] }
           ];
           groupDefs.forEach((group, index) => {
@@ -9798,6 +9860,26 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
               audioButton.textContent = "Abrir configuración de audio";
               audioButton.onclick = () => window.chrome?.webview?.postMessage("openAudioSettings");
               page.appendChild(audioButton);
+            }
+            if (group.id === "updates") {
+              const autoRow = document.createElement("div"); autoRow.className = "settings-row";
+              const autoCopy = document.createElement("span"); autoCopy.className = "settings-copy";
+              autoCopy.innerHTML = "<strong>Actualizar automáticamente</strong><small>Descarga y abre el instalador al encontrar una versión nueva. Tendrás que guardar y cerrar StageTracks para aplicar el cambio.</small>";
+              const autoSwitch = document.createElement("button"); autoSwitch.type = "button"; autoSwitch.className = "settings-switch"; autoSwitch.setAttribute("role", "switch"); autoSwitch.setAttribute("aria-label", "Actualizar StageTracks automáticamente"); autoSwitch.innerHTML = "<i></i>";
+              const updateEnabled = localStorage.getItem("stageTracksAutoUpdate") === "1";
+              autoSwitch.setAttribute("aria-checked", updateEnabled ? "true" : "false");
+              autoSwitch.onclick = () => {
+                const enabled = autoSwitch.getAttribute("aria-checked") !== "true";
+                autoSwitch.setAttribute("aria-checked", enabled ? "true" : "false");
+                localStorage.setItem("stageTracksAutoUpdate", enabled ? "1" : "0");
+                if (enabled) checkStageTracksUpdate(false);
+              };
+              autoRow.append(autoCopy, autoSwitch); page.appendChild(autoRow);
+              const updateActions = document.createElement("div"); updateActions.style.cssText = "display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px";
+              const checkButton = document.createElement("button"); checkButton.type = "button"; checkButton.className = "binding-add"; checkButton.textContent = "Comprobar actualización";
+              checkButton.onclick = async () => { checkButton.disabled = true; checkButton.textContent = "Comprobando…"; await checkStageTracksUpdate(true); checkButton.disabled = false; checkButton.textContent = "Comprobar actualización"; };
+              const currentVersion = document.createElement("small"); currentVersion.style.color = "#929aa1"; currentVersion.textContent = `Versión instalada: ${window.STAGETRACKS_APP_VERSION || "desconocida"}`;
+              updateActions.append(checkButton, currentVersion); page.appendChild(updateActions);
             }
             if (group.id === "web-control") {
               const info = document.createElement("div");

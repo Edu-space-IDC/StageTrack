@@ -1,4 +1,5 @@
 #include "MainComponent.h"
+#include <thread>
 
 namespace { constexpr juce::uint32 kBg = 0xff07080a; }
 
@@ -208,6 +209,10 @@ void MainComponent::onHostMessage(const juce::String& msg)
         if (target.startsWithIgnoreCase("http://") && browser != nullptr) browser->goToURL(target);
         else bridge->toast("Usa una dirección Control web que empiece por http://", true);
     }
+    else if (msg.startsWith("downloadUpdate|")) {
+        const auto fields = juce::StringArray::fromTokens(msg, "|", "");
+        if (fields.size() >= 2) downloadUpdateInstaller(fields[1].trim(), fields.size() >= 3 && fields[2] == "1");
+    }
     else if (msg == "openProject") pickToOpen();
     else if (msg == "importMedia") pickToImport();
     else if (msg == "saveProject") pickToSave();
@@ -233,6 +238,57 @@ void MainComponent::onHostMessage(const juce::String& msg)
         const auto suggestedName = payload.getProperty("name", juce::String("StageTracks-sequence")).toString();
         pickToExportSequence(suggestedName);
     }
+}
+
+void MainComponent::downloadUpdateInstaller(const juce::String& url, bool autoInstall)
+{
+    if (updateDownloadInProgress) { if (bridge) bridge->toast("La descarga de la actualización ya está en curso.", false); return; }
+    if (!url.startsWithIgnoreCase("https://github.com/Edu-space-IDC/StageTrack/releases/")) {
+        if (bridge) bridge->toast("No se pudo descargar la actualización: enlace no reconocido.", true);
+        return;
+    }
+    updateDownloadInProgress = true;
+    const auto folder = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+                            .getChildFile("StageTracks").getChildFile("Updates");
+    folder.createDirectory();
+    const auto installer = folder.getChildFile("StageTracks-Setup-windows-x64.exe");
+    auto safe = juce::Component::SafePointer<MainComponent>(this);
+    std::thread([safe, url, installer, autoInstall] {
+        juce::String error;
+        const auto temporary = installer.getSiblingFile(installer.getFileName() + ".part");
+        int responseCode = 0;
+        const auto options = juce::URL::InputStreamOptions(juce::URL::ParameterHandling::inAddress)
+                                 .withConnectionTimeoutMs(30000).withStatusCode(&responseCode).withNumRedirectsToFollow(10);
+        auto input = juce::URL(url).createInputStream(options);
+        if (input == nullptr || responseCode < 200 || responseCode >= 300) {
+            error = "No se pudo conectar con GitHub para descargar el instalador.";
+        } else {
+            auto output = std::make_unique<juce::FileOutputStream>(temporary);
+            if (!output->openedOk()) error = "No se pudo guardar el instalador en la carpeta de actualizaciones.";
+            else {
+                char buffer[256 * 1024];
+                int bytes = 0;
+                while ((bytes = input->read(buffer, (int) sizeof(buffer))) > 0) {
+                    if (!output->write(buffer, (size_t) bytes)) { error = "La descarga del instalador se interrumpió al guardar el archivo."; break; }
+                }
+                output->flush();
+                output.reset();
+                if (error.isEmpty() && temporary.getSize() < 1024 * 1024) error = "El instalador descargado está incompleto.";
+                if (error.isEmpty()) {
+                    installer.deleteFile();
+                    if (!temporary.moveFileTo(installer)) error = "No se pudo preparar el instalador descargado.";
+                }
+            }
+        }
+        if (error.isNotEmpty()) temporary.deleteFile();
+        juce::MessageManager::callAsync([safe, installer, error, autoInstall] {
+            if (safe == nullptr) return;
+            safe->updateDownloadInProgress = false;
+            if (error.isNotEmpty()) { if (safe->bridge) safe->bridge->toast(error, true); return; }
+            if (!installer.startAsProcess(autoInstall ? "--update" : juce::String())) { if (safe->bridge) safe->bridge->toast("La descarga terminó, pero Windows no pudo abrir el instalador.", true); return; }
+            if (safe->bridge) safe->bridge->toast("Instalador abierto. Guarda tu secuencia y confirma el cierre para actualizar StageTracks.", false);
+        });
+    }).detach();
 }
 
 void MainComponent::openAudioSettings()

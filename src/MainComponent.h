@@ -26,6 +26,7 @@ private:
     void pickToImport();
     void pickToSave();
     void pickToExportSequence(const juce::String& suggestedName);
+    void downloadUpdateInstaller(const juce::String& url, bool autoInstall);
     static juce::File audioStateFile();
 
     AudioEngine engine;
@@ -39,5 +40,6 @@ private:
     juce::String lastDeviceKey;
     int reconnectCooldown = 0;
     bool hadDevice = false;
+    bool updateDownloadInProgress = false;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

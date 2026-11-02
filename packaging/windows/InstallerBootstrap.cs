@@ -12,8 +12,8 @@ using Microsoft.Win32;
 [assembly: AssemblyTitle("StageTracks Setup")]
 [assembly: AssemblyProduct("StageTracks")]
 [assembly: AssemblyCompany("StageTracks")]
-[assembly: AssemblyVersion("0.5.5.0")]
-[assembly: AssemblyFileVersion("0.5.5.0")]
+[assembly: AssemblyVersion("0.5.6.0")]
+[assembly: AssemblyFileVersion("0.5.6.0")]
 
 internal static class InstallerBootstrap
 {
@@ -22,13 +22,16 @@ internal static class InstallerBootstrap
     {
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
-        Application.Run(new SetupForm());
+        bool autoUpdate = false;
+        foreach (string argument in Environment.GetCommandLineArgs())
+            if (String.Equals(argument, "--update", StringComparison.OrdinalIgnoreCase)) { autoUpdate = true; break; }
+        Application.Run(new SetupForm(autoUpdate));
     }
 }
 
 internal sealed class SetupForm : Form
 {
-    private readonly string defaultPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "StageTracks");
+    private readonly string defaultPath;
     private readonly TextBox pathBox = new TextBox();
     private readonly CheckBox desktopShortcut = new CheckBox();
     private readonly CheckBox launchAfterInstall = new CheckBox();
@@ -45,11 +48,16 @@ internal sealed class SetupForm : Form
     private readonly Button finishButton = new Button();
     private bool installing;
     private bool completed;
+    private readonly bool autoUpdate;
     private bool createDesktopShortcut;
     private string installPath;
 
-    public SetupForm()
+    public SetupForm(bool startUpdateAutomatically)
     {
+        autoUpdate = startUpdateAutomatically;
+        string standardPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "StageTracks");
+        using (RegistryKey key = Registry.CurrentUser.OpenSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\StageTracks"))
+            defaultPath = Convert.ToString(key == null ? null : key.GetValue("InstallLocation")) ?? standardPath;
         Text = "StageTracks Setup";
         ClientSize = new Size(760, 500);
         MinimumSize = new Size(760, 500);
@@ -63,6 +71,11 @@ internal sealed class SetupForm : Form
         Font = new Font("Segoe UI", 9F);
         Icon = GetSetupIcon();
         BuildInterface();
+        if (autoUpdate)
+        {
+            launchAfterInstall.Checked = true;
+            Shown += delegate { BeginInstall(this, EventArgs.Empty); };
+        }
         FormClosing += OnFormClosing;
     }
 
@@ -112,7 +125,7 @@ internal sealed class SetupForm : Form
         header.Controls.Add(subtitle);
 
         Label version = new Label();
-        version.Text = "Windows x64 · versión 0.5.5";
+        version.Text = "Windows x64 · versión 0.5.6";
         version.ForeColor = Color.FromArgb(123, 137, 149);
         version.AutoSize = true;
         version.Location = new Point(108, 91);
@@ -285,7 +298,7 @@ internal sealed class SetupForm : Form
                 if (process.MainWindowHandle != IntPtr.Zero)
                 {
                     process.CloseMainWindow();
-                    if (!process.WaitForExit(5000))
+                    if (!process.WaitForExit(60000))
                     {
                         MessageBox.Show(this, "Cierra StageTracks antes de continuar con la instalación.", "StageTracks está abierto", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         return;
@@ -414,7 +427,7 @@ internal sealed class SetupForm : Form
             string executable = Path.Combine(installPath, "StageTracks.exe");
             string uninstall = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"" + Path.Combine(installPath, "uninstall.ps1") + "\"";
             key.SetValue("DisplayName", "StageTracks");
-            key.SetValue("DisplayVersion", "0.5.5");
+            key.SetValue("DisplayVersion", "0.5.6");
             key.SetValue("Publisher", "StageTracks");
             key.SetValue("InstallLocation", installPath);
             key.SetValue("DisplayIcon", Path.Combine(installPath, "app-icon.ico"));
