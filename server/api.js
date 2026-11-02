@@ -28,6 +28,7 @@ const sequenceUploadSessions = new Map();
 const allowedAudio = new Set(['mp3','wav','wave','flac','ogg','m4a','aif','aiff','wma']);
 const uploadsPerMinute = new Map();
 const feedbackPerMinute = new Map();
+const editsPerHour = new Map();
 
 await Promise.all([mkdir(packageDir, { recursive: true }), mkdir(coverDir, { recursive: true }), mkdir(incomingDir, { recursive: true })]);
 let entries = [];
@@ -264,6 +265,42 @@ app.get('/api/sequences', (req, res) => {
     .sort((a, b) => b.downloads - a.downloads || a.name.localeCompare(b.name)).slice(0, limit)
     .map((item) => ({ id: item.id, name: item.name, artist: item.artist, bpm: item.bpm, meter: item.meter, key: item.key, genre: item.genre, cover: item.coverDriveFileId ? `/media/${item.coverDriveFileId}` : (item.cover ? `/media/${item.cover}` : ''), downloads: item.downloads, fileSize: item.fileSize, createdAt: item.createdAt }));
   res.json({ results, total: entries.filter((item) => item.status === 'approved' && (!query || `${item.name} ${item.artist} ${item.key} ${item.genre}`.toLocaleLowerCase().includes(query))).length });
+});
+app.put('/api/sequences/:id', (req, res, next) => {
+  const now = Date.now(), ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const recent = (editsPerHour.get(ip) || []).filter((time) => now - time < 60 * 60_000);
+  if (recent.length >= 5) return res.status(429).json({ error: 'Alcanzaste el límite de 5 ediciones por hora.' });
+  recent.push(now); editsPerHour.set(ip, recent); next();
+}, upload.fields([{ name: 'cover', maxCount: 1 }]), async (req, res) => {
+  const item = entries.find((row) => row.id === req.params.id && row.status === 'approved');
+  if (!item) return res.status(404).json({ error: 'No encontramos esa secuencia.' });
+  const coverUpload = req.files?.cover?.[0];
+  let nextCoverDriveFileId = '', nextCover = item.cover || '';
+  const previous = Object.fromEntries(['name', 'artist', 'key', 'bpm', 'meter', 'genre', 'cover', 'coverDriveFileId'].map((key) => [key, item[key]]));
+  try {
+    const name = String(req.body.name || '').trim(), artist = String(req.body.artist || '').trim();
+    const bpm = Number(req.body.bpm), meter = String(req.body.meter || '4/4');
+    const key = String(req.body.key || '').slice(0, 8), genre = String(req.body.genre || '').slice(0, 40);
+    if (name.length < 2 || name.length > 120 || artist.length > 120) throw new Error('Revisa el nombre y el artista (máximo 120 caracteres).');
+    if (!Number.isFinite(bpm) || bpm < 40 || bpm > 240 || !/^\d{1,2}\/(1|2|4|8|16|32)$/.test(meter)) throw new Error('Revisa el BPM y el compás.');
+    if (coverUpload) {
+      const ext = ({ 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' })[coverUpload.mimetype];
+      if (!ext || coverUpload.size > 8 * 1024 * 1024) throw new Error('La carátula debe ser PNG, JPG o WebP de hasta 8 MB.');
+      if (driveStorageEnabled) nextCoverDriveFileId = await uploadFileToDrive(coverUpload.path, `${item.id}-cover-${Date.now()}${ext}`, coverUpload.mimetype);
+      else { nextCover = `${item.id}-cover-${Date.now()}${ext}`; await rename(coverUpload.path, path.join(coverDir, nextCover)); }
+      if (driveStorageEnabled) await driveStoreCall('publish-files', { fileIds: [nextCoverDriveFileId] });
+    }
+    item.editHistory = [...(item.editHistory || []), { at: new Date().toISOString(), previous }].slice(-10);
+    Object.assign(item, { name, artist, key, bpm, meter, genre, cover: nextCover, coverDriveFileId: nextCoverDriveFileId || item.coverDriveFileId || '' });
+    await persist();
+    if (coverUpload?.path) await unlink(coverUpload.path).catch(() => {});
+    res.json({ ok: true, message: 'Cambios guardados y visibles para todos.' });
+  } catch (error) {
+    Object.assign(item, previous);
+    if (nextCoverDriveFileId) await removeStoredFile(nextCoverDriveFileId).catch(() => {});
+    if (coverUpload?.path) await unlink(coverUpload.path).catch(() => {});
+    res.status(400).json({ error: error.message || 'No se pudieron guardar los cambios.' });
+  }
 });
 app.get('/api/sequences/:id/download', async (req, res, next) => {
   const item = entries.find((row) => row.id === req.params.id && row.status === 'approved');

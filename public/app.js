@@ -97,8 +97,42 @@ function sequenceCard(item) {
   info.append(title, artist, downloads);
   const link = document.createElement("a"); link.className = "btn sm"; link.href = `${API}/api/sequences/${encodeURIComponent(item.id)}/download`;
   link.download = `${item.name || "StageTracks"}.zip`; link.textContent = "Descargar"; link.setAttribute("aria-label", `Descargar ${item.name || "secuencia"}`);
-  card.append(cover, info, link); return card;
+  const actions = document.createElement("div"); actions.style.cssText = "display:flex;gap:8px;flex-wrap:wrap";
+  const edit = document.createElement("button"); edit.type = "button"; edit.className = "btn o sm"; edit.textContent = "Editar";
+  edit.setAttribute("aria-label", `Editar ${item.name || "secuencia"}`); edit.onclick = () => openSequenceEditor(item);
+  actions.append(link, edit);
+  card.append(cover, info, actions); return card;
 }
+const editDialog = $("#editSequenceDialog"), editForm = $("#editSequenceForm"), editStatus = $("#editSequenceStatus");
+function openSequenceEditor(item) {
+  editForm.dataset.id = item.id;
+  editForm.elements.name.value = item.name || "";
+  editForm.elements.artist.value = item.artist || "";
+  editForm.elements.key.value = item.key || "C";
+  editForm.elements.bpm.value = item.bpm || 120;
+  editForm.elements.meter.value = item.meter || "4/4";
+  editForm.elements.genre.value = item.genre || "Otro";
+  editForm.elements.cover.value = "";
+  editStatus.textContent = "";
+  editDialog.showModal();
+}
+$("#editSequenceCancel").onclick = () => editDialog.close();
+editForm.onsubmit = async (event) => {
+  event.preventDefault();
+  const submit = editForm.querySelector('button[type="submit"]');
+  const body = new FormData(editForm);
+  if (!editForm.elements.cover.files[0]) body.delete("cover");
+  submit.disabled = true; editStatus.textContent = "Guardando cambios…";
+  try {
+    const response = await fetch(`${API}/api/sequences/${encodeURIComponent(editForm.dataset.id)}`, { method: "PUT", body });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "No se pudieron guardar los cambios.");
+    editStatus.textContent = result.message || "Cambios guardados y visibles para todos.";
+    await refreshCommunity($("#q").value.trim());
+    setTimeout(() => editDialog.close(), 800);
+  } catch (error) { editStatus.textContent = error.message || "No se pudo conectar con la comunidad."; }
+  finally { submit.disabled = false; }
+};
 function setCoverImage(element, url) {
   element.style.backgroundImage = `url("${String(url).replace(/["\\]/g, "")}")`;
   element.dataset.ok = "1"; const fallback = element.querySelector("span"); if (fallback) fallback.hidden = true;
@@ -195,6 +229,7 @@ feedbackForm.onsubmit = async (event) => {
   finally { submit.disabled = false; }
 };
 $("#fk").innerHTML = KEYS.map((key) => `<option>${key}</option>`).join("");
+$("#editKey").innerHTML = KEYS.map((key) => `<option>${key}</option>`).join("");
 $("#up").onclick = () => { status.textContent = ""; dialog.showModal(); };
 $("#cx").onclick = () => dialog.close();
 document.querySelectorAll('a[href="#"]').forEach((link) => link.addEventListener("click", (event) => event.preventDefault()));
