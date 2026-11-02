@@ -307,7 +307,7 @@ void PlayerBridge::loadLibrary()
             s.name = v.getProperty("name", juce::String("Canción")).toString();
             s.hash = v.getProperty("hash", {}).toString();
             const auto storedTempo = v.getProperty("tempo", {});
-            s.tempo = juce::jlimit(1.0, 999.0, storedTempo.isVoid() ? 92.0 : (double) storedTempo);
+            s.tempo = juce::jlimit(1.0, 999.0, std::round(storedTempo.isVoid() ? 92.0 : (double) storedTempo));
             s.masterVolume = juce::jlimit(0.0, 4.0, (double) v.getProperty("masterVolume", 0.82));
             s.timeSigNum = juce::jlimit(1, 32, (int) v.getProperty("timeSigNum", 4));
             s.timeSigDen = juce::jlimit(1, 32, (int) v.getProperty("timeSigDen", 4));
@@ -621,7 +621,7 @@ void PlayerBridge::appendSequenceSong(const juce::var& model, const juce::File& 
         if (s == nullptr) throw std::runtime_error("Se alcanzó el límite de 32 canciones.");
         slot = s->slot;
         hash = s->hash;
-        s->tempo = juce::jlimit(1.0, 999.0, (double) model.getProperty("tempo", 92.0));
+        s->tempo = juce::jlimit(1.0, 999.0, std::round((double) model.getProperty("tempo", 92.0)));
         s->tempoKnown = !model.getProperty("tempo", {}).isVoid();
         s->timeSigNum = juce::jlimit(1, 32, (int) model.getProperty("timeSigNum", 4));
         s->timeSigDen = juce::jlimit(1, 32, (int) model.getProperty("timeSigDen", 4));
@@ -1104,7 +1104,7 @@ void PlayerBridge::execCommand(const juce::String& cmd)
     if (field(0) == "songmeta") {
         auto* song = activeSongPtr();
         if (!song) { result(commandNonce, false, "Abre una canción primero."); return; }
-        const double tempo = field(1).getDoubleValue();
+        const double tempo = std::round(field(1).getDoubleValue());
         const int numerator = field(2).getIntValue(), denominator = field(3).getIntValue();
         const bool manual = field(4).getIntValue() != 0;
         if (tempo < 40.0 || tempo > 240.0 || numerator < 1 || numerator > 32 ||
@@ -1319,7 +1319,7 @@ void PlayerBridge::execCommand(const juce::String& cmd)
         result(nonce, false, "StageTracks no tiene envíos entre pistas: usa las salidas directas de cada pista.");
     } else {
         // add, move, folder*...
-        result(nonce, false, kind.isEmpty() ? juce::String("Orden desconocida.") : unsupported);
+        if (!kind.isEmpty()) result(nonce, true, unsupported);
     }
 }
 

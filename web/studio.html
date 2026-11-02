@@ -8095,7 +8095,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           if (typeof window.setDetectedSongBpm === "function") {
             const song = currentBpmSong();
             const displayValue = Number(value) >= 40 && Number(value) <= 240
-              ? Number(value)
+              ? Math.round(Number(value))
               : song?.tempoKnown ? song.tempo : 0;
             window.setDetectedSongBpm(displayValue, title, status);
           }
@@ -8103,6 +8103,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         function saveDetectedTempo(value) {
           const song = songs.list[songs.active];
           if (!song || song.tempoManual || !(value >= 40 && value <= 240)) return;
+          value = Math.round(Number(value));
           sendCmd(`songmeta_${value}_${song.sigNum || sigNum}_${song.sigDen || sigDen}_0`, true);
           song.tempo = value;
           song.tempoKnown = true;
@@ -8183,9 +8184,10 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
               candidate.trackTitle +
               " - " +
               ((candidate.artists || []).map((a) => a.name).join(", ") || "");
-            ls.set(cacheKey, String(tempo));
-            saveDetectedTempo(tempo);
-            announceBpm(tempo, label, "BPM from the ReccoBeats track catalog.");
+            const roundedTempo = Math.round(tempo);
+            ls.set(cacheKey, String(roundedTempo));
+            saveDetectedTempo(roundedTempo);
+            announceBpm(roundedTempo, label, "BPM from the ReccoBeats track catalog.");
           } catch (error) {
             if (seq === bpmLookupSeq && error.name !== "AbortError")
               announceBpm(0, query, "Could not look up this song BPM online.");
@@ -8251,7 +8253,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         const maxCommunityPackageBytes = 1024 * 1024 * 1024;
         async function uploadCommunityPackage(metadata, packageFile, coverFile, status, onStart) {
           const base = communityApiBase();
-          const start = await fetch(base + "/api/sequences/uploads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...metadata, packageSize: packageFile.size, packageName: packageFile.name, coverSize: coverFile?.size || 0, coverName: coverFile?.name || "" }) });
+          const start = await fetch(base + "/api/sequences/uploads", { method: "POST", mode: "cors", credentials: "omit", cache: "no-store", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...metadata, packageSize: packageFile.size, packageName: packageFile.name, coverSize: coverFile?.size || 0, coverName: coverFile?.name || "" }) }).catch((error) => { throw new Error("No se pudo conectar con la API de la comunidad para iniciar la subida. Comprueba internet e inténtalo de nuevo. " + (error?.message || "")); });
           const session = await start.json().catch(() => ({}));
           if (!start.ok) throw new Error(session.error || `HTTP ${start.status}`);
           onStart?.();
@@ -8263,7 +8265,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
               const from = part * session.chunkSize, to = Math.min(file.size, (part + 1) * session.chunkSize);
               let blob = file.slice ? file.slice(from, to) : null;
               if (file.hostExport) {
-                const source = await fetch("/host/community/export", { headers: { Range: `bytes=${from}-${to - 1}` }, cache: "no-store" });
+                const source = await fetch("/host/community/export", { headers: { Range: `bytes=${from}-${to - 1}` }, cache: "no-store" }).catch(() => { throw new Error("StageTracks perdió el acceso al paquete temporal. Prepara de nuevo la secuencia activa y vuelve a subirla."); });
                 if (!source.ok) throw new Error("No se pudo leer un bloque de la secuencia activa.");
                 blob = await source.blob();
               }
@@ -8279,14 +8281,28 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             }
           }
           status.textContent = communityText("Archivo recibido. Validando y guardando en Drive…", "File received. Validating and saving to Drive…");
-          const complete = await fetch(`${base}/api/sequences/uploads/${session.uploadId}/complete`, { method: "POST" });
-          const result = await complete.json().catch(() => ({})); if (!complete.ok) throw new Error(result.error || `HTTP ${complete.status}`); return result;
+          status.textContent = communityText("Archivo recibido. Guardándolo en Drive en segundo plano…", "Package received. Saving to Drive in the background…");
+          const complete = await fetch(`${base}/api/sequences/uploads/${session.uploadId}/complete`, { method: "POST", mode: "cors", credentials: "omit", cache: "no-store" }).catch(() => { throw new Error(communityText("La API perdió la conexión al iniciar el guardado. La secuencia ya se transfirió; revisa la comunidad en un momento.", "The API connection was lost while starting the save. The sequence was transferred; check the community again shortly.")); });
+          const job = await complete.json().catch(() => ({}));
+          if (!complete.ok) throw new Error(job.error || `HTTP ${complete.status}`);
+          if (job.status !== "processing") return job;
+          const deadline = Date.now() + 30 * 60_000;
+          while (Date.now() < deadline) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            const response = await fetch(`${base}/api/sequences/uploads/${session.uploadId}/status`, { mode: "cors", credentials: "omit", cache: "no-store" }).catch(() => null);
+            if (!response) { status.textContent = communityText("Drive sigue guardando la secuencia. Reintentando conexión…", "Drive is still saving the sequence. Retrying the connection…"); continue; }
+            const result = await response.json().catch(() => ({}));
+            if (response.ok && result.jobStatus === "complete") return result;
+            if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+            status.textContent = communityText("Drive sigue guardando la secuencia…", "Drive is still saving the sequence…");
+          }
+          throw new Error(communityText("La transferencia terminó, pero guardar en Drive está tardando más de lo esperado. Revisa la comunidad antes de volver a subirla.", "The transfer finished, but saving to Drive is taking longer than expected. Check the community before uploading again."));
         }
         function openCommunityUploadDialog() {
           if (!communityApiBase()) { toast(communityText("La comunidad no está disponible por ahora.", "The community is unavailable right now."), true); return; }
           const current = songs.list[songs.active] || {}, overlay = document.createElement("div");
           overlay.style.cssText = "position:fixed;inset:0;z-index:12002;display:grid;place-items:center;padding:18px;background:#000b;backdrop-filter:blur(5px);font:14px system-ui,sans-serif;color:#eef1f3";
-          overlay.innerHTML = `<section role="dialog" aria-modal="true" style="box-sizing:border-box;width:min(520px,100%);max-height:90vh;overflow:auto;padding:20px;background:#191c1f;border:1px solid #3b4147;border-radius:16px;box-shadow:0 24px 70px #000c"><header style="display:flex;align-items:center;justify-content:space-between"><strong style="font-size:19px">${communityText("Subir secuencia a la comunidad", "Upload a sequence to the community")}</strong><button type="button" data-close style="border:0;background:transparent;color:#c8cdd2;font-size:25px;cursor:pointer">×</button></header><p style="color:#aeb4ba;line-height:1.45">${communityText("En StageTracks puedes subir directamente la secuencia activa de Mi biblioteca. También puedes elegir un archivo .rpseq o .zip. Se sube en bloques y puede pesar hasta 1 GB.", "In StageTracks, upload the active sequence from My Library directly. You can also choose a .rpseq or .zip file. Uploads are chunked and can be up to 1 GB.")}</p><form data-form><label style="display:block;margin:10px 0 5px">${communityText("Nombre de la canción", "Song title")}</label><input name="name" required maxlength="120" value="${String(current.name || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:10px 0 5px">${communityText("Artista o grupo", "Artist or band")}</label><input name="artist" required maxlength="120" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="display:block;margin:10px 0 5px">${communityText("Tonalidad", "Key")}</label><select name="key" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option value="">—</option>${"C C# Db D D# Eb E F F# Gb G G# Ab A A# Bb B Cm C#m Dbm Dm D#m Ebm Em Fm F#m Gbm Gm G#m Abm Am A#m Bbm Bm".split(" ").map(key => `<option>${key}</option>`).join("")}</select></div><div><label style="display:block;margin:10px 0 5px">BPM</label><input name="bpm" type="number" min="40" max="240" value="${current.tempoKnown ? current.tempo : 120}" required style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="display:block;margin:10px 0 5px">${communityText("Compás", "Time signature")}</label><select name="meter" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option>4/4</option><option>3/4</option><option>6/8</option><option>2/4</option><option>5/4</option><option>7/4</option><option>9/8</option><option>12/8</option></select></div><div><label style="display:block;margin:10px 0 5px">${communityText("Género", "Genre")}</label><select name="genre" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option>Adoración</option><option>Gospel</option><option>Contemporáneo</option><option>Acústico</option><option>Rock</option><option>Otro</option></select></div></div><label style="display:block;margin:12px 0 5px">${communityText("Paquete .rpseq o .zip", "Sequence package (.rpseq or .zip)")}</label><input name="package" type="file" accept=".rpseq,.zip,application/zip" required><label style="display:block;margin:12px 0 5px">${communityText("Carátula opcional", "Optional cover")}</label><input name="cover" type="file" accept="image/png,image/jpeg,image/webp"><small data-status aria-live="polite" style="display:block;min-height:20px;margin-top:10px;color:#aeb4ba"></small><footer style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px"><button type="button" data-cancel style="padding:9px 13px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff;cursor:pointer">${communityText("Cancelar", "Cancel")}</button><button type="submit" style="padding:9px 14px;border:0;border-radius:9px;background:#2c83df;color:#fff;cursor:pointer">${communityText("Subir", "Upload")}</button></footer></form></section>`;
+          overlay.innerHTML = `<section role="dialog" aria-modal="true" style="box-sizing:border-box;width:min(520px,100%);max-height:90vh;overflow:auto;padding:20px;background:#191c1f;border:1px solid #3b4147;border-radius:16px;box-shadow:0 24px 70px #000c"><header style="display:flex;align-items:center;justify-content:space-between"><strong style="font-size:19px">${communityText("Subir secuencia a la comunidad", "Upload a sequence to the community")}</strong><button type="button" data-close style="border:0;background:transparent;color:#c8cdd2;font-size:25px;cursor:pointer">×</button></header><p style="color:#aeb4ba;line-height:1.45">${communityText("En StageTracks puedes subir directamente la secuencia activa de Mi biblioteca. También puedes elegir un archivo .rpseq o .zip. Se sube en bloques y puede pesar hasta 1 GB.", "In StageTracks, upload the active sequence from My Library directly. You can also choose a .rpseq or .zip file. Uploads are chunked and can be up to 1 GB.")}</p><form data-form><label style="display:block;margin:10px 0 5px">${communityText("Nombre de la canción", "Song title")}</label><input name="name" required maxlength="120" value="${String(current.name || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:10px 0 5px">${communityText("Artista o grupo", "Artist or band")}</label><input name="artist" required maxlength="120" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="display:block;margin:10px 0 5px">${communityText("Tonalidad", "Key")}</label><select name="key" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option value="">—</option>${"C C# Db D D# Eb E F F# Gb G G# Ab A A# Bb B Cm C#m Dbm Dm D#m Ebm Em Fm F#m Gbm Gm G#m Abm Am A#m Bbm Bm".split(" ").map(key => `<option>${key}</option>`).join("")}</select></div><div><label style="display:block;margin:10px 0 5px">BPM</label><input name="bpm" type="number" min="40" max="240" value="${current.tempoKnown ? Math.round(current.tempo) : 120}" required style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="display:block;margin:10px 0 5px">${communityText("Compás", "Time signature")}</label><select name="meter" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option>4/4</option><option>3/4</option><option>6/8</option><option>2/4</option><option>5/4</option><option>7/4</option><option>9/8</option><option>12/8</option></select></div><div><label style="display:block;margin:10px 0 5px">${communityText("Género", "Genre")}</label><select name="genre" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option>Adoración</option><option>Gospel</option><option>Contemporáneo</option><option>Acústico</option><option>Rock</option><option>Otro</option></select></div></div><label style="display:block;margin:12px 0 5px">${communityText("Paquete .rpseq o .zip", "Sequence package (.rpseq or .zip)")}</label><input name="package" type="file" accept=".rpseq,.zip,application/zip" required><label style="display:block;margin:12px 0 5px">${communityText("Carátula opcional", "Optional cover")}</label><input name="cover" type="file" accept="image/png,image/jpeg,image/webp"><small data-status aria-live="polite" style="display:block;min-height:20px;margin-top:10px;color:#aeb4ba"></small><footer style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px"><button type="button" data-cancel style="padding:9px 13px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff;cursor:pointer">${communityText("Cancelar", "Cancel")}</button><button type="submit" style="padding:9px 14px;border:0;border-radius:9px;background:#2c83df;color:#fff;cursor:pointer">${communityText("Subir", "Upload")}</button></footer></form></section>`;
           const form = overlay.querySelector("[data-form]"), status = overlay.querySelector("[data-status]"), submit = form.querySelector('[type="submit"]');
           const close = () => { overlay.remove(); if (communityUploadForm === form) communityUploadForm = null; };
           communityUploadForm = form;
@@ -8314,7 +8330,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             if (!packageFile?.size) { status.textContent = communityText("Selecciona el archivo de secuencia.", "Choose a sequence file."); return; }
             if (packageFile.size > maxCommunityPackageBytes) { status.textContent = communityText("El paquete supera el límite de 1 GB.", "The package exceeds the 1 GB limit."); return; }
             if (coverFile?.size > 8 * 1024 * 1024) { status.textContent = communityText("La carátula debe pesar hasta 8 MB.", "The cover image must be 8 MB or smaller."); return; }
-            const metadata = { name: String(data.get("name") || "").trim(), artist: String(data.get("artist") || "").trim(), key: String(data.get("key") || ""), bpm: String(data.get("bpm") || ""), meter: String(data.get("meter") || "4/4"), genre: String(data.get("genre") || "") };
+            const metadata = { name: String(data.get("name") || "").trim(), artist: String(data.get("artist") || "").trim(), key: String(data.get("key") || ""), bpm: String(Math.round(Number(data.get("bpm")) || 120)), meter: String(data.get("meter") || "4/4"), genre: String(data.get("genre") || "") };
             submit.disabled = true; status.textContent = communityText("Preparando la carga…", "Preparing upload…");
             try { const result = await uploadCommunityPackage(metadata, packageFile, coverFile?.size ? coverFile : null, status, () => { backgroundButton.hidden = false; }); status.textContent = result.message || communityText("Secuencia publicada.", "Sequence published."); toast(result.message || communityText("Secuencia publicada.", "Sequence published."), false); if (songLibraryMode === "community") searchCommunitySongs(); setTimeout(close, 1400); }
             catch (error) { if (packageFile?.hostExport) delete form.dataset.communityPackageSize; status.textContent = error.message || communityText("No se pudo subir la secuencia.", "Could not upload the sequence."); if (!form.isConnected) toast(status.textContent, true); }
@@ -8333,22 +8349,47 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           renderSongLibrarySearch();
         }
         const communityInstalledStorageKey = "stageTracksCommunityInstalledV1";
+        const communityArtistStorageKey = "stageTracksCommunityArtistsV1";
         function getCommunityInstalledIds() {
           try {
             const ids = JSON.parse(localStorage.getItem(communityInstalledStorageKey) || "[]");
             return new Set(Array.isArray(ids) ? ids.map(String) : []);
           } catch (_) { return new Set(); }
         }
-        function markCommunitySequenceInstalled(id) {
-          if (!id) return;
-          const ids = getCommunityInstalledIds(); ids.add(String(id));
+        function markCommunitySequenceInstalled(item) {
+          if (!item?.id) return;
+          const ids = getCommunityInstalledIds(); ids.add(String(item.id));
           try { localStorage.setItem(communityInstalledStorageKey, JSON.stringify([...ids])); } catch (_) {}
+          try {
+            const artists = JSON.parse(localStorage.getItem(communityArtistStorageKey) || "{}");
+            artists[normalizeTrackText(item.name)] = String(item.artist || "");
+            localStorage.setItem(communityArtistStorageKey, JSON.stringify(artists));
+          } catch (_) {}
         }
         function isCommunitySequenceInstalled(item) {
-          if (getCommunityInstalledIds().has(String(item.id || ""))) return true;
-          const normalizeName = (value) => String(value || "").normalize("NFC").trim().toLocaleLowerCase();
-          const communityName = normalizeName(item.name);
-          return !!communityName && songs.list.some((song) => normalizeName(song.name) === communityName);
+          return getCommunityInstalledIds().has(String(item.id || ""));
+        }
+        function findCommunityNameConflict(item) {
+          const normalize = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+          const name = normalize(item.name), artist = normalize(item.artist);
+          if (!name) return null;
+          return songs.list.find((song) => {
+            if (normalize(song.name) !== name) return false;
+            let knownArtist = song.artist || "";
+            if (!knownArtist) try { knownArtist = JSON.parse(localStorage.getItem(communityArtistStorageKey) || "{}")[normalizeTrackText(song.name)] || ""; } catch (_) {}
+            return !!artist && !!knownArtist && normalize(knownArtist) === artist;
+          }) || null;
+        }
+        function confirmCommunityNameConflict(item, existing, onDownload) {
+          const overlay = document.createElement("div");
+          overlay.style.cssText = "position:fixed;inset:0;z-index:12010;display:grid;place-items:center;padding:18px;background:#000b;backdrop-filter:blur(5px);font:14px system-ui,sans-serif;color:#eef1f3";
+          overlay.innerHTML = `<section role="alertdialog" aria-modal="true" style="box-sizing:border-box;width:min(440px,100%);padding:20px;background:#191c1f;border:1px solid #3b4147;border-radius:16px;box-shadow:0 24px 70px #000c"><strong style="font-size:18px">La secuencia ya existe en Mi biblioteca</strong><p data-message style="color:#aeb4ba;line-height:1.5"></p><footer style="display:flex;justify-content:flex-end;gap:8px"><button type="button" data-cancel style="padding:9px 12px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff;cursor:pointer">Cancelar</button><button type="button" data-download style="padding:9px 14px;border:0;border-radius:9px;background:#2c83df;color:#fff;cursor:pointer">Descargar de todos modos</button></footer></section>`;
+          overlay.querySelector("[data-message]").textContent = `«${item.name}» de ${item.artist || "este artista"} coincide con «${existing.name}» en tu biblioteca. ¿Quieres descargar otra copia?`;
+          const close = () => overlay.remove();
+          overlay.querySelector("[data-cancel]").onclick = close;
+          overlay.querySelector("[data-download]").onclick = () => { close(); onDownload(); };
+          overlay.onclick = (event) => { if (event.target === overlay) close(); };
+          document.body.appendChild(overlay);
         }
         function renderCommunitySongRows(items) {
           if (!songLibraryOverlay?.isConnected) return;
@@ -8374,7 +8415,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             const meta = document.createElement("small"); meta.style.cssText = "display:block;margin-top:4px;color:#9da6af"; meta.textContent = `${item.artist || "Comunidad"} · ${item.bpm || "--"} BPM · ${item.meter || "4/4"}`;
             info.append(name, meta);
             const down = document.createElement("button"); down.type = "button";
-            const installed = isCommunitySequenceInstalled(item);
+            const installed = isCommunitySequenceInstalled(item) && !findCommunityNameConflict(item);
             down.textContent = installed ? "Instalado" : "Descargar"; down.disabled = installed;
             down.setAttribute("aria-label", installed ? `${item.name || "Secuencia"}: instalado` : `Descargar ${item.name || "secuencia"}`);
             down.style.cssText = `padding:8px 10px;border:1px solid ${installed ? "#3d604c" : "#46627a"};border-radius:8px;background:${installed ? "#1b2a21" : "#1d3141"};color:${installed ? "#9dd4ad" : "#d6ecff"};cursor:${installed ? "default" : "pointer"}`;
@@ -8393,7 +8434,11 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             cancelDownload.style.cssText = "padding:5px 8px;border:1px solid #71484a;border-radius:7px;background:#352326;color:#f0d8d8;cursor:pointer;font-size:11px";
             downloadControls.append(pauseDownload, cancelDownload);
             progress.append(progressTrack, progressLabel, downloadControls);
-            down.onclick = () => downloadCommunitySequence(item, down, progress, progressTrack, progressFill, progressLabel, downloadControls, pauseDownload, cancelDownload);
+            down.onclick = () => {
+              const conflict = findCommunityNameConflict(item);
+              if (conflict) confirmCommunityNameConflict(item, conflict, () => downloadCommunitySequence(item, down, progress, progressTrack, progressFill, progressLabel, downloadControls, pauseDownload, cancelDownload));
+              else downloadCommunitySequence(item, down, progress, progressTrack, progressFill, progressLabel, downloadControls, pauseDownload, cancelDownload);
+            };
             pauseDownload.onclick = () => toggleCommunityDownloadPause(item.id, progressLabel, pauseDownload);
             cancelDownload.onclick = () => cancelCommunityDownload(item.id);
             row.append(art, info, down, progress); list.appendChild(row);
@@ -8556,7 +8601,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
               try { finished = await fetch("/host/community/finish/" + encodeURIComponent(job.token), { method: "POST" }); }
               finally { job.writingHost = false; }
               if (!finished.ok) throw new Error("No se pudo abrir el paquete descargado.");
-              markCommunitySequenceInstalled(item.id);
+              markCommunitySequenceInstalled(item);
               setCommunityDownloadProgress(progress, progressTrack, progressFill, progressLabel, job.written, job.total || job.written, "Descarga completa · abriendo en StageTracks");
               toast("Descarga completa. StageTracks está preparando la secuencia.");
               songLibraryOverlay?.remove(); songLibraryOverlay = null;
@@ -8614,7 +8659,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             name.textContent = song.name;
             const meta = document.createElement("small");
             meta.style.cssText = "display:block;margin-top:4px;color:#9da6af";
-            meta.textContent = `${song.tempoKnown ? song.tempo : "--"} BPM · ${song.sigNum || 4}/${song.sigDen || 4}`;
+            meta.textContent = `${song.tempoKnown ? Math.round(song.tempo) : "--"} BPM · ${song.sigNum || 4}/${song.sigDen || 4}`;
             info.append(name, meta); select.append(art, info);
             select.onclick = () => { songLibraryOverlay.remove(); songLibraryOverlay = null; if (i !== songs.active) window.activateSongTab(i); };
             row.append(select);
@@ -8646,13 +8691,13 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           const song = songs.list[songs.active];
           const overlay = document.createElement("div");
           overlay.style.cssText = "position:fixed;inset:0;z-index:12001;display:grid;place-items:center;padding:18px;background:#000b;backdrop-filter:blur(5px);font:14px system-ui,sans-serif;color:#eef1f3";
-          overlay.innerHTML = `<section role="dialog" aria-modal="true" style="box-sizing:border-box;width:min(400px,100%);padding:20px;background:#191c1f;border:1px solid #3b4147;border-radius:16px;box-shadow:0 24px 70px #000c"><header style="display:flex;justify-content:space-between;align-items:center"><strong style="font-size:18px">BPM y compás</strong><button type="button" data-close style="border:0;background:transparent;color:#c8cdd2;font-size:24px;cursor:pointer">×</button></header><p style="color:#9da6af;margin:8px 0 16px">${song.name.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}</p><label style="display:block;color:#aeb4ba;margin:10px 0 5px">BPM</label><input data-bpm type="number" min="40" max="240" step="0.1" value="${song.tempo || bpm || 92}" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;color:#aeb4ba;margin:14px 0 6px">Define los compases</label><div style="display:flex;align-items:center;gap:10px"><select data-num aria-label="Pulsos del compás" style="flex:1;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff">${Array.from({length:32},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join("")}</select><span style="color:#9da6af;font-size:20px">/</span><select data-den aria-label="Unidad del compás" style="flex:1;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option>1</option><option>2</option><option>4</option><option>8</option><option>16</option><option>32</option></select></div><p data-status style="min-height:18px;color:#9da6af;font-size:12px"></p><footer style="display:flex;justify-content:flex-end;gap:8px"><button type="button" data-search style="padding:9px 12px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff;cursor:pointer">Buscar BPM</button><button type="button" data-save style="padding:9px 14px;border:0;border-radius:9px;background:#2c83df;color:#fff;cursor:pointer">Guardar</button></footer></section>`;
+          overlay.innerHTML = `<section role="dialog" aria-modal="true" style="box-sizing:border-box;width:min(400px,100%);padding:20px;background:#191c1f;border:1px solid #3b4147;border-radius:16px;box-shadow:0 24px 70px #000c"><header style="display:flex;justify-content:space-between;align-items:center"><strong style="font-size:18px">BPM y compás</strong><button type="button" data-close style="border:0;background:transparent;color:#c8cdd2;font-size:24px;cursor:pointer">×</button></header><p style="color:#9da6af;margin:8px 0 16px">${song.name.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}</p><label style="display:block;color:#aeb4ba;margin:10px 0 5px">BPM</label><input data-bpm type="number" min="40" max="240" step="1" value="${song.tempo || bpm || 92}" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;color:#aeb4ba;margin:14px 0 6px">Define los compases</label><div style="display:flex;align-items:center;gap:10px"><select data-num aria-label="Pulsos del compás" style="flex:1;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff">${Array.from({length:32},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join("")}</select><span style="color:#9da6af;font-size:20px">/</span><select data-den aria-label="Unidad del compás" style="flex:1;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option>1</option><option>2</option><option>4</option><option>8</option><option>16</option><option>32</option></select></div><p data-status style="min-height:18px;color:#9da6af;font-size:12px"></p><footer style="display:flex;justify-content:flex-end;gap:8px"><button type="button" data-search style="padding:9px 12px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff;cursor:pointer">Buscar BPM</button><button type="button" data-save style="padding:9px 14px;border:0;border-radius:9px;background:#2c83df;color:#fff;cursor:pointer">Guardar</button></footer></section>`;
           overlay.querySelector("[data-den]").value = String(song.sigDen || sigDen);
           const close = () => overlay.remove();
           overlay.querySelector("[data-close]").onclick = close; overlay.onclick = e => { if (e.target === overlay) close(); };
           overlay.querySelector("[data-search]").onclick = () => { lookupCurrentSongBpm(true); overlay.querySelector("[data-status]").textContent = "Buscando una coincidencia exacta en el catálogo online…"; };
           overlay.querySelector("[data-save]").onclick = () => {
-            const value = Number(overlay.querySelector("[data-bpm]").value), n = Number(overlay.querySelector("[data-num]").value), d = Number(overlay.querySelector("[data-den]").value);
+            const value = Math.round(Number(overlay.querySelector("[data-bpm]").value)), n = Number(overlay.querySelector("[data-num]").value), d = Number(overlay.querySelector("[data-den]").value);
             if (!(value >= 40 && value <= 240) || !(n >= 1 && n <= 32)) { overlay.querySelector("[data-status]").textContent = "Revisa el BPM y el numerador."; return; }
             const saveButton = overlay.querySelector("[data-save]"), status = overlay.querySelector("[data-status]");
             saveButton.disabled = true; saveButton.textContent = "Guardando…";
@@ -9956,7 +10001,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             ? "&#9835;<svg class=\"song-search-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><circle cx=\"10.8\" cy=\"10.8\" r=\"6.3\"/><path d=\"m15.5 15.5 5 5\"/></svg>"
             : I.home;
           $("tr").innerHTML =
-            `<div class="bpm" id="songBpm" title="Editar BPM y compás" aria-label="Editar BPM y compás"><span class="bpm-head"><span id="bpmValue">${bpm ? bpm.toFixed(1).replace(/\.0$/, "") : "--"}</span></span><i></i><span id="sigValue">${sigNum}/${sigDen}</span></div>
+            `<div class="bpm" id="songBpm" title="Editar BPM y compás" aria-label="Editar BPM y compás"><span class="bpm-head"><span id="bpmValue">${bpm ? Math.round(bpm) : "--"}</span></span><i></i><span id="sigValue">${sigNum}/${sigDen}</span></div>
 <div class="tb time" style="flex:218;min-width:190px;padding:0 8px"><span id="t1">${fmt(pos)}</span><small id="t2">${fmt(0)} / ${fmt(timelineData.duration)}</small></div>
 <button class="tb ${!PB ? "pad-unavailable" : padMode ? "on" : ""}" style="flex:133" id="bpad" title="${!PB ? "Pads solo está disponible en StageTracks" : "Pads"}">PAD${!PB ? '<span class="unavailable-diamond" aria-hidden="true">◆</span>' : ""}</button><button class="tb" style="flex:303" id="bprev" title="${T("Ir al inicio", "Go to start")}">${I.prev}</button><button class="tb" style="flex:403;color:var(--green)" id="bplay" title="${T("Reproducir / pausar", "Play / pause")}">${playing ? I.pause : I.play}</button>
 <button class="tb" style="flex:304;color:#ff4d4f" id="bstop" title="${T("Detener", "Stop")}">${I.fade}</button><button class="tb ${editMode ? "on" : ""}" style="flex:133" id="bedit" title="Editar secciones de la canción">EDIT</button><button class="tb" style="flex:134" id="bmenu" title="${T("Opciones", "Options")}">${I.menu}</button><button class="tb" id="bsettings" title="${T("Configuración", "Settings")}" aria-label="${T("Configuración", "Settings")}">${I.settings}</button><button class="tb" id="bhome" style="flex:80;min-width:44px" title="${PB ? "Buscar canción" : "Administrar conexiones"}" aria-label="${PB ? "Buscar canción" : "Administrar conexiones"}">${homeButtonIcon}</button>`;

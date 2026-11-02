@@ -26,6 +26,7 @@ const maxUploadBytes = Number(process.env.MAX_UPLOAD_MB || 1024) * 1024 * 1024;
 const maxChunkedUploadBytes = Number(process.env.MAX_CHUNKED_UPLOAD_MB || 1024) * 1024 * 1024;
 const uploadChunkBytes = 8 * 1024 * 1024;
 const sequenceUploadSessions = new Map();
+const sequenceUploadJobs = new Map();
 const allowedAudio = new Set(['mp3','wav','wave','flac','ogg','m4a','aif','aiff','wma']);
 const uploadsPerMinute = new Map();
 const feedbackPerMinute = new Map();
@@ -209,7 +210,7 @@ function inspectArchive(filePath) {
           if (missing) throw new Error(`Falta el audio ${missing}. Incluye todas las pistas referenciadas en el ZIP.`);
           const manifestTempo = Number(manifest.songs[0]?.tempo);
           const manifestMeter = `${manifest.songs[0]?.timeSigNum || 4}/${manifest.songs[0]?.timeSigDen || 4}`;
-          resolve({ songCount: manifest.songs.length, totalBytes: total, bpm: manifestTempo >= 40 && manifestTempo <= 240 ? manifestTempo : null, meter: manifestMeter, coverPath: String(manifest.songs[0]?.cover || '') });
+          resolve({ songCount: manifest.songs.length, totalBytes: total, bpm: manifestTempo >= 40 && manifestTempo <= 240 ? Math.round(manifestTempo) : null, meter: manifestMeter, coverPath: String(manifest.songs[0]?.cover || '') });
         } catch (e) { reject(e); }
       });
       zip.readEntry();
@@ -334,7 +335,7 @@ app.get('/api/sequences', (req, res) => {
   const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
   const results = entries.filter((item) => item.status === 'approved' && (!query || `${item.name} ${item.artist} ${item.key} ${item.genre}`.toLocaleLowerCase().includes(query)))
     .sort((a, b) => b.downloads - a.downloads || a.name.localeCompare(b.name)).slice(0, limit)
-    .map((item) => ({ id: item.id, name: item.name, artist: item.artist, bpm: item.bpm, meter: item.meter, key: item.key, genre: item.genre, cover: item.coverDriveFileId ? `/media/${item.coverDriveFileId}` : (item.cover ? `/media/${item.cover}` : ''), downloads: item.downloads, fileSize: item.fileSize, createdAt: item.createdAt }));
+    .map((item) => ({ id: item.id, name: item.name, artist: item.artist, bpm: Math.round(Number(item.bpm)) || null, meter: item.meter, key: item.key, genre: item.genre, cover: item.coverDriveFileId ? `/media/${item.coverDriveFileId}` : (item.cover ? `/media/${item.cover}` : ''), downloads: item.downloads, fileSize: item.fileSize, createdAt: item.createdAt }));
   res.json({ results, total: entries.filter((item) => item.status === 'approved' && (!query || `${item.name} ${item.artist} ${item.key} ${item.genre}`.toLocaleLowerCase().includes(query))).length });
 });
 app.put('/api/sequences/:id', (req, res, next) => {
@@ -352,7 +353,7 @@ app.put('/api/sequences/:id', (req, res, next) => {
   const previous = Object.fromEntries(['name', 'artist', 'key', 'bpm', 'meter', 'genre', 'cover', 'coverDriveFileId'].map((key) => [key, item[key]]));
   try {
     const name = String(req.body.name || '').trim(), artist = String(req.body.artist || '').trim();
-    const bpm = Number(req.body.bpm), meter = String(req.body.meter || '4/4');
+    const bpm = Math.round(Number(req.body.bpm)), meter = String(req.body.meter || '4/4');
     const key = String(req.body.key || '').slice(0, 8), genre = String(req.body.genre || '').slice(0, 40);
     if (name.length < 2 || name.length > 120 || artist.length > 120) throw new Error('Revisa el nombre y el artista (máximo 120 caracteres).');
     if (!Number.isFinite(bpm) || bpm < 40 || bpm > 240 || !/^\d{1,2}\/(1|2|4|8|16|32)$/.test(meter)) throw new Error('Revisa el BPM y el compás.');
@@ -431,7 +432,7 @@ async function processSequenceUpload(req, res, next, packageUpload, coverUpload)
     if (name.length < 2 || name.length > 120 || artist.length > 120) throw new Error('Escribe el nombre de la canción y un artista de máximo 120 caracteres.');
     assertUniqueSequence({ name, artist, key });
     const info = await inspectArchive(packageUpload.path);
-    const bpm = info.bpm || requestedBpm, meter = info.bpm ? info.meter : requestedMeter;
+    const bpm = info.bpm || Math.round(requestedBpm), meter = info.bpm ? info.meter : requestedMeter;
     if (!Number.isFinite(bpm) || bpm < 40 || bpm > 240 || !/^\d{1,2}\/(1|2|4|8|16|32)$/.test(meter)) throw new Error('Revisa el BPM y el compás.');
     const id = randomUUID(), ext = path.extname(packageUpload.originalname).toLowerCase() === '.zip' ? '.zip' : '.rpseq';
     itemId = id;
@@ -540,10 +541,25 @@ app.post('/api/sequences/uploads/:id/complete', rateLimit, async (req, res, next
   const coverFile = session.files.cover;
   const coverUpload = coverFile ? { path: coverFile.path, originalname: coverFile.name, size: coverFile.size, mimetype: ({ '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' })[path.extname(coverFile.name).toLowerCase()] || 'application/octet-stream' } : undefined;
   req.body = session.metadata;
-  await processSequenceUpload(req, res, (error) => {
+  const job = { status: 'processing', createdAt: Date.now() };
+  sequenceUploadJobs.set(session.id, job);
+  res.status(202).json({ jobId: session.id, status: job.status, message: 'Paquete recibido. Guardándolo en Drive en segundo plano.' });
+  const jobResponse = {
+    status(code) { job.httpStatus = code; return this; },
+    json(body) { job.status = job.httpStatus >= 400 ? 'failed' : 'complete'; job.result = body; job.updatedAt = Date.now(); },
+  };
+  processSequenceUpload(req, jobResponse, (error) => {
     for (const file of Object.values(session.files)) unlink(file.path).catch(() => {});
-    next(error);
+    job.status = 'failed'; job.result = { error: error?.message || 'No se pudo guardar la secuencia.' }; job.updatedAt = Date.now();
   }, packageUpload, coverUpload);
+});
+
+app.get('/api/sequences/uploads/:id/status', (req, res) => {
+  const job = sequenceUploadJobs.get(req.params.id);
+  if (!job) return res.status(404).json({ error: 'No encontramos el estado de esta publicación. Puede haber vencido la sesión.' });
+  if (Date.now() - job.createdAt > 2 * 60 * 60_000) sequenceUploadJobs.delete(req.params.id);
+  if (job.status === 'failed') return res.status(400).json(job.result || { error: 'No se pudo guardar la secuencia.' });
+  res.json({ jobStatus: job.status, ...(job.result || {}) });
 });
 
 function adminAuth(req, res, next) {

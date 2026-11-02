@@ -252,7 +252,7 @@
           </p>
           <a
             class="btn donate-button"
-            href="https://www.paypal.com/donate/?cmd=_donations&amp;business=jminaq26%40gmail.com&amp;currency_code=USD&amp;item_name=StageTracks"
+            href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&amp;business=jminaq26%40gmail.com&amp;currency_code=USD&amp;item_name=StageTracks"
             target="_blank"
             rel="noopener noreferrer"
             >♥ Donar y apoyar StageTracks</a
@@ -410,7 +410,7 @@
         <p class="meta">Las correcciones quedan visibles para todos. Procura que tus cambios contribuyan y no saboteen la comunidad de StageTracks.</p>
         <label for="editName">Nombre</label><input id="editName" name="name" required maxlength="120">
         <label for="editArtist">Grupo o artista</label><input id="editArtist" name="artist" required maxlength="120">
-        <div class="r2"><div><label for="editKey">Tonalidad</label><select id="editKey" name="key"></select></div><div><label for="editBpm">BPM</label><input id="editBpm" name="bpm" type="number" min="40" max="240" step="0.1" required></div></div>
+        <div class="r2"><div><label for="editKey">Tonalidad</label><select id="editKey" name="key"></select></div><div><label for="editBpm">BPM</label><input id="editBpm" name="bpm" type="number" min="40" max="240" step="1" required></div></div>
         <label for="editMeter">Compás</label><select id="editMeter" name="meter"><option>4/4</option><option>2/4</option><option>3/4</option><option>5/4</option><option>6/4</option><option>7/4</option><option>3/8</option><option>6/8</option><option>9/8</option><option>12/8</option></select>
         <label for="editGenre">Género</label><select id="editGenre" name="genre"><option>Adoración</option><option>Gospel</option><option>Contemporáneo</option><option>Acústico</option><option>Rock</option><option>Otro</option></select>
         <label for="editCover">Nueva carátula (opcional)</label><div class="cover-tools"><button class="btn o sm" type="button" id="editCoverSearch">Buscar carátula automáticamente</button><span class="meta">Busca por canción y artista, o sube una imagen.</span></div><input id="editCover" name="cover" type="file" accept="image/png,image/jpeg,image/webp"><input id="editCoverUrl" name="coverUrl" type="hidden"><img id="editCoverPreview" alt="Vista previa de la carátula" hidden style="width:84px;height:84px;object-fit:cover;border-radius:10px;margin-top:8px"><small class="meta">PNG, JPG o WebP; máximo 8 MB. Déjalo vacío para conservar la carátula actual.</small>

@@ -31,7 +31,7 @@ document.documentElement.classList.add('stagetracks-native');
   window.addEventListener('dragover',function(e){e.preventDefault();});
   window.addEventListener('drop',function(e){e.preventDefault();});
   window.addEventListener('load',function(){
-    var b=document.getElementById('pExportSeq');if(b&&!window.STAGETRACKS_NATIVE)b.style.display='none';
+    var b=document.getElementById('pExportSeq');if(b){if(window.STAGETRACKS_NATIVE||window.chrome&&window.chrome.webview){b.hidden=false;b.style.display='';}else b.style.display='none';}
     var l=document.getElementById('pLogout');if(l){l.textContent='Audio';l.title='Configuración de audio';}
     if(!window.STAGETRACKS_NATIVE&&l)l.style.display='none';
   });
