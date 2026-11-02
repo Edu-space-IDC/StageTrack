@@ -8279,12 +8279,29 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           const detail = lastError?.message || "";
           throw new Error(`No se pudo leer el bloque ${from}-${to - 1} de ${totalBytes} bytes de la secuencia activa. Vuelve a preparar el paquete e inténtalo otra vez. ${detail}`);
         }
-        async function uploadCommunityPackage(metadata, packageFile, coverFile, status, onStart) {
+        function showCommunityUploadProgress(percent, message, state = "upload") {
+          let panel = document.getElementById("communityUploadProgressPanel");
+          if (!panel) {
+            panel = document.createElement("div"); panel.id = "communityUploadProgressPanel"; panel.setAttribute("role", "status");
+            panel.style.cssText = "position:fixed;z-index:12020;left:20px;bottom:20px;width:min(420px,calc(100vw - 40px));box-sizing:border-box;padding:14px;border:1px solid #3889d866;border-radius:13px;background:#17212af5;box-shadow:0 12px 38px #000a;color:#edf5fc;font:13px system-ui,sans-serif";
+            panel.innerHTML = '<strong data-upload-progress-label style="display:block;margin-bottom:9px;overflow-wrap:anywhere">Subiendo secuencia…</strong><div style="height:8px;overflow:hidden;border-radius:99px;background:#30363b"><div data-upload-progress-fill style="width:0%;height:100%;border-radius:99px;background:#36b878;transition:width .18s ease"></div></div>';
+            document.body.appendChild(panel);
+          }
+          const label = panel.querySelector("[data-upload-progress-label]"), fill = panel.querySelector("[data-upload-progress-fill]");
+          if (label) label.textContent = message;
+          if (fill) {
+            fill.style.width = state === "saving" ? "100%" : `${Math.max(0, Math.min(100, Number(percent) || 0))}%`;
+            fill.style.background = state === "error" ? "#d15b5b" : state === "saving" ? "#438bd2" : "#36b878";
+          }
+          if (state === "complete") { const completedPanel = panel; setTimeout(() => { if (document.getElementById("communityUploadProgressPanel") === completedPanel) completedPanel.remove(); }, 8000); }
+        }
+        async function uploadCommunityPackage(metadata, packageFile, coverFile, status, onStart, onProgress = () => {}) {
           const base = communityApiBase();
           const start = await fetch(base + "/api/sequences/uploads", { method: "POST", mode: "cors", credentials: "omit", cache: "no-store", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...metadata, packageSize: packageFile.size, packageName: packageFile.name, coverSize: coverFile?.size || 0, coverName: coverFile?.name || "" }) }).catch((error) => { throw new Error("No se pudo conectar con la API de la comunidad para iniciar la subida. Comprueba internet e inténtalo de nuevo. " + (error?.message || "")); });
           const session = await start.json().catch(() => ({}));
           if (!start.ok) throw new Error(session.error || `HTTP ${start.status}`);
           onStart?.();
+          onProgress(0, `Subiendo «${metadata.name}»… 0%`, "upload");
           const files = [{ field: "package", file: packageFile }, ...(coverFile ? [{ field: "cover", file: coverFile }] : [])];
           const total = packageFile.size + (coverFile?.size || 0); let sent = 0;
           for (const { field, file } of files) {
@@ -8301,16 +8318,16 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
               await new Promise((resolve, reject) => {
                 const request = new XMLHttpRequest(); request.open("PUT", `${base}/api/sequences/uploads/${session.uploadId}/${field}/${part}`);
                 request.setRequestHeader("Content-Type", "application/octet-stream"); request.timeout = 10 * 60 * 1000;
-                request.upload.onprogress = event => { const loaded = sent + (event.lengthComputable ? event.loaded : 0); status.textContent = `${communityText("Subiendo", "Uploading")} ${Math.min(100, Math.round(loaded / total * 100))}%…`; };
-                request.onload = () => { let result = {}; try { result = JSON.parse(request.responseText || "{}"); } catch (_) {} if (request.status < 200 || request.status >= 300) { reject(new Error(result.error || `HTTP ${request.status}`)); return; } sent += blob.size; resolve(); };
+                request.upload.onprogress = event => { const loaded = sent + (event.lengthComputable ? event.loaded : 0); const percent = Math.min(100, Math.round(loaded / total * 100)); status.textContent = `${communityText("Subiendo", "Uploading")} ${percent}%…`; onProgress(percent, `Subiendo «${metadata.name}»… ${percent}%`, "upload"); };
+                request.onload = () => { let result = {}; try { result = JSON.parse(request.responseText || "{}"); } catch (_) {} if (request.status < 200 || request.status >= 300) { reject(new Error(result.error || `HTTP ${request.status}`)); return; } sent += blob.size; const percent = Math.min(100, Math.round(sent / total * 100)); onProgress(percent, `Subiendo «${metadata.name}»… ${percent}%`, "upload"); resolve(); };
                 request.onerror = () => reject(new Error(communityText("Se perdió la conexión con la API. Revisa internet e inténtalo otra vez.", "Connection to the API was lost. Check your internet and try again.")));
                 request.ontimeout = () => reject(new Error(communityText("Un bloque tardó demasiado. Vuelve a intentarlo.", "A file block took too long. Please try again.")));
                 request.send(blob);
               });
             }
           }
-          status.textContent = communityText("Archivo recibido. Validando y guardando en Drive…", "File received. Validating and saving to Drive…");
           status.textContent = communityText("Archivo recibido. Guardándolo en Drive en segundo plano…", "Package received. Saving to Drive in the background…");
+          onProgress(100, `Subida completa. Guardando «${metadata.name}» en la comunidad…`, "saving");
           const complete = await fetch(`${base}/api/sequences/uploads/${session.uploadId}/complete`, { method: "POST", mode: "cors", credentials: "omit", cache: "no-store" }).catch(() => { throw new Error(communityText("La API perdió la conexión al iniciar el guardado. La secuencia ya se transfirió; revisa la comunidad en un momento.", "The API connection was lost while starting the save. The sequence was transferred; check the community again shortly.")); });
           const job = await complete.json().catch(() => ({}));
           if (!complete.ok) throw new Error(job.error || `HTTP ${complete.status}`);
@@ -8319,11 +8336,11 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           while (Date.now() < deadline) {
             await new Promise((resolve) => setTimeout(resolve, 2000));
             const response = await fetch(`${base}/api/sequences/uploads/${session.uploadId}/status`, { mode: "cors", credentials: "omit", cache: "no-store" }).catch(() => null);
-            if (!response) { status.textContent = communityText("Drive sigue guardando la secuencia. Reintentando conexión…", "Drive is still saving the sequence. Retrying the connection…"); continue; }
+            if (!response) { status.textContent = communityText("Drive sigue guardando la secuencia. Reintentando conexión…", "Drive is still saving the sequence. Retrying the connection…"); onProgress(100, `Guardando «${metadata.name}» en la comunidad…`, "saving"); continue; }
             const result = await response.json().catch(() => ({}));
             if (response.ok && result.jobStatus === "complete") return result;
             if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
-            status.textContent = communityText("Drive sigue guardando la secuencia…", "Drive is still saving the sequence…");
+            status.textContent = communityText("Drive sigue guardando la secuencia…", "Drive is still saving the sequence…"); onProgress(100, `Guardando «${metadata.name}» en la comunidad…`, "saving");
           }
           throw new Error(communityText("La transferencia terminó, pero guardar en Drive está tardando más de lo esperado. Revisa la comunidad antes de volver a subirla.", "The transfer finished, but saving to Drive is taking longer than expected. Check the community before uploading again."));
         }
@@ -8333,7 +8350,11 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           overlay.style.cssText = "position:fixed;inset:0;z-index:12002;display:grid;place-items:center;padding:18px;background:#000b;backdrop-filter:blur(5px);font:14px system-ui,sans-serif;color:#eef1f3";
           overlay.innerHTML = `<section role="dialog" aria-modal="true" style="box-sizing:border-box;width:min(520px,100%);max-height:90vh;overflow:auto;padding:20px;background:#191c1f;border:1px solid #3b4147;border-radius:16px;box-shadow:0 24px 70px #000c"><header style="display:flex;align-items:center;justify-content:space-between"><strong style="font-size:19px">${communityText("Subir secuencia a la comunidad", "Upload a sequence to the community")}</strong><button type="button" data-close style="border:0;background:transparent;color:#c8cdd2;font-size:25px;cursor:pointer">×</button></header><p style="color:#aeb4ba;line-height:1.45">${communityText("En StageTracks puedes subir directamente la secuencia activa de Mi biblioteca. También puedes elegir un archivo .rpseq o .zip. Se sube en bloques y puede pesar hasta 1 GB.", "In StageTracks, upload the active sequence from My Library directly. You can also choose a .rpseq or .zip file. Uploads are chunked and can be up to 1 GB.")}</p><form data-form><label style="display:block;margin:10px 0 5px">${communityText("Nombre de la canción", "Song title")}</label><input name="name" required maxlength="120" value="${String(current.name || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:10px 0 5px">${communityText("Artista o grupo", "Artist or band")}</label><input name="artist" required maxlength="120" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="display:block;margin:10px 0 5px">${communityText("Tonalidad", "Key")}</label><select name="key" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option value="">—</option>${"C C# Db D D# Eb E F F# Gb G G# Ab A A# Bb B Cm C#m Dbm Dm D#m Ebm Em Fm F#m Gbm Gm G#m Abm Am A#m Bbm Bm".split(" ").map(key => `<option>${key}</option>`).join("")}</select></div><div><label style="display:block;margin:10px 0 5px">BPM</label><input name="bpm" type="number" min="40" max="240" value="${current.tempoKnown ? Math.round(current.tempo) : 120}" required style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="display:block;margin:10px 0 5px">${communityText("Compás", "Time signature")}</label><select name="meter" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option>4/4</option><option>3/4</option><option>6/8</option><option>2/4</option><option>5/4</option><option>7/4</option><option>9/8</option><option>12/8</option></select></div><div><label style="display:block;margin:10px 0 5px">${communityText("Género", "Genre")}</label><select name="genre" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option>Adoración</option><option>Gospel</option><option>Contemporáneo</option><option>Acústico</option><option>Rock</option><option>Otro</option></select></div></div><label style="display:block;margin:12px 0 5px">${communityText("Paquete .rpseq o .zip", "Sequence package (.rpseq or .zip)")}</label><input name="package" type="file" accept=".rpseq,.zip,application/zip" required><label style="display:block;margin:12px 0 5px">${communityText("Carátula opcional", "Optional cover")}</label><input name="cover" type="file" accept="image/png,image/jpeg,image/webp"><small data-status aria-live="polite" style="display:block;min-height:20px;margin-top:10px;color:#aeb4ba"></small><footer style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px"><button type="button" data-cancel style="padding:9px 13px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff;cursor:pointer">${communityText("Cancelar", "Cancel")}</button><button type="submit" style="padding:9px 14px;border:0;border-radius:9px;background:#2c83df;color:#fff;cursor:pointer">${communityText("Subir", "Upload")}</button></footer></form></section>`;
           const form = overlay.querySelector("[data-form]"), status = overlay.querySelector("[data-status]"), submit = form.querySelector('[type="submit"]');
-          const close = () => { overlay.remove(); if (communityUploadForm === form) communityUploadForm = null; };
+          let uploadInBackground = false, uploadPending = false, uploadFinished = false, uploadPercent = 0, uploadState = "upload";
+          const close = () => {
+            if (uploadPending && !uploadFinished) { uploadInBackground = true; showCommunityUploadProgress(uploadPercent, status.textContent || "La subida continúa en segundo plano…", uploadState); }
+            overlay.remove(); if (communityUploadForm === form) communityUploadForm = null;
+          };
           communityUploadForm = form;
           const packageInput = form.querySelector('[name="package"]');
           const currentButton = document.createElement("button"); currentButton.type = "button"; currentButton.textContent = "Usar secuencia activa de Mi biblioteca"; currentButton.dataset.currentSequence = "1";
@@ -8350,7 +8371,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           const backgroundButton = document.createElement("button"); backgroundButton.type = "button"; backgroundButton.hidden = true; backgroundButton.textContent = "Continuar en segundo plano";
           backgroundButton.style.cssText = "padding:9px 12px;border:1px solid #46627a;border-radius:8px;background:#1d3141;color:#d6ecff;cursor:pointer";
           form.querySelector("footer").insertBefore(backgroundButton, submit);
-          backgroundButton.onclick = () => { close(); toast("La publicación continúa en segundo plano."); };
+          backgroundButton.onclick = () => { uploadInBackground = true; showCommunityUploadProgress(uploadPercent, status.textContent || "Subiendo secuencia…", uploadState); close(); toast("La publicación continúa en segundo plano."); };
           overlay.querySelector("[data-close]").onclick = close; overlay.querySelector("[data-cancel]").onclick = close; overlay.onclick = event => { if (event.target === overlay) close(); };
           form.onsubmit = async event => {
             event.preventDefault(); const data = new FormData(form), selectedPackage = data.get("package"), coverFile = data.get("cover");
@@ -8360,10 +8381,22 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             if (packageFile.size > maxCommunityPackageBytes) { status.textContent = communityText("El paquete supera el límite de 1 GB.", "The package exceeds the 1 GB limit."); return; }
             if (coverFile?.size > 8 * 1024 * 1024) { status.textContent = communityText("La carátula debe pesar hasta 8 MB.", "The cover image must be 8 MB or smaller."); return; }
             const metadata = { name: String(data.get("name") || "").trim(), artist: String(data.get("artist") || "").trim(), key: String(data.get("key") || ""), bpm: String(Math.round(Number(data.get("bpm")) || 120)), meter: String(data.get("meter") || "4/4"), genre: String(data.get("genre") || "") };
-            submit.disabled = true; status.textContent = communityText("Preparando la carga…", "Preparing upload…");
-            try { const result = await uploadCommunityPackage(metadata, packageFile, coverFile?.size ? coverFile : null, status, () => { backgroundButton.hidden = false; }); status.textContent = result.message || communityText("Secuencia publicada.", "Sequence published."); toast(result.message || communityText("Secuencia publicada.", "Sequence published."), false); if (songLibraryMode === "community") searchCommunitySongs(); setTimeout(close, 1400); }
-            catch (error) { if (packageFile?.hostExport) delete form.dataset.communityPackageSize; status.textContent = error.message || communityText("No se pudo subir la secuencia.", "Could not upload the sequence."); if (!form.isConnected) toast(status.textContent, true); }
-            finally { submit.disabled = false; if (packageFile?.hostExport) fetch("/host/community/export/finish", { method: "POST" }).catch(() => {}); }
+            submit.disabled = true; uploadPending = true; status.textContent = communityText("Preparando la carga…", "Preparing upload…");
+            try {
+              const result = await uploadCommunityPackage(metadata, packageFile, coverFile?.size ? coverFile : null, status, () => { backgroundButton.hidden = false; }, (percent, message, state) => {
+                uploadPercent = percent; uploadState = state;
+                if (uploadInBackground) showCommunityUploadProgress(percent, message, state);
+              });
+              uploadFinished = true; status.textContent = result.message || communityText("Secuencia publicada.", "Sequence published.");
+              if (uploadInBackground) showCommunityUploadProgress(100, result.message || `«${metadata.name}» se subió correctamente.`, "complete");
+              toast(result.message || communityText("Secuencia publicada.", "Sequence published."), false); if (songLibraryMode === "community") searchCommunitySongs(); setTimeout(close, 1400);
+            }
+            catch (error) {
+              uploadFinished = true; if (packageFile?.hostExport) delete form.dataset.communityPackageSize; status.textContent = error.message || communityText("No se pudo subir la secuencia.", "Could not upload the sequence.");
+              if (uploadInBackground) showCommunityUploadProgress(-1, `No se pudo subir «${metadata.name}»: ${status.textContent}`, "error");
+              if (!form.isConnected) toast(status.textContent, true);
+            }
+            finally { uploadFinished = true; submit.disabled = false; if (packageFile?.hostExport) fetch("/host/community/export/finish", { method: "POST" }).catch(() => {}); }
           };
           document.body.appendChild(overlay); form.querySelector('[name="artist"]').focus();
         }
@@ -9949,7 +9982,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
                 } finally { checkButton.disabled = false; checkButton.textContent = "Comprobar actualización"; }
               };
               const currentVersion = document.createElement("small"); currentVersion.style.color = "#929aa1"; currentVersion.textContent = `Versión instalada: ${window.STAGETRACKS_APP_VERSION || "desconocida"}`;
-              updateActions.append(checkButton, currentVersion); page.append(updateStatus, updateProgress);
+              updateActions.append(checkButton, currentVersion); page.append(updateActions, updateStatus, updateProgress);
             }
             if (group.id === "web-control") {
               const info = document.createElement("div");
