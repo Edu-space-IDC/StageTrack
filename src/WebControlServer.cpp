@@ -117,13 +117,25 @@ void sendFileStream(juce::StreamingSocket& client, const juce::File& file, const
     const bool partial = range.startsWithIgnoreCase("bytes=");
     if (partial) {
         const auto bounds = juce::StringArray::fromTokens(range.fromFirstOccurrenceOf("=", false, false), "-", "");
-        if (bounds.size() != 2 || !bounds[0].containsOnly("0123456789")) { sendText(client, 416, "text/plain; charset=utf-8", "Rango no vÃ¡lido"); return; }
+        if (bounds.size() != 2 || !bounds[0].containsOnly("0123456789")) { sendText(client, 416, "text/plain; charset=utf-8", "Rango no válido"); return; }
         start = bounds[0].getLargeIntValue();
         end = bounds[1].isEmpty() ? end : bounds[1].getLargeIntValue();
         if (start < 0 || start >= fileLength || end < start) { sendText(client, 416, "text/plain; charset=utf-8", "Rango fuera del archivo"); return; }
         end = juce::jmin(end, fileLength - 1);
     }
     const auto length = end - start + 1;
+    juce::MemoryBlock rangeBody;
+    if (partial) {
+        if (length > 16 * 1024 * 1024) { sendText(client, 413, "text/plain; charset=utf-8", "El bloque solicitado es demasiado grande."); return; }
+        rangeBody.setSize((size_t) length, false);
+        input->setPosition(start);
+        int64_t loaded = 0;
+        while (loaded < length) {
+            const int amount = input->read(static_cast<char*>(rangeBody.getData()) + loaded, (int) juce::jmin<int64_t>(64 * 1024, length - loaded));
+            if (amount <= 0) { sendText(client, 500, "text/plain; charset=utf-8", "No se pudo leer completo el bloque de la secuencia."); return; }
+            loaded += amount;
+        }
+    }
     const auto status = partial ? 206 : 200;
     const auto head = "HTTP/1.1 " + juce::String(status) + (partial ? " Partial Content" : " OK")
         + "\r\nContent-Type: application/octet-stream\r\nContent-Length: " + juce::String(length)
@@ -132,15 +144,21 @@ void sendFileStream(juce::StreamingSocket& client, const juce::File& file, const
         + "Content-Disposition: attachment; filename=\"StageTracks-community.rpseq\"\r\nCache-Control: no-store\r\nConnection: close\r\nX-Content-Type-Options: nosniff\r\n\r\n";
     auto writeAll = [&](const void* data, int bytes) {
         int sent = 0;
+        int stalledMs = 0;
         while (sent < bytes) {
             const int written = client.write(static_cast<const char*>(data) + sent, bytes - sent);
-            if (written <= 0) return false;
-            sent += written;
+            if (written > 0) { sent += written; stalledMs = 0; continue; }
+            if (client.waitUntilReady(false, 250) < 0 || (stalledMs += 250) >= 30000) return false;
         }
         return true;
     };
-    input->setPosition(start);
     bool connected = writeAll(head.toRawUTF8(), (int) head.getNumBytesAsUTF8());
+    if (partial) {
+        if (connected) connected = writeAll(rangeBody.getData(), (int) rangeBody.getSize());
+        input.reset();
+        return;
+    }
+    input->setPosition(start);
     char buffer[64 * 1024];
     int64_t remaining = length;
     while (connected && remaining > 0) {

@@ -248,6 +248,7 @@ void MainComponent::downloadUpdateInstaller(const juce::String& url, bool autoIn
         return;
     }
     updateDownloadInProgress = true;
+    if (bridge) bridge->queueScript("window.receiveStageTracksUpdateProgress?.(0, 'Conectando con GitHub…')");
     const auto folder = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
                             .getChildFile("StageTracks").getChildFile("Updates");
     folder.createDirectory();
@@ -255,6 +256,13 @@ void MainComponent::downloadUpdateInstaller(const juce::String& url, bool autoIn
     auto safe = juce::Component::SafePointer<MainComponent>(this);
     std::thread([safe, url, installer, autoInstall] {
         juce::String error;
+        auto reportProgress = [safe](int percent, const juce::String& message) {
+            juce::MessageManager::callAsync([safe, percent, message] {
+                if (safe == nullptr || safe->bridge == nullptr) return;
+                const auto script = "window.receiveStageTracksUpdateProgress?.(" + juce::String(percent) + "," + juce::JSON::toString(juce::var(message)) + ")";
+                safe->bridge->queueScript(script);
+            });
+        };
         const auto temporary = installer.getSiblingFile(installer.getFileName() + ".part");
         int responseCode = 0;
         const auto options = juce::URL::InputStreamOptions(juce::URL::ParameterHandling::inAddress)
@@ -262,21 +270,31 @@ void MainComponent::downloadUpdateInstaller(const juce::String& url, bool autoIn
         auto input = juce::URL(url).createInputStream(options);
         if (input == nullptr || responseCode < 200 || responseCode >= 300) {
             error = "No se pudo conectar con GitHub para descargar el instalador.";
+            reportProgress(-2, error);
         } else {
             auto output = std::make_unique<juce::FileOutputStream>(temporary);
-            if (!output->openedOk()) error = "No se pudo guardar el instalador en la carpeta de actualizaciones.";
+            if (!output->openedOk()) { error = "No se pudo guardar el instalador en la carpeta de actualizaciones."; reportProgress(-2, error); }
             else {
                 char buffer[256 * 1024];
-                int bytes = 0;
+                int bytes = 0; int64_t downloaded = 0; const int64_t totalBytes = input->getTotalLength(); int lastPercent = -1;
+                reportProgress(0, "Descargando instalador… 0%");
                 while ((bytes = input->read(buffer, (int) sizeof(buffer))) > 0) {
                     if (!output->write(buffer, (size_t) bytes)) { error = "La descarga del instalador se interrumpió al guardar el archivo."; break; }
+                    downloaded += bytes;
+                    if (totalBytes > 0) {
+                        const int percent = (int) juce::jlimit<int64_t>(0, 99, downloaded * 100 / totalBytes);
+                        if (percent != lastPercent) { lastPercent = percent; reportProgress(percent, "Descargando instalador… " + juce::String(percent) + "%"); }
+                    } else if (downloaded % (5 * 1024 * 1024) < bytes) {
+                        reportProgress(-1, "Descargando instalador… " + juce::String(downloaded / (1024 * 1024)) + " MB");
+                    }
                 }
                 output->flush();
                 output.reset();
                 if (error.isEmpty() && temporary.getSize() < 1024 * 1024) error = "El instalador descargado está incompleto.";
+                if (error.isNotEmpty()) reportProgress(-2, error);
                 if (error.isEmpty()) {
                     installer.deleteFile();
-                    if (!temporary.moveFileTo(installer)) error = "No se pudo preparar el instalador descargado.";
+                    if (!temporary.moveFileTo(installer)) { error = "No se pudo preparar el instalador descargado."; reportProgress(-2, error); }
                 }
             }
         }
@@ -285,7 +303,15 @@ void MainComponent::downloadUpdateInstaller(const juce::String& url, bool autoIn
             if (safe == nullptr) return;
             safe->updateDownloadInProgress = false;
             if (error.isNotEmpty()) { if (safe->bridge) safe->bridge->toast(error, true); return; }
-            if (!installer.startAsProcess(autoInstall ? "--update" : juce::String())) { if (safe->bridge) safe->bridge->toast("La descarga terminó, pero Windows no pudo abrir el instalador.", true); return; }
+            if (safe->bridge) safe->bridge->queueScript("window.receiveStageTracksUpdateProgress?.(100, 'Descarga completa; abriendo el instalador…')");
+            if (!installer.startAsProcess(autoInstall ? "--update" : juce::String())) {
+                if (safe->bridge) {
+                    const auto message = juce::String("Windows no pudo abrir el instalador descargado.");
+                    safe->bridge->queueScript("window.receiveStageTracksUpdateProgress?.(-2," + juce::JSON::toString(juce::var(message)) + ")");
+                    safe->bridge->toast(message, true);
+                }
+                return;
+            }
             if (safe->bridge) safe->bridge->toast("Instalador abierto. Guarda tu secuencia y confirma el cierre para actualizar StageTracks.", false);
         });
     }).detach();

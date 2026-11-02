@@ -8255,19 +8255,29 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           let lastError = null;
           for (let attempt = 0; attempt < 3; attempt++) {
             try {
-              const response = await fetch("/host/community/export", { headers: { Range: `bytes=${from}-${to - 1}` }, cache: "no-store" });
-              if (response.status !== 206) throw new Error(`StageTracks respondió HTTP ${response.status} al leer el paquete.`);
-              const contentRange = response.headers.get("content-range") || "";
-              if (!contentRange.startsWith(`bytes ${from}-${to - 1}/`)) throw new Error("StageTracks devolvió un bloque distinto al solicitado.");
-              const blob = await response.blob();
-              if (blob.size !== to - from) throw new Error("El bloque local llegó incompleto.");
-              return blob;
+              return await new Promise((resolve, reject) => {
+                const request = new XMLHttpRequest();
+                request.open("GET", "/host/community/export", true);
+                request.setRequestHeader("Range", `bytes=${from}-${to - 1}`);
+                request.responseType = "blob"; request.timeout = 30000;
+                request.onload = () => {
+                  if (request.status !== 206) { reject(new Error(`StageTracks respondió HTTP ${request.status} al leer el paquete.`)); return; }
+                  if (!(request.getResponseHeader("content-range") || "").startsWith(`bytes ${from}-${to - 1}/`)) { reject(new Error("StageTracks devolvió un bloque distinto al solicitado.")); return; }
+                  if (!request.response || request.response.size !== to - from) { reject(new Error("El bloque local llegó incompleto.")); return; }
+                  resolve(request.response);
+                };
+                request.onerror = () => reject(new Error("Se interrumpió la conexión local con StageTracks."));
+                request.ontimeout = () => reject(new Error("La lectura local superó los 30 segundos."));
+                request.onabort = () => reject(new Error("Se canceló la lectura local del paquete."));
+                request.send();
+              });
             } catch (error) {
               lastError = error;
               if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
             }
           }
-          throw new Error(`No se pudo leer el bloque ${from}-${to - 1} de ${totalBytes} bytes de la secuencia activa. Vuelve a preparar el paquete e inténtalo otra vez. ${lastError?.message || ""}`);
+          const detail = lastError?.message || "";
+          throw new Error(`No se pudo leer el bloque ${from}-${to - 1} de ${totalBytes} bytes de la secuencia activa. Vuelve a preparar el paquete e inténtalo otra vez. ${detail}`);
         }
         async function uploadCommunityPackage(metadata, packageFile, coverFile, status, onStart) {
           const base = communityApiBase();
@@ -9737,6 +9747,27 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         function stageTracksInstallerUrl() {
           return stageTracksUpdateInfo?.installerUrl || "https://github.com/Edu-space-IDC/StageTrack/releases/latest/download/StageTracks-Setup-windows-x64.exe";
         }
+        window.receiveStageTracksUpdateProgress = (percent, message) => {
+          let panel = document.getElementById("stagetracksUpdateProgressToast");
+          if (!panel) {
+            panel = document.createElement("div"); panel.id = "stagetracksUpdateProgressToast"; panel.setAttribute("role", "status");
+            panel.style.cssText = "position:fixed;z-index:12060;right:20px;bottom:20px;width:min(360px,calc(100vw - 40px));box-sizing:border-box;padding:14px;border:1px solid #3889d866;border-radius:13px;background:#17212af5;box-shadow:0 12px 38px #000a;color:#edf5fc;font:13px system-ui,sans-serif";
+            panel.innerHTML = '<strong data-update-progress-label style="display:block;margin-bottom:9px">Descargando actualización…</strong><div style="height:8px;overflow:hidden;border-radius:99px;background:#30363b"><div data-update-progress-fill style="width:0%;height:100%;border-radius:99px;background:#36b878;transition:width .18s ease"></div></div>';
+            document.body.appendChild(panel);
+          }
+          const label = panel.querySelector("[data-update-progress-label]"), fill = panel.querySelector("[data-update-progress-fill]");
+          if (label) label.textContent = message || "Descargando actualización…";
+          const failed = Number(percent) <= -2, unknown = Number(percent) === -1;
+          if (fill) { fill.style.width = unknown ? "35%" : `${Math.max(0, Math.min(100, Number(percent) || 0))}%`; fill.style.background = failed ? "#d15b5b" : unknown ? "#438bd2" : "#36b878"; }
+          const settingsProgress = document.getElementById("stagetracksUpdateProgressSettings");
+          if (settingsProgress) {
+            settingsProgress.hidden = false;
+            const settingsLabel = settingsProgress.querySelector("[data-update-progress-label]"), settingsFill = settingsProgress.querySelector("[data-update-progress-fill]");
+            if (settingsLabel) settingsLabel.textContent = message || "Descargando actualización…";
+            if (settingsFill) { settingsFill.style.width = unknown ? "35%" : `${Math.max(0, Math.min(100, Number(percent) || 0))}%`; settingsFill.style.background = failed ? "#d15b5b" : unknown ? "#438bd2" : "#36b878"; }
+          }
+          if (Number(percent) === 100) setTimeout(() => panel?.remove(), 8000);
+        };
         function downloadStageTracksUpdate(autoInstall = false) {
           const url = stageTracksInstallerUrl();
           if (!url.startsWith("https://github.com/Edu-space-IDC/StageTrack/releases/")) {
@@ -9760,15 +9791,25 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           }
           banner.querySelector("[data-update-label]").textContent = `Nueva actualización ${stageTracksUpdateInfo.version} ¿Descargar?`;
         }
+        let stageTracksLastUpdateCheck = "idle";
         async function checkStageTracksUpdate(manual = false) {
           if (!window.STAGETRACKS_NATIVE) { if (manual) toast("La actualización solo está disponible en la aplicación de escritorio.", true); return false; }
           try {
-            const response = await fetch(stageTracksUpdateInfoUrl + "?check=" + Date.now(), { cache: "no-store" });
-            if (!response.ok) throw new Error("No se pudo consultar la versión publicada.");
-            stageTracksUpdateInfo = await response.json();
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 15000);
+            let response;
+            let updateInfo;
+            try {
+              response = await fetch(stageTracksUpdateInfoUrl + "?check=" + Date.now(), { cache: "no-store", mode: "cors", credentials: "omit", signal: controller.signal });
+              if (!response.ok) throw new Error("No se pudo consultar la versión publicada.");
+              updateInfo = await response.json();
+            }
+            finally { clearTimeout(timeout); }
+            stageTracksUpdateInfo = updateInfo;
             const current = window.STAGETRACKS_APP_VERSION || "0.0.0";
             const hasUpdate = compareStageTracksVersions(stageTracksUpdateInfo.version, current) > 0;
-            if (!hasUpdate) { if (manual) toast("No hay una nueva actualización disponible.", false); return false; }
+            if (!hasUpdate) { stageTracksLastUpdateCheck = "current"; if (manual) toast("No hay una nueva actualización disponible.", false); return false; }
+            stageTracksLastUpdateCheck = "available";
             showStageTracksUpdateBanner();
             if (localStorage.getItem("stageTracksAutoUpdate") === "1") {
               const key = "stageTracksAutoUpdateStarted:" + stageTracksUpdateInfo.version;
@@ -9778,7 +9819,8 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             } else if (manual) toast(`Nueva actualización disponible: ${stageTracksUpdateInfo.version}.`, false);
             return true;
           } catch (error) {
-            if (manual) toast(error.message || "No se pudo comprobar si hay actualizaciones.", true);
+            stageTracksLastUpdateCheck = "error";
+            if (manual) toast(error.name === "AbortError" ? "La comprobación tardó demasiado. Revisa tu conexión e inténtalo de nuevo." : (error.message || "No se pudo comprobar si hay actualizaciones."), true);
             return false;
           }
         }
@@ -9896,9 +9938,18 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
               autoRow.append(autoCopy, autoSwitch); page.appendChild(autoRow);
               const updateActions = document.createElement("div"); updateActions.style.cssText = "display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px";
               const checkButton = document.createElement("button"); checkButton.type = "button"; checkButton.className = "binding-add"; checkButton.textContent = "Comprobar actualización";
-              checkButton.onclick = async () => { checkButton.disabled = true; checkButton.textContent = "Comprobando…"; await checkStageTracksUpdate(true); checkButton.disabled = false; checkButton.textContent = "Comprobar actualización"; };
+              const updateStatus = document.createElement("small"); updateStatus.style.cssText = "display:block;margin-top:12px;color:#aeb4ba;min-height:18px";
+              const updateProgress = document.createElement("div"); updateProgress.id = "stagetracksUpdateProgressSettings"; updateProgress.hidden = true; updateProgress.style.cssText = "margin-top:10px";
+              updateProgress.innerHTML = '<small data-update-progress-label style="display:block;margin-bottom:7px;color:#aeb4ba">Descargando actualización…</small><div style="height:8px;overflow:hidden;border-radius:99px;background:#30363b"><div data-update-progress-fill style="width:0%;height:100%;border-radius:99px;background:#36b878;transition:width .18s ease"></div></div>';
+              checkButton.onclick = async () => {
+                checkButton.disabled = true; checkButton.textContent = "Comprobando…"; updateStatus.textContent = "Consultando la versión más reciente…";
+                try {
+                  await checkStageTracksUpdate(true);
+                  updateStatus.textContent = stageTracksLastUpdateCheck === "available" ? (localStorage.getItem("stageTracksAutoUpdate") === "1" ? `Nueva versión disponible: ${stageTracksUpdateInfo.version}. La descarga comenzará automáticamente.` : `Nueva versión disponible: ${stageTracksUpdateInfo.version}. Usa «Descargar» en el aviso.`) : stageTracksLastUpdateCheck === "current" ? "No hay una nueva actualización disponible." : "No se pudo comprobar la actualización. Inténtalo de nuevo.";
+                } finally { checkButton.disabled = false; checkButton.textContent = "Comprobar actualización"; }
+              };
               const currentVersion = document.createElement("small"); currentVersion.style.color = "#929aa1"; currentVersion.textContent = `Versión instalada: ${window.STAGETRACKS_APP_VERSION || "desconocida"}`;
-              updateActions.append(checkButton, currentVersion); page.appendChild(updateActions);
+              updateActions.append(checkButton, currentVersion); page.append(updateStatus, updateProgress);
             }
             if (group.id === "web-control") {
               const info = document.createElement("div");
