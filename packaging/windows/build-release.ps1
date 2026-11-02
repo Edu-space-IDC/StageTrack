@@ -62,7 +62,7 @@ if ($compilerExitCode -ne 0 -or -not (Test-Path $targetName)) {
     $compilerDiagnostic = ($compilerOutput | Out-String).Trim()
     throw "No se pudo compilar el instalador de StageTracks (csc exit code $compilerExitCode). $compilerDiagnostic"
 }
-[ordered]@{version='0.5.3';portable='/downloads/StageTracks-portable-windows-x64.zip';installer='/downloads/StageTracks-Setup-windows-x64.exe';reaperStudioExe='/downloads/Reaper%20Control%20Studio.exe';updated=(Get-Date).ToUniversalTime().ToString('o')} | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $publicDownloads 'release.json')
+[ordered]@{version='0.5.4';portable='/downloads/StageTracks-portable-windows-x64.zip';installer='/downloads/StageTracks-Setup-windows-x64.exe';reaperStudioExe='/downloads/Reaper%20Control%20Studio.exe';updated=(Get-Date).ToUniversalTime().ToString('o')} | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $publicDownloads 'release.json')
 $publicAssets = Join-Path $site 'public/assets'
 Copy-Item -LiteralPath (Join-Path $root 'assets/app-icon.png') -Destination (Join-Path $publicAssets 'app-icon.png') -Force
 Copy-Item -LiteralPath (Join-Path $root 'assets/app-icon.png') -Destination (Join-Path $reaperSource 'app-icon.png') -Force

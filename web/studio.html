@@ -8363,7 +8363,12 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             if (item.cover) {
               const coverUrl = /^https?:/i.test(item.cover) ? item.cover : communityApiBase() + item.cover;
               art.style.backgroundImage = `url("${coverUrl.replace(/["\\]/g, "")}")`;
-            } else art.textContent = "♫";
+            } else {
+              art.textContent = "♫";
+              itunesSearch(`${item.name || ""} ${item.artist || ""}`).then((covers) => {
+                if (art.isConnected && covers[0]) { art.textContent = ""; art.style.backgroundImage = `url("${covers[0].url}")`; }
+              }).catch(() => {});
+            }
             const info = document.createElement("span"); info.style.cssText = "min-width:0;flex:1";
             const name = document.createElement("strong"); name.style.cssText = "display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"; name.textContent = item.name || "Secuencia";
             const meta = document.createElement("small"); meta.style.cssText = "display:block;margin-top:4px;color:#9da6af"; meta.textContent = `${item.artist || "Comunidad"} · ${item.bpm || "--"} BPM · ${item.meter || "4/4"}`;
@@ -8594,9 +8599,10 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           const matches = songs.list.map((song, i) => ({song, i})).filter(({song}) => song.name.toLocaleLowerCase().includes(q));
           if (!matches.length) { list.textContent = "No hay canciones que coincidan."; return; }
           matches.forEach(({song, i}) => {
-            const row = document.createElement("button");
-            row.type = "button";
-            row.style.cssText = "width:100%;display:flex;align-items:center;gap:12px;padding:9px;border:1px solid #353a40;border-radius:12px;background:#191c1f;color:#f3f5f6;text-align:left;cursor:pointer";
+            const row = document.createElement("div");
+            row.style.cssText = "width:100%;display:flex;align-items:center;gap:8px;padding:9px;border:1px solid #353a40;border-radius:12px;background:#191c1f;color:#f3f5f6";
+            const select = document.createElement("button"); select.type = "button";
+            select.style.cssText = "min-width:0;flex:1;display:flex;align-items:center;gap:12px;padding:0;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer";
             const art = document.createElement("div");
             art.style.cssText = "width:48px;height:48px;flex:0 0 48px;border-radius:7px;background:#292d31 center/cover no-repeat;display:grid;place-items:center;color:#9da6af;font-size:20px";
             const cover = coverOf(song);
@@ -8609,8 +8615,15 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             const meta = document.createElement("small");
             meta.style.cssText = "display:block;margin-top:4px;color:#9da6af";
             meta.textContent = `${song.tempoKnown ? song.tempo : "--"} BPM · ${song.sigNum || 4}/${song.sigDen || 4}`;
-            info.append(name, meta); row.append(art, info);
-            row.onclick = () => { songLibraryOverlay.remove(); songLibraryOverlay = null; if (i !== songs.active) window.activateSongTab(i); };
+            info.append(name, meta); select.append(art, info);
+            select.onclick = () => { songLibraryOverlay.remove(); songLibraryOverlay = null; if (i !== songs.active) window.activateSongTab(i); };
+            row.append(select);
+            if (window.STAGETRACKS_NATIVE) {
+              const upload = document.createElement("button"); upload.type = "button"; upload.textContent = "Subir a comunidad";
+              upload.style.cssText = "flex:0 0 auto;padding:8px 10px;border:1px solid #2d8050;border-radius:8px;background:#1e3b2a;color:#d8f5e3;cursor:pointer;font-size:12px";
+              upload.onclick = () => requestSongTab(i, () => { songLibraryOverlay?.remove(); songLibraryOverlay = null; setTimeout(openCommunityUploadDialog, 300); });
+              row.append(upload);
+            }
             list.appendChild(row);
           });
         }

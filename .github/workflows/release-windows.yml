@@ -3,7 +3,7 @@ name: Build and publish Windows release
 on:
   push:
     tags:
-      - 'v0.5.3'
+      - 'v0.5.4'
 
 permissions:
   contents: write
@@ -101,5 +101,5 @@ jobs:
             'release-artifacts/StageTracks-portable-windows-x64.zip' `
             'release-artifacts/Reaper Control Studio.exe' `
             --repo $env:GITHUB_REPOSITORY `
-            --title 'StageTracks 0.5.3' `
-            --notes 'Incluye conexión funcional con la comunidad, búsqueda y descarga de secuencias, y publicación de paquetes .rpseq/.zip desde StageTracks.'
+            --title 'StageTracks 0.5.4' `
+            --notes 'Incluye publicación desde Mi biblioteca, descarga comunitaria estable, carátulas visibles y administración de secuencias desde StageTracks.'

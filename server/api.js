@@ -6,6 +6,7 @@ import { createReadStream, createWriteStream } from 'node:fs';
 import { appendFile, mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Readable } from 'node:stream';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
@@ -208,8 +209,44 @@ function inspectArchive(filePath) {
           if (missing) throw new Error(`Falta el audio ${missing}. Incluye todas las pistas referenciadas en el ZIP.`);
           const manifestTempo = Number(manifest.songs[0]?.tempo);
           const manifestMeter = `${manifest.songs[0]?.timeSigNum || 4}/${manifest.songs[0]?.timeSigDen || 4}`;
-          resolve({ songCount: manifest.songs.length, totalBytes: total, bpm: manifestTempo >= 40 && manifestTempo <= 240 ? manifestTempo : null, meter: manifestMeter });
+          resolve({ songCount: manifest.songs.length, totalBytes: total, bpm: manifestTempo >= 40 && manifestTempo <= 240 ? manifestTempo : null, meter: manifestMeter, coverPath: String(manifest.songs[0]?.cover || '') });
         } catch (e) { reject(e); }
+      });
+      zip.readEntry();
+    });
+  });
+}
+
+async function extractEmbeddedCover(archivePath, coverPath, itemId) {
+  if (!coverPath) return null;
+  const wanted = path.posix.normalize(String(coverPath).replaceAll('\\', '/'));
+  return new Promise((resolve, reject) => {
+    yauzl.open(archivePath, { lazyEntries: true, autoClose: true, validateEntrySizes: true }, (error, zip) => {
+      if (error) return reject(new Error('No se pudo abrir el paquete para extraer la carátula.'));
+      let settled = false;
+      const fail = (message) => { if (settled) return; settled = true; try { zip.close(); } catch {} reject(new Error(message)); };
+      zip.on('error', () => fail('No se pudo leer la carátula del paquete.'));
+      zip.on('end', () => { if (!settled) { settled = true; resolve(null); } });
+      zip.on('entry', (entry) => {
+        if (path.posix.normalize(entry.fileName.replaceAll('\\', '/')) !== wanted) { zip.readEntry(); return; }
+        if (entry.uncompressedSize > 8 * 1024 * 1024) return fail('La carátula del paquete supera el límite de 8 MB.');
+        zip.openReadStream(entry, (streamError, stream) => {
+          if (streamError) return fail('No se pudo extraer la carátula del paquete.');
+          const chunks = []; let bytes = 0;
+          stream.on('data', (chunk) => { bytes += chunk.length; if (bytes > 8 * 1024 * 1024) return fail('La carátula del paquete supera el límite de 8 MB.'); chunks.push(chunk); });
+          stream.on('error', () => fail('No se pudo extraer la carátula del paquete.'));
+          stream.on('end', async () => {
+            if (settled) return;
+            const image = Buffer.concat(chunks), ext = path.posix.extname(wanted).toLowerCase();
+            const mime = image[0] === 0xff && image[1] === 0xd8 && image[2] === 0xff ? 'image/jpeg'
+              : image.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ? 'image/png'
+              : image.toString('ascii', 0, 4) === 'RIFF' && image.toString('ascii', 8, 12) === 'WEBP' ? 'image/webp' : '';
+            if (!mime || !({ '.jpg': 1, '.jpeg': 1, '.png': 1, '.webp': 1 })[ext]) return fail('La carátula dentro del paquete no es una imagen PNG, JPG o WebP válida.');
+            const filePath = path.join(incomingDir, `${itemId}-embedded-cover${ext}`);
+            try { await writeFile(filePath, image); zip.close(); settled = true; resolve({ filePath, mime }); }
+            catch { fail('No se pudo guardar la carátula extraída.'); }
+          });
+        });
       });
       zip.readEntry();
     });
@@ -244,10 +281,20 @@ app.use((req, res, next) => {
   next();
 });
 if (driveStorageEnabled) {
-  app.get('/media/:fileId', (req, res) => {
+  app.get('/media/:fileId', async (req, res, next) => {
     const fileId = String(req.params.fileId || '');
     if (!entries.some((item) => item.coverDriveFileId === fileId)) return res.status(404).json({ error: 'No encontramos esa carátula.' });
-    res.redirect(302, `https://drive.google.com/uc?export=view&id=${encodeURIComponent(fileId)}`);
+    try {
+      const response = await fetch(`https://drive.usercontent.google.com/download?id=${encodeURIComponent(fileId)}&export=download&confirm=t`, { signal: AbortSignal.timeout(30_000) });
+      const mime = (response.headers.get('content-type') || '').split(';')[0].toLowerCase();
+      if (!response.ok || !mime.startsWith('image/')) return res.status(502).json({ error: 'No se pudo cargar la carátula desde Google Drive.' });
+      const headers = { 'Content-Type': mime, 'Cache-Control': 'public, max-age=86400' };
+      const length = response.headers.get('content-length');
+      if (length) headers['Content-Length'] = length;
+      res.status(response.status).set(headers);
+      if (response.body) Readable.fromWeb(response.body).on('error', next).pipe(res);
+      else res.end();
+    } catch { if (!res.headersSent) res.status(502).json({ error: 'No se pudo cargar la carátula desde Google Drive.' }); }
   });
 } else {
   app.use('/media', express.static(coverDir, { fallthrough: false, maxAge: '1d' }));
@@ -349,8 +396,24 @@ app.get('/api/sequences/:id/download', async (req, res, next) => {
   try {
     if (driveStorageEnabled) {
       if (!item.packageDriveFileId) return res.status(404).json({ error: 'El archivo de la secuencia ya no está disponible.' });
-      item.downloads++; await persist();
-      return res.redirect(302, `https://drive.usercontent.google.com/download?id=${encodeURIComponent(item.packageDriveFileId)}&export=download&confirm=t`);
+      if (!req.get('Range')) { item.downloads++; await persist(); }
+      const headers = { Accept: 'application/octet-stream' };
+      const range = req.get('Range');
+      if (range) headers.Range = range;
+      const upstream = await fetch(`https://drive.usercontent.google.com/download?id=${encodeURIComponent(item.packageDriveFileId)}&export=download&confirm=t`, { headers, signal: AbortSignal.timeout(90 * 60_000) });
+      if (!upstream.ok && upstream.status !== 206) return res.status(502).json({ error: `Google Drive no pudo entregar la secuencia (${upstream.status}).` });
+      const upstreamType = (upstream.headers.get('content-type') || '').split(';')[0].toLowerCase();
+      if (upstreamType === 'text/html') return res.status(502).json({ error: 'Google Drive respondió una página de confirmación en vez del archivo. Revisa que el paquete sea público.' });
+      res.status(upstream.status);
+      for (const key of ['content-type', 'content-length', 'content-range', 'accept-ranges']) {
+        const value = upstream.headers.get(key);
+        if (value) res.setHeader(key, value);
+      }
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(item.downloadName || item.name + '.rpseq')}`);
+      res.setHeader('Cache-Control', 'no-store');
+      if (upstream.body) Readable.fromWeb(upstream.body).on('error', next).pipe(res);
+      else res.end();
+      return;
     }
     const file = path.join(packageDir, item.packageFile);
     await stat(file);
@@ -396,10 +459,20 @@ async function processSequenceUpload(req, res, next, packageUpload, coverUpload)
       if (driveStorageEnabled) coverDriveFileId = await uploadFileToDrive(tempCoverPath, `${id}${coverExt}`, mime);
       else { cover = `${id}${coverExt}`; await rename(tempCoverPath, path.join(coverDir, cover)); tempCoverPath = ''; }
     }
+    if (!coverDriveFileId && !cover && info.coverPath) {
+      const embedded = await extractEmbeddedCover(packageUpload.path, info.coverPath, id);
+      if (embedded) {
+        tempCoverPath = embedded.filePath;
+        const coverExt = ({ 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' })[embedded.mime];
+        if (driveStorageEnabled) coverDriveFileId = await uploadFileToDrive(tempCoverPath, `${id}${coverExt}`, embedded.mime);
+        else { cover = `${id}${coverExt}`; await rename(tempCoverPath, path.join(coverDir, cover)); tempCoverPath = ''; }
+      }
+    }
     const item = { id, name, artist, bpm, meter, key, genre: String(req.body.genre || '').slice(0, 40), cover, packageFile, packageDriveFileId, coverDriveFileId, downloadName, fileSize: packageUpload.size, songCount: info.songCount, downloads: 0, status: 'approved', createdAt: new Date().toISOString() };
     if (driveStorageEnabled) await driveStoreCall('publish-files', { fileIds: [packageDriveFileId, coverDriveFileId].filter(Boolean) });
     entries.unshift(item); await persist();
     await Promise.all([packageUpload.path, coverUpload?.path].filter(Boolean).map((filePath) => unlink(filePath).catch(() => {})));
+    if (tempCoverPath) await unlink(tempCoverPath).catch(() => {});
     res.status(201).json({ id, status: item.status, message: item.status === 'approved' ? 'Secuencia publicada.' : 'Recibimos la secuencia. Quedará visible cuando la apruebe el equipo.' });
   } catch (error) {
     if (itemId) entries = entries.filter((entry) => entry.id !== itemId);
