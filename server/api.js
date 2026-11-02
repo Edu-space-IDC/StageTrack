@@ -78,6 +78,16 @@ async function removeStoredFile(fileId) {
 if (driveStorageEnabled) {
   const remoteState = await driveStoreCall('load-state');
   entries = Array.isArray(remoteState.sequences) ? remoteState.sequences : [];
+  // Las cargas anteriores quedaron guardadas como pendientes y la API solo
+  // muestra las aprobadas. Publicarlas al iniciar recupera esas secuencias.
+  const pendingEntries = entries.filter((item) => item.status === 'pending');
+  if (pendingEntries.length) {
+    for (const item of pendingEntries) {
+      await driveStoreCall('publish-files', { fileIds: [item.packageDriveFileId, item.coverDriveFileId].filter(Boolean) });
+      item.status = 'approved';
+    }
+    await driveStoreCall('save-sequences', { sequences: entries });
+  }
   feedbackEntries = Array.isArray(remoteState.feedback) ? remoteState.feedback : [];
 }
 let writes = Promise.resolve();
@@ -171,7 +181,9 @@ function inspectArchive(filePath) {
           }
           const missing = referenced.find((file) => !names.has(file));
           if (missing) throw new Error(`Falta el audio ${missing}. Incluye todas las pistas referenciadas en el ZIP.`);
-          resolve({ songCount: manifest.songs.length, totalBytes: total });
+          const manifestTempo = Number(manifest.songs[0]?.tempo);
+          const manifestMeter = `${manifest.songs[0]?.timeSigNum || 4}/${manifest.songs[0]?.timeSigDen || 4}`;
+          resolve({ songCount: manifest.songs.length, totalBytes: total, bpm: manifestTempo >= 40 && manifestTempo <= 240 ? manifestTempo : null, meter: manifestMeter });
         } catch (e) { reject(e); }
       });
       zip.readEntry();
@@ -273,10 +285,11 @@ async function processSequenceUpload(req, res, next, packageUpload, coverUpload)
   try {
     if (!packageUpload) return res.status(400).json({ error: 'Adjunta el paquete de secuencia.' });
     const name = String(req.body.name || '').trim(), artist = String(req.body.artist || '').trim();
-    const bpm = Number(req.body.bpm), meter = String(req.body.meter || '4/4');
+    const requestedBpm = Number(req.body.bpm), requestedMeter = String(req.body.meter || '4/4');
     if (name.length < 2 || name.length > 120 || artist.length > 120) throw new Error('Escribe el nombre de la canción y un artista de máximo 120 caracteres.');
-    if (!Number.isFinite(bpm) || bpm < 40 || bpm > 240 || !/^\d{1,2}\/(1|2|4|8|16|32)$/.test(meter)) throw new Error('Revisa el BPM y el compás.');
     const info = await inspectArchive(packageUpload.path);
+    const bpm = info.bpm || requestedBpm, meter = info.bpm ? info.meter : requestedMeter;
+    if (!Number.isFinite(bpm) || bpm < 40 || bpm > 240 || !/^\d{1,2}\/(1|2|4|8|16|32)$/.test(meter)) throw new Error('Revisa el BPM y el compás.');
     const id = randomUUID(), ext = path.extname(packageUpload.originalname).toLowerCase() === '.zip' ? '.zip' : '.rpseq';
     itemId = id;
     const packageFile = `${id}${ext}`, downloadName = `${name.replace(/[\\/:*?"<>|]/g, '-').trim()}${ext}`;
@@ -303,8 +316,8 @@ async function processSequenceUpload(req, res, next, packageUpload, coverUpload)
       if (driveStorageEnabled) coverDriveFileId = await uploadFileToDrive(tempCoverPath, `${id}${coverExt}`, mime);
       else { cover = `${id}${coverExt}`; await rename(tempCoverPath, path.join(coverDir, cover)); tempCoverPath = ''; }
     }
-    const item = { id, name, artist, bpm, meter, key: String(req.body.key || '').slice(0, 8), genre: String(req.body.genre || '').slice(0, 40), cover, packageFile, packageDriveFileId, coverDriveFileId, downloadName, fileSize: packageUpload.size, songCount: info.songCount, downloads: 0, status: process.env.AUTO_APPROVE === 'true' ? 'approved' : 'pending', createdAt: new Date().toISOString() };
-    if (driveStorageEnabled && item.status === 'approved') await driveStoreCall('publish-files', { fileIds: [packageDriveFileId, coverDriveFileId].filter(Boolean) });
+    const item = { id, name, artist, bpm, meter, key: String(req.body.key || '').slice(0, 8), genre: String(req.body.genre || '').slice(0, 40), cover, packageFile, packageDriveFileId, coverDriveFileId, downloadName, fileSize: packageUpload.size, songCount: info.songCount, downloads: 0, status: 'approved', createdAt: new Date().toISOString() };
+    if (driveStorageEnabled) await driveStoreCall('publish-files', { fileIds: [packageDriveFileId, coverDriveFileId].filter(Boolean) });
     entries.unshift(item); await persist();
     await Promise.all([packageUpload.path, coverUpload?.path].filter(Boolean).map((filePath) => unlink(filePath).catch(() => {})));
     res.status(201).json({ id, status: item.status, message: item.status === 'approved' ? 'Secuencia publicada.' : 'Recibimos la secuencia. Quedará visible cuando la apruebe el equipo.' });

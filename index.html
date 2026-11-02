@@ -312,6 +312,7 @@
       </div>
       <small>© 2026 StageTracks — By Juan Camilo Mina</small>
     </footer>
+    <div id="backgroundUploadStatus" hidden role="status" aria-live="polite" style="position:fixed;right:18px;bottom:18px;z-index:1000;max-width:min(440px,calc(100vw - 36px));padding:12px 16px;border:1px solid #426179;border-radius:12px;background:#171d22;color:#e7f4ff;box-shadow:0 10px 32px #0008"></div>
     <dialog id="dg">
       <form id="fm">
         <h2 style="font-size: 1.6rem">Subir secuencia</h2>
@@ -399,7 +400,7 @@
           "
         >
           <button class="btn o" type="button" id="cx">Cancelar</button
-          ><button class="btn" type="submit">Publicar</button>
+          ><button class="btn o" type="button" id="continueUpload">Continuar en segundo plano</button><button class="btn" type="submit">Publicar</button>
         </div>
       </form>
     </dialog>

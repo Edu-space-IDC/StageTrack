@@ -41,7 +41,7 @@ La API ya esta desplegada como Web Service gratuito de Render desde el repositor
 | `MAX_CHUNKED_UPLOAD_MB` | `1024` para publicaciones de hasta 1 GB en bloques de 8 MB |
 | `CORS_ORIGIN` | `https://stagetrack-ten.vercel.app` |
 | `COMMUNITY_ADMIN_TOKEN` | Un token largo y privado para moderar publicaciones |
-| `AUTO_APPROVE` | `false` o deja la variable sin definir para revisar las publicaciones antes de mostrarlas |
+| `AUTO_APPROVE` | Ya no se necesita: las publicaciones nuevas se muestran al completar la carga. Las secuencias antiguas pendientes se publican al iniciar la API. |
 
 Render proporciona `PORT` automaticamente; no lo fijes manualmente. Sin la integracion de Drive, los datos locales de `/tmp/stagetracks` se pierden cuando Render duerme, se reinicia o se vuelve a desplegar. Render Free duerme despues de inactividad y no admite discos persistentes; la seccion siguiente configura Drive para conservar los datos. [Limites de Render Free](https://render.com/docs/free).
 
@@ -92,24 +92,9 @@ Puedes configurar la API sin variables de Vercel editando `public/community-conf
 1. Abre el dominio Production de Vercel y entra a **Comunidad**. La consola del navegador ya no debe mostrar errores CORS o `404` en `/api/sequences`.
 2. Busca secuencias. Si la lista esta vacia, la pagina debe indicar que no hay secuencias disponibles; eso no significa que la API este desconectada.
 3. Publica un paquete `.rpseq` o `.zip` valido. La interfaz debe confirmar que fue recibido.
-4. Como `AUTO_APPROVE` no esta activado, la publicacion queda pendiente. Para verla, apruebala desde el servidor API usando el token privado:
+4. La secuencia debe aparecer en la comunidad al terminar la carga. La API también publica al iniciar las secuencias antiguas que quedaron pendientes.
 
-```powershell
-$api = 'https://stagetracks-api.onrender.com'
-$token = Read-Host 'Token de moderacion'
-$headers = @{ Authorization = "Bearer $token" }
-$pending = Invoke-RestMethod -Uri "$api/api/admin/pending" -Headers $headers
-$pending.results
-```
-
-Copia el `id` de la secuencia y apruebala:
-
-```powershell
-$id = 'ID_DE_LA_SECUENCIA'
-Invoke-RestMethod -Method Post -Uri "$api/api/admin/sequences/$id/approve" -Headers $headers
-```
-
-Vuelve a cargar la comunidad; ya debe aparecer y poder descargarse. Los paquetes, caratulas y el indice estan bajo `COMMUNITY_DATA_DIR`, en el disco persistente.
+Vuelve a cargar la comunidad; ya debe aparecer y poder descargarse.
 
 ### Donde se guardan las secuencias
 
@@ -204,7 +189,7 @@ Antes de iniciar Vite, ejecuta `packaging/windows/build-release.ps1` desde la ra
 - **`404` en `/api/sequences`:** revisa que el servicio API este activo y que la variable no termine en `/api`; el codigo agrega esa ruta.
 - **`413 Payload Too Large`:** confirma `MAX_CHUNKED_UPLOAD_MB=1024` en Render y que la web use la nueva carga por bloques. Cada bloque es de 8 MB y se envia directamente al servicio Node externo, no a una Vercel Function.
 - **Las publicaciones desaparecen tras reiniciar:** configura `GOOGLE_DRIVE_APPS_SCRIPT_URL` y `GOOGLE_DRIVE_APPS_SCRIPT_TOKEN` en Render, actualiza la implementación de Apps Script y confirma que la carpeta `StageTracks Community` aparezca en Drive.
-- **La publicacion se recibe pero no aparece:** con moderacion activada hay que aprobarla mediante `/api/admin/pending` y `/api/admin/sequences/:id/approve`.
+- **La publicacion se recibe pero no aparece:** espera a que Render reinicie con la nueva version y revisa `/api/sequences`. Las publicaciones nuevas son inmediatas y la API recupera del estado de Drive las secuencias antiguas pendientes al iniciar.
 - **Los botones de instalador no descargan:** define sus variables `STAGETRACKS_*_URL` con enlaces HTTPS publicos y vuelve a desplegar Vercel.
 
 ## Reaper Control Studio

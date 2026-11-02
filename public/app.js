@@ -268,23 +268,27 @@ async function uploadCommunitySequence(metadata, packageFile, coverFile, status)
   return result;
 }
 
-form.onsubmit = async (event) => {
-  event.preventDefault();
+async function publishSelectedSequence({ background = false } = {}) {
   const file = $("#sq").files[0], publish = form.querySelector('button[type="submit"]');
+  const progressStatus = background ? $("#backgroundUploadStatus") : status;
   if (!file) { status.textContent = "Adjunta un paquete de secuencia .rpseq o .zip."; return; }
   if (file.size > MAX_COMMUNITY_UPLOAD_BYTES) { status.textContent = "El paquete supera el límite de 1 GB."; return; }
   const coverFile = coverInput.files[0] || null;
   if (coverFile?.size > 8 * 1024 * 1024) { status.textContent = "La carátula debe pesar hasta 8 MB."; return; }
   const metadata = { name: $("#n").value.trim(), artist: $("#a").value.trim(), key: $("#fk").value, bpm: $("#b").value, meter: $("#meter").value, genre: $("#fg").value };
   if (!coverFile && selectedCoverUrl) metadata.coverUrl = selectedCoverUrl;
-  publish.disabled = true; status.textContent = "Preparando la carga…";
+  publish.disabled = true; progressStatus.textContent = "Preparando la carga…";
+  if (background) progressStatus.hidden = false;
+  if (background) dialog.close();
   try {
-    const result = await uploadCommunitySequence(metadata, file, coverFile, status);
-    status.textContent = result.message; await refreshCommunity($("#q").value.trim());
-    if (result.status === "approved") { form.reset(); coverPreview.hidden = true; $("#coverChoices").replaceChildren(); selectedCoverUrl = ""; setTimeout(() => dialog.close(), 900); }
-  } catch (error) { status.textContent = error.message || "No se pudo conectar con la comunidad."; }
-  finally { publish.disabled = false; }
-};
+    const result = await uploadCommunitySequence(metadata, file, coverFile, progressStatus);
+    progressStatus.textContent = result.message; await refreshCommunity($("#q").value.trim());
+    if (result.status === "approved") { form.reset(); coverPreview.hidden = true; $("#coverChoices").replaceChildren(); selectedCoverUrl = ""; if (dialog.open) setTimeout(() => dialog.close(), 900); }
+  } catch (error) { progressStatus.textContent = error.message || "No se pudo conectar con la comunidad."; }
+  finally { publish.disabled = false; if (background) setTimeout(() => { progressStatus.hidden = true; }, 9000); }
+}
+form.onsubmit = (event) => { event.preventDefault(); publishSelectedSequence(); };
+$("#continueUpload").onclick = () => publishSelectedSequence({ background: true });
 
 document.addEventListener("pointermove", (event) => {
   const card = event.target.closest?.(".c"); if (!card) return;
