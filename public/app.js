@@ -232,6 +232,9 @@ document.addEventListener("keydown", (event) => {
 const dialog = $("#dg"), form = $("#fm"), coverInput = $("#im"), coverPreview = $("#pvw"), status = $("#uploadStatus");
 const feedbackDialog = $("#feedbackDialog"), feedbackForm = $("#feedbackForm"), feedbackStatus = $("#feedbackStatus");
 $("#feedbackOpen").onclick = () => { feedbackStatus.textContent = ""; feedbackStatus.className = "meta"; feedbackDialog.showModal(); };
+if (location.hash === "#feedback" || new URLSearchParams(location.search).get("feedback") === "1") {
+  setTimeout(() => { if (!feedbackDialog.open) $("#feedbackOpen").click(); }, 0);
+}
 $("#feedbackCancel").onclick = () => feedbackDialog.close();
 feedbackForm.onsubmit = async (event) => {
   event.preventDefault();

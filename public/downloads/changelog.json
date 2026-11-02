@@ -1,0 +1,16 @@
+﻿{
+  "version": "0.5.10",
+  "intro": "La versión 0.5.10 ya está disponible. Incluye correcciones de errores y mejoras para el servicio de StageTracks y la comunidad.",
+  "implementations": [
+    "El progreso de descarga e instalación de actualizaciones se muestra en una barra inferior.",
+    "El aviso de novedades aparece una vez al abrir una versión nueva e incluye un changelog.",
+    "El enlace «¿Encontraste errores?» abre directamente el formulario de comentarios.",
+    "Las subidas a la comunidad muestran su progreso aunque continúes en segundo plano."
+  ],
+  "fixes": [
+    "Se restauró el botón «Comprobar actualización» en Configuración.",
+    "El botón de comprobación informa si hay una versión nueva o si ya tienes la última.",
+    "El progreso de subida ya no desaparece al cerrar el diálogo."
+  ],
+  "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"
+}

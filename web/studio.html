@@ -9824,6 +9824,50 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           }
           banner.querySelector("[data-update-label]").textContent = `Nueva actualización ${stageTracksUpdateInfo.version} ¿Descargar?`;
         }
+        let stageTracksReleaseNotesLoading = false;
+        async function showStageTracksReleaseNotesIfNeeded(releaseInfo) {
+          const current = String(window.STAGETRACKS_APP_VERSION || "");
+          if (!window.STAGETRACKS_NATIVE || !current || compareStageTracksVersions(releaseInfo?.version, current) !== 0 || localStorage.getItem("stageTracksReleaseNotesVersion") === current || stageTracksReleaseNotesLoading) return;
+          stageTracksReleaseNotesLoading = true;
+          try {
+            const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 15000);
+            let notes;
+            try {
+              const response = await fetch("https://stagetrack-project.vercel.app/downloads/changelog.json?check=" + Date.now(), { cache: "no-store", mode: "cors", credentials: "omit", signal: controller.signal });
+              if (!response.ok) return;
+              notes = await response.json();
+            } finally { clearTimeout(timeout); }
+            if (String(notes?.version || "") !== current || document.getElementById("stagetracksReleaseNotes")) return;
+            const overlay = document.createElement("div"); overlay.id = "stagetracksReleaseNotes"; overlay.setAttribute("role", "dialog"); overlay.setAttribute("aria-modal", "true"); overlay.setAttribute("aria-labelledby", "stagetracksReleaseNotesTitle");
+            overlay.style.cssText = "position:fixed;inset:0;z-index:13000;display:grid;place-items:center;padding:20px;background:#000b;backdrop-filter:blur(6px);font:14px system-ui,sans-serif;color:#eef1f3";
+            const panel = document.createElement("section"); panel.style.cssText = "box-sizing:border-box;width:min(680px,100%);max-height:86vh;overflow:auto;padding:24px;background:linear-gradient(160deg,#202326,#151719);border:1px solid #3b4147;border-radius:18px;box-shadow:0 24px 70px #000c";
+            const header = document.createElement("header"); header.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px";
+            const title = document.createElement("h2"); title.id = "stagetracksReleaseNotesTitle"; title.textContent = `Versión ${current}`; title.style.cssText = "margin:0;font-size:25px";
+            const close = document.createElement("button"); close.type = "button"; close.textContent = "×"; close.setAttribute("aria-label", "Cerrar novedades"); close.style.cssText = "border:0;background:transparent;color:#c8cdd2;font-size:26px;cursor:pointer";
+            const dismiss = () => overlay.remove(); close.onclick = dismiss; overlay.onclick = event => { if (event.target === overlay) dismiss(); };
+            header.append(title, close); panel.appendChild(header);
+            const intro = document.createElement("p"); intro.textContent = notes.intro || `La versión ${current} ya está disponible. Incluye correcciones y mejoras para StageTracks y la comunidad.`; intro.style.cssText = "margin:0 0 20px;color:#c8cdd2;line-height:1.55"; panel.appendChild(intro);
+            const addNotesSection = (heading, entries) => {
+              const section = document.createElement("section"); section.style.cssText = "margin:18px 0";
+              const h = document.createElement("h3"); h.textContent = heading; h.style.cssText = "margin:0 0 8px;font-size:16px"; section.appendChild(h);
+              const list = document.createElement("ul"); list.style.cssText = "display:grid;gap:7px;margin:0;padding-left:22px;color:#c8cdd2;line-height:1.5";
+              (Array.isArray(entries) ? entries : []).forEach(item => { const li = document.createElement("li"); li.textContent = String(item); list.appendChild(li); });
+              if (!list.childElementCount) { const li = document.createElement("li"); li.textContent = "Sin cambios en esta sección."; list.appendChild(li); }
+              section.appendChild(list); panel.appendChild(section);
+            };
+            addNotesSection("Implementaciones", notes.implementations);
+            addNotesSection("Arreglo de errores", notes.fixes);
+            const footer = document.createElement("footer"); footer.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:22px;padding-top:16px;border-top:1px solid #ffffff18";
+            const feedback = document.createElement("a"); feedback.href = notes.feedbackUrl || "https://stagetrack-project.vercel.app/?feedback=1#feedback"; feedback.textContent = "¿Encontraste errores?"; feedback.style.cssText = "color:#83c4ff;text-underline-offset:3px";
+            feedback.onclick = event => { event.preventDefault(); dismiss(); window.chrome?.webview?.postMessage("openFeedbackPage"); };
+            const done = document.createElement("button"); done.type = "button"; done.textContent = "Entendido"; done.style.cssText = "padding:9px 14px;border:0;border-radius:9px;background:#2c83df;color:#fff;font-weight:700;cursor:pointer"; done.onclick = dismiss;
+            footer.append(feedback, done); panel.appendChild(footer); overlay.appendChild(panel); document.body.appendChild(overlay);
+            localStorage.setItem("stageTracksReleaseNotesVersion", current);
+            done.focus();
+          } catch (_) {
+            // Si no hay conexión, el aviso se volverá a intentar en el próximo inicio.
+          } finally { stageTracksReleaseNotesLoading = false; }
+        }
         let stageTracksLastUpdateCheck = "idle";
         async function checkStageTracksUpdate(manual = false) {
           if (!window.STAGETRACKS_NATIVE) { if (manual) toast("La actualización solo está disponible en la aplicación de escritorio.", true); return false; }
@@ -9841,6 +9885,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             stageTracksUpdateInfo = updateInfo;
             const current = window.STAGETRACKS_APP_VERSION || "0.0.0";
             const hasUpdate = compareStageTracksVersions(stageTracksUpdateInfo.version, current) > 0;
+            if (!hasUpdate) showStageTracksReleaseNotesIfNeeded(stageTracksUpdateInfo);
             if (!hasUpdate) { stageTracksLastUpdateCheck = "current"; if (manual) toast("No hay una nueva actualización disponible.", false); return false; }
             stageTracksLastUpdateCheck = "available";
             showStageTracksUpdateBanner();

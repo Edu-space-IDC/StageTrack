@@ -213,6 +213,9 @@ void MainComponent::onHostMessage(const juce::String& msg)
         const auto fields = juce::StringArray::fromTokens(msg, "|", "");
         if (fields.size() >= 2) downloadUpdateInstaller(fields[1].trim(), fields.size() >= 3 && fields[2] == "1");
     }
+    else if (msg == "openFeedbackPage") {
+        juce::URL("https://stagetrack-project.vercel.app/?feedback=1#feedback").launchInDefaultBrowser();
+    }
     else if (msg == "openProject") pickToOpen();
     else if (msg == "importMedia") pickToImport();
     else if (msg == "saveProject") pickToSave();
