@@ -8251,6 +8251,24 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         }
         function communityText(es, en) { const lang = localStorage.getItem("studioLanguage") || "es", translated = window.uiTranslateText?.(es); return translated && translated !== es ? translated : lang === "en" ? en : es; }
         const maxCommunityPackageBytes = 1024 * 1024 * 1024;
+        async function readCommunityExportChunk(from, to, totalBytes) {
+          let lastError = null;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              const response = await fetch("/host/community/export", { headers: { Range: `bytes=${from}-${to - 1}` }, cache: "no-store" });
+              if (response.status !== 206) throw new Error(`StageTracks respondió HTTP ${response.status} al leer el paquete.`);
+              const contentRange = response.headers.get("content-range") || "";
+              if (!contentRange.startsWith(`bytes ${from}-${to - 1}/`)) throw new Error("StageTracks devolvió un bloque distinto al solicitado.");
+              const blob = await response.blob();
+              if (blob.size !== to - from) throw new Error("El bloque local llegó incompleto.");
+              return blob;
+            } catch (error) {
+              lastError = error;
+              if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+            }
+          }
+          throw new Error(`No se pudo leer el bloque ${from}-${to - 1} de ${totalBytes} bytes de la secuencia activa. Vuelve a preparar el paquete e inténtalo otra vez. ${lastError?.message || ""}`);
+        }
         async function uploadCommunityPackage(metadata, packageFile, coverFile, status, onStart) {
           const base = communityApiBase();
           const start = await fetch(base + "/api/sequences/uploads", { method: "POST", mode: "cors", credentials: "omit", cache: "no-store", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...metadata, packageSize: packageFile.size, packageName: packageFile.name, coverSize: coverFile?.size || 0, coverName: coverFile?.name || "" }) }).catch((error) => { throw new Error("No se pudo conectar con la API de la comunidad para iniciar la subida. Comprueba internet e inténtalo de nuevo. " + (error?.message || "")); });
@@ -8260,14 +8278,15 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           const files = [{ field: "package", file: packageFile }, ...(coverFile ? [{ field: "cover", file: coverFile }] : [])];
           const total = packageFile.size + (coverFile?.size || 0); let sent = 0;
           for (const { field, file } of files) {
-            const count = Math.ceil(file.size / session.chunkSize);
+            // Paquetes que vienen del anfitrión nativo se leen por HTTP local;
+            // bloques moderados evitan que WebView corte respuestas grandes.
+            const chunkSize = file.hostExport ? Math.min(session.chunkSize, 4 * 1024 * 1024) : session.chunkSize;
+            const count = Math.ceil(file.size / chunkSize);
             for (let part = 0; part < count; part++) {
-              const from = part * session.chunkSize, to = Math.min(file.size, (part + 1) * session.chunkSize);
+              const from = part * chunkSize, to = Math.min(file.size, (part + 1) * chunkSize);
               let blob = file.slice ? file.slice(from, to) : null;
               if (file.hostExport) {
-                const source = await fetch("/host/community/export", { headers: { Range: `bytes=${from}-${to - 1}` }, cache: "no-store" }).catch(() => { throw new Error("StageTracks perdió el acceso al paquete temporal. Prepara de nuevo la secuencia activa y vuelve a subirla."); });
-                if (!source.ok) throw new Error("No se pudo leer un bloque de la secuencia activa.");
-                blob = await source.blob();
+                blob = await readCommunityExportChunk(from, to, file.size);
               }
               await new Promise((resolve, reject) => {
                 const request = new XMLHttpRequest(); request.open("PUT", `${base}/api/sequences/uploads/${session.uploadId}/${field}/${part}`);
