@@ -2029,6 +2029,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         }
       }
       .psong {
+        position: relative;
         flex: 0 0 220px;
         width: 220px;
         scroll-snap-align: start;
@@ -2061,7 +2062,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           border-color 0.15s,
           transform 0.15s;
       }
-      .psongkey{position:absolute!important;right:8px!important;bottom:8px!important;z-index:50!important;width:30px!important;height:30px!important;min-width:30px!important;padding:0!important;border-radius:50%!important;display:grid!important;place-items:center!important;background:#101820f2!important;border:1px solid #f2f6fa!important;color:#fff!important;font:700 13px/1 system-ui,sans-serif!important;box-shadow:0 2px 8px #000b!important;opacity:1!important;pointer-events:none!important}
+      .psongkey{position:absolute;top:86px;right:8px;z-index:100;width:30px;height:30px;min-width:30px;box-sizing:border-box;padding:0;border-radius:50%;display:grid;place-items:center;border:1px solid #ffffffd9;color:#fff;font:700 13px/1 system-ui,sans-serif;box-shadow:0 2px 8px #000b;opacity:1;pointer-events:none;text-shadow:0 1px 2px #0008}
       .psong:active .pcover {
         transform: scale(0.97);
       }
@@ -8764,7 +8765,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           const existing = editIndex >= 0 ? songs.list[editIndex] : null;
           const overlay = document.createElement("div");
           overlay.style.cssText = "position:fixed;inset:0;z-index:12020;display:grid;place-items:center;padding:18px;background:#000b;backdrop-filter:blur(5px);font:14px system-ui,sans-serif;color:#eef1f3";
-          overlay.innerHTML = `<section role="dialog" aria-modal="true" style="box-sizing:border-box;width:min(560px,100%);padding:22px;background:#191c1f;border:1px solid #3b4147;border-radius:16px;box-shadow:0 24px 70px #000c"><header style="display:flex;justify-content:space-between;align-items:center"><strong style="font-size:20px">${existing ? "Editar secuencia" : "Nuevo proyecto"}</strong><button type="button" data-close style="border:0;background:transparent;color:#c8cdd2;font-size:25px;cursor:pointer">×</button></header><p style="color:#aeb4ba;line-height:1.45">${existing ? "Actualiza el título, el autor y la tonalidad de esta secuencia." : "Define el título, el autor y la tonalidad de la nueva secuencia."}</p><form data-form><label style="display:block;margin:12px 0 5px">Nombre de la secuencia</label><input name="name" required maxlength="120" placeholder="Título de la canción" style="box-sizing:border-box;width:100%;padding:12px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:12px 0 5px">Autor o grupo</label><input name="artist" required maxlength="120" placeholder="Nombre del autor" style="box-sizing:border-box;width:100%;padding:12px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:12px 0 5px">Tonalidad</label><input name="key" maxlength="12" placeholder="Ej. A, F#m o Bb" style="box-sizing:border-box;width:100%;padding:12px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><footer style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px"><button type="button" data-cancel style="padding:10px 14px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff;cursor:pointer">Cancelar</button><button type="submit" style="padding:10px 15px;border:0;border-radius:9px;background:#2c83df;color:#fff;cursor:pointer">${existing ? "Guardar" : "Crear proyecto"}</button></footer></form></section>`;
+          overlay.innerHTML = `<section role="dialog" aria-modal="true" style="box-sizing:border-box;width:min(560px,100%);padding:22px;background:#191c1f;border:1px solid #3b4147;border-radius:16px;box-shadow:0 24px 70px #000c"><header style="display:flex;justify-content:space-between;align-items:center"><strong style="font-size:20px">${existing ? "Editar secuencia" : "Nuevo proyecto"}</strong><button type="button" data-close style="border:0;background:transparent;color:#c8cdd2;font-size:25px;cursor:pointer">×</button></header><p style="color:#aeb4ba;line-height:1.45">${existing ? "Actualiza el título, el autor y la tonalidad de esta secuencia." : "Define el título, el autor y la tonalidad de la nueva secuencia."}</p><form data-form><label style="display:block;margin:12px 0 5px">Nombre de la secuencia</label><input name="name" required maxlength="120" placeholder="Título de la canción" style="box-sizing:border-box;width:100%;padding:12px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:12px 0 5px">Autor o grupo</label><input name="artist" required maxlength="120" placeholder="Nombre del autor" style="box-sizing:border-box;width:100%;padding:12px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:12px 0 5px">Tonalidad</label><select name="key" style="box-sizing:border-box;width:100%;padding:12px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option value="">-</option>${"C C# Db D D# Eb E F F# Gb G G# Ab A A# Bb B Cm C#m Dbm Dm D#m Ebm Em Fm F#m Gbm Gm G#m Abm Am A#m Bbm Bm".split(" ").map(key => `<option value="${key}">${key}</option>`).join("")}</select><footer style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px"><button type="button" data-cancel style="padding:10px 14px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff;cursor:pointer">Cancelar</button><button type="submit" style="padding:10px 15px;border:0;border-radius:9px;background:#2c83df;color:#fff;cursor:pointer">${existing ? "Guardar" : "Crear proyecto"}</button></footer></form></section>`;
           const close = () => overlay.remove(), form = overlay.querySelector("[data-form]");
           overlay.querySelector("[data-close]").onclick = close;
           overlay.querySelector("[data-cancel]").onclick = close;
@@ -8776,7 +8777,14 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             if (existing) { const save = () => sendCmd("projmeta_" + hex(name) + "_" + hex(artist) + "_" + hex(key || "-"), false, close); if (editIndex !== songs.active) requestSongTab(editIndex, save); else save(); }
             else sendCmd("new_" + hex(name) + "_" + hex(artist) + "_" + hex(key || "-"), false, close);
           };
-          if (existing) { form.elements.name.value = existing.name || ""; form.elements.artist.value = existing.artist || ""; form.elements.key.value = existing.key || ""; }
+          if (existing) {
+            form.elements.name.value = existing.name || "";
+            form.elements.artist.value = existing.artist || "";
+            const currentKey = String(existing.key || "").trim();
+            const keySelect = form.elements.key;
+            if (currentKey && ![...keySelect.options].some((option) => option.value === currentKey)) keySelect.add(new Option(currentKey, currentKey), 1);
+            keySelect.value = currentKey;
+          }
           document.body.appendChild(overlay);
           form.elements.name.focus();
         }
@@ -8851,6 +8859,20 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         window.updateSongBpm = lookupCurrentSongBpm;
         const autoQ = [];
         let autoBusy = false;
+        const KEY_BADGE_COLORS = {
+          C: ["#b42318", "#7f1d1d"], "C#": ["#c2410c", "#7c2d12"], Db: ["#c2410c", "#7c2d12"],
+          D: ["#a15c00", "#713f12"], "D#": ["#6d7a00", "#4b5400"], Eb: ["#6d7a00", "#4b5400"],
+          E: ["#2d7a3e", "#1f5630"], F: ["#087e8b", "#07535e"], "F#": ["#1769aa", "#104a78"], Gb: ["#1769aa", "#104a78"],
+          G: ["#344e9e", "#263870"], "G#": ["#5b3f9b", "#412c70"], Ab: ["#5b3f9b", "#412c70"],
+          A: ["#7a3e9d", "#52286a"], "A#": ["#a12c78", "#711e54"], Bb: ["#a12c78", "#711e54"],
+          B: ["#56616a", "#3b454d"],
+        };
+        function keyBadgeColor(value) {
+          const normalized = String(value || "").trim().replace(/[♯]/g, "#").replace(/[♭]/g, "b");
+          const minor = /m$/i.test(normalized);
+          const root = normalized.replace(/m$/i, "");
+          return KEY_BADGE_COLORS[root]?.[minor ? 1 : 0] || "#475569";
+        }
         function autoCover(s) {
           const k = coverKey(s);
           if (s.hash) {
@@ -9226,8 +9248,8 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             keyBadge.textContent = songKey || "?";
             keyBadge.title = songKey ? "Tonalidad: " + songKey : "Tonalidad sin definir";
             keyBadge.setAttribute("aria-label", songKey ? "Tonalidad " + songKey : "Tonalidad sin definir");
-            keyBadge.style.cssText = "position:absolute;right:8px;bottom:8px;z-index:2147483000;width:30px;height:30px;min-width:30px;box-sizing:border-box;padding:0;border-radius:50%;display:grid;place-items:center;background:#101820f2;border:1px solid #f2f6fa;color:#fff;font:700 13px/1 system-ui,sans-serif;box-shadow:0 2px 8px #000b;opacity:1;pointer-events:none";
-            c.appendChild(keyBadge);
+            keyBadge.style.cssText = "position:absolute;top:86px;right:8px;z-index:100;width:30px;height:30px;min-width:30px;box-sizing:border-box;padding:0;border-radius:50%;display:grid;place-items:center;border:1px solid #ffffffd9;color:#fff;font:700 13px/1 system-ui,sans-serif;box-shadow:0 2px 8px #000b;opacity:1;pointer-events:none;text-shadow:0 1px 2px #0008;background:" + keyBadgeColor(songKey);
+            d.appendChild(keyBadge);
             d.appendChild(pl);
             d.appendChild(n);
             d.addEventListener("click", () => {

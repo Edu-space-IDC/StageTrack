@@ -1,14 +1,14 @@
 {
-  "version": "0.5.21",
-  "intro": "La biblioteca muestra siempre el indicador de tonalidad y las opciones de proyecto quedan más directas.",
+  "version": "0.5.22",
+  "intro": "La tonalidad ahora se ve sobre cada portada y se elige desde una lista al editar una secuencia.",
   "implementations": [
-    "Cada carátula muestra un círculo con la tonalidad; si aún no está definida, aparece un signo de interrogación.",
-    "Se quitaron los proyectos abiertos recientemente del menú y de la barra de proyecto; usa el buscador de canciones para encontrar secuencias.",
-    "Los mensajes de actualización y carga de audio corrigen el texto antes de aparecer en StageTracks y Reaper Control Studio."
+    "La insignia se dibuja en una capa independiente de la portada para que los controles e imágenes no la oculten.",
+    "Cada tonalidad tiene un color identificable; las tonalidades menores usan una variante más oscura.",
+    "El campo de tonalidad de Nuevo proyecto y Editar secuencia es un selector con las mismas opciones que el formulario de publicación comunitaria."
   ],
   "fixes": [
-    "La tonalidad guardada en los datos de la secuencia continúa mostrándose en el indicador.",
-    "El progreso del instalador usa el mismo texto corregido en el aviso flotante y en Ajustes."
+    "Al editar una secuencia se conserva y selecciona su tonalidad guardada.",
+    "Las canciones sin tonalidad registrada muestran ? en el indicador."
   ],
   "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"
 }
