@@ -3,7 +3,7 @@ name: Build and publish Windows release
 on:
   push:
     tags:
-      - 'v0.5.14'
+      - 'v0.5.15'
 
 permissions:
   contents: write
@@ -102,5 +102,5 @@ jobs:
             'release-artifacts/Reaper Control Studio.exe' `
             'public/downloads/Reaper-Control-Studio-Reaper-files.zip' `
             --repo $env:GITHUB_REPOSITORY `
-            --title 'StageTracks 0.5.14' `
-            --notes 'Fix startup failure, restore song cards, and use current release links for downloads.'
+            --title 'StageTracks 0.5.15' `
+            --notes 'Restore the 0.5.10 song-card renderer and add project-options audio import.'

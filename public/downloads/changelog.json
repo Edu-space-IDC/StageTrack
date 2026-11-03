@@ -1,15 +1,13 @@
 {
-  "version": "0.5.14",
-  "intro": "Version 0.5.14 fixes the blank StageTracks window at launch.",
+  "version": "0.5.15",
+  "intro": "Version 0.5.15 restores the proven 0.5.10 song-card renderer.",
   "implementations": [
-    "Song cards render directly from the StageTracks library.",
-    "The official download links now follow the current release manifest.",
-    "Audio import is available in Project options, next to New and Open."
+    "The song interface is restored to the 0.5.10 rendering flow.",
+    "Import audio to StageTracks is available in Project options next to New and Open."
   ],
   "fixes": [
-    "A malformed Unicode regular expression no longer prevents the complete interface from starting.",
-    "Project and song cards remain visible when StageTracks starts.",
-    "The website no longer prioritizes outdated hard-coded installer links."
+    "Removed the unvalidated song-card renderer introduced in 0.5.13.",
+    "Restored the original project and song card initialization sequence."
   ],
   "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"
 }

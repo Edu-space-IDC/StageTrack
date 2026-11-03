@@ -4970,7 +4970,6 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
                       songs.play = Number.isFinite(pi) ? pi : -1;
                       songs.pstate = ps;
                       applyPlaying();
-                      setlist();
                       lookupCurrentSongBpm();
                     }
                   } else if (
@@ -8024,26 +8023,13 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             .replace(/\s*[\(\[][A-G][#b]?m?[\)\]]\s*$/, "")
             .replace(/\s+/g, " ")
             .trim();
-        function repairLegacyText(value) {
-          if (!/[\u00c3\u00c2][\u0080-\u00bf]|\u00e2[\u0080-\u00bf\u20ac\u201a\u0192\u201e\u2026\u2020\u2021\u02c6\u2030\u0160\u2039\u0152\u017d\u2018\u2019\u201c\u201d\u2022\u2013\u2014\u02dc\u2122\u0161\u203a\u0153\u017e\u0178]/.test(value)) return value;
-          const cp1252 = new Map([[0x20ac,0x80],[0x201a,0x82],[0x192,0x83],[0x201e,0x84],[0x2026,0x85],[0x2020,0x86],[0x2021,0x87],[0x2c6,0x88],[0x2030,0x89],[0x160,0x8a],[0x2039,0x8b],[0x152,0x8c],[0x17d,0x8e],[0x2018,0x91],[0x2019,0x92],[0x201c,0x93],[0x201d,0x94],[0x2022,0x95],[0x2013,0x96],[0x2014,0x97],[0x2dc,0x98],[0x2122,0x99],[0x161,0x9a],[0x203a,0x9b],[0x153,0x9c],[0x17e,0x9e],[0x178,0x9f]]);
-          const bytes = [];
-          for (const char of value) {
-            const code = char.codePointAt(0);
-            if (code <= 255) bytes.push(code);
-            else if (cp1252.has(code)) bytes.push(cp1252.get(code));
-            else return value;
-          }
-          try { return new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(bytes)); }
-          catch (_) { return value; }
-        }
         function hexToStr(h) {
           try {
-            return repairLegacyText(new TextDecoder().decode(
+            return new TextDecoder().decode(
               new Uint8Array(
                 (h.match(/.{1,2}/g) || []).map((x) => parseInt(x, 16)),
               ),
-            ));
+            );
           } catch (_) {
             return "";
           }
@@ -8857,7 +8843,6 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           songs.active = active;
           songs.list = list;
           renderSongs(true);
-          setlist();
           lookupCurrentSongBpm();
         }
         /* ===== exportar secuencias (zip + .rpseq para REAPER Playback) ===== */
@@ -8942,7 +8927,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           const change = (stopCurrent = false) => {
             const switchTab = () => sendCmd("tab_" + i, true, null, (ok) => {
               if (!ok) return;
-              songs.active = i; songs.sig = ""; renderSongs(false); setlist(); after?.();
+              songs.active = i; songs.sig = ""; renderSongs(false); after?.();
             });
             if (stopCurrent && current >= 0 && current !== i)
               sendCmd("stopson_" + current, true, null, (ok) => { if (ok) switchTab(); });
@@ -9386,7 +9371,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           "Preferencias de reproducción y cierre": ["Playback and closing preferences", "Preferências de reprodução e encerramento", "Préférences de lecture et de fermeture", "Wiedergabe- und Schließeinstellungen"],
           "Opciones del proyecto": ["Project options", "Opções do projeto", "Options du projet", "Projektoptionen"],
           "Nuevo proyecto": ["New project", "Novo projeto", "Nouveau projet", "Neues Projekt"],
-          "Importar audio a StageTracks": ["Import audio to StageTracks", "Importar áudio para o StageTracks", "Importer de l’audio dans StageTracks", "Audio in StageTracks importieren"],
+          "Importar audio a StageTracks": ["Import audio to StageTracks", "Importar audio para o StageTracks", "Importer l'audio dans StageTracks", "Audio in StageTracks importieren"],
           "PROYECTO": ["PROJECT", "PROJETO", "PROJET", "PROJEKT"],
           "Master": ["Master", "Master", "Master", "Master"],
           "Nombre": ["Name", "Nome", "Nom", "Name"],
@@ -9424,6 +9409,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           "Cerrar proyecto": ["Close project", "Fechar projeto", "Fermer le projet", "Projekt schließen"],
           "Renombrar…": ["Rename…", "Renomear…", "Renommer…", "Umbenennen…"],
           "Cambiar carátula": ["Change artwork", "Alterar capa", "Changer la pochette", "Cover ändern"],
+          "CanciÃ³n anterior": ["Previous song", "Faixa anterior", "Morceau précédent", "Vorheriger Titel"],
           "Canción anterior": ["Previous song", "Faixa anterior", "Morceau précédent", "Vorheriger Titel"],
           "Canción siguiente": ["Next song", "Próxima faixa", "Morceau suivant", "Nächster Titel"],
           "Reproducir": ["Play", "Reproduzir", "Lire", "Wiedergabe"],
@@ -10768,48 +10754,65 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             )
           : null;
         function setlist() {
-          const list = Array.isArray(songs.list) ? songs.list : [];
-          const active = Number.isInteger(songs.active) ? songs.active : -1;
-          const covers = list.map((song) => coverOf(song));
-          const songKey = String(active) + "|" + list.map((song) => song.pathHex + ":" + song.name).join("|");
+          const src = hiddenSongs(),
+            active = src.findIndex((x) => x.classList.contains("active")),
+            songKey =
+              String(active) +
+              "|" +
+              (src[active]?.dataset.projectKey ||
+                src[active]?.querySelector(".psongname")?.textContent ||
+                "");
           if (setlist.activeSong && songKey !== setlist.activeSong) {
-            // Clear stale mixer and timeline data immediately when the active project changes.
+            // No mezclar en pantalla las pistas/faders de la pestaña anterior mientras llega el nuevo TRACK.
             tracks.clear();
             mixerSig = "";
             window.resetProjectMixerView?.();
             parseTimeline("30");
             window.resetProjectTimelineView?.();
             req("GET/EXTSTATE/WebControl/projectpath;NTRACK;TRACK");
+            // El helper publica la nueva pestaña en su siguiente ciclo; pedir la onda después evita releer la pestaña previa.
             setTimeout(() => wwr_req("GET/EXTSTATE/WebControl/timeline"), 500);
             setTimeout(() => wwr_req("GET/EXTSTATE/WebControl/timeline"), 1400);
           }
           setlist.activeSong = songKey;
-          const sig = songKey + "|" + songs.play + "|" + songs.pstate + "|" + list.map((song, i) => song.hash + ":" + song.ver + ":" + song.state + ":" + covers[i].length + ":" + covers[i].slice(0, 48)).join("|");
+          const sig = src
+            .map(
+              (x, i) =>
+                i +
+                ":" +
+                x.querySelector(".psongname")?.textContent +
+                ":" +
+                x.className +
+                ":" +
+                x.querySelector(".pcover")?.style.backgroundImage,
+            )
+            .join("|");
           if (sig === songsSig) return;
           songsSig = sig;
           const box = $("set");
-          if (!box) return;
           songNameObserver?.disconnect();
-          box.replaceChildren();
-          list.forEach((song, i) => {
-            const isNowPlaying = i === songs.play && songs.pstate === 1;
-            const isPaused = i === songs.play && songs.pstate === 2;
+          box.innerHTML = "";
+          src.forEach((h, i) => {
             const tile = document.createElement("div");
-            tile.className = "tile" + (i === active ? " sel" : "") + (isNowPlaying ? " playing" : isPaused ? " paused" : "");
-            tile.dataset.i = String(i);
-            tile.setAttribute("role", "button");
-            tile.setAttribute("tabindex", "0");
-            tile.setAttribute("aria-label", "Abrir " + (song.name || "Sin t\u00edtulo"));
-
+            const isNowPlaying = h.classList.contains("playing"),
+              isPaused = h.classList.contains("paused");
+            tile.className =
+              "tile" +
+              (h.classList.contains("active") ? " sel" : "") +
+              (isNowPlaying ? " playing" : isPaused ? " paused" : "");
+            tile.dataset.i = i;
             const art = document.createElement("div");
             art.className = "art";
-            const cover = covers[i];
-            if (cover) {
-              art.style.backgroundImage = 'url("' + cover.replace(/["\\\r\n]/g, "") + '")';
-              art.style.backgroundSize = "cover";
-              art.style.backgroundPosition = "center";
-            } else {
-              art.textContent = (song.name.trim()[0] || "?").toUpperCase();
+            const oldArt = h.querySelector(".pcover");
+            if (oldArt) {
+              const bg = getComputedStyle(oldArt).backgroundImage;
+              if (bg && bg !== "none") {
+                art.style.backgroundImage = bg;
+                art.style.backgroundSize = "cover";
+                art.style.backgroundPosition = "center";
+                art.style.backgroundRepeat = "no-repeat";
+              } else
+                art.textContent = oldArt.textContent.trim().slice(0, 1) || "?";
             }
             if (i > 0) {
               const badge = document.createElement("div");
@@ -10822,50 +10825,54 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             const menu = document.createElement("button");
             menu.type = "button";
             menu.title = "Guardar o cambiar nombre";
-            menu.setAttribute("aria-label", menu.title);
             menu.innerHTML = I.dots;
-            menu.onclick = (event) => { event.stopPropagation(); openSongMenu(i, menu); };
-            const coverButton = document.createElement("button");
-            coverButton.type = "button";
-            coverButton.title = "Cambiar car\u00e1tula";
-            coverButton.setAttribute("aria-label", coverButton.title);
-            coverButton.innerHTML = I.img;
-            coverButton.onclick = (event) => { event.stopPropagation(); openCoverPicker(song); };
-            tools.append(menu, coverButton);
+            menu.onclick = (e) => {
+              e.stopPropagation();
+              if (typeof window.openReaperSongMenu === "function")
+                window.openReaperSongMenu(i, menu);
+            };
+            const cover = document.createElement("button");
+            cover.type = "button";
+            cover.title = "Cambiar car?tula";
+            cover.innerHTML = I.img;
+            cover.onclick = (e) => {
+              e.stopPropagation();
+              h.querySelector(".pcbtn.img")?.click();
+            };
+            tools.append(menu, cover);
             art.appendChild(tools);
             if (isNowPlaying || isPaused) {
               const status = document.createElement("div");
               status.className = "tile-status";
-              status.innerHTML = '<span class="eq"><i></i><i></i><i></i><i></i></span>' + (isNowPlaying ? "SONANDO" : "EN PAUSA");
+              status.innerHTML =
+                '<span class="eq"><i></i><i></i><i></i><i></i></span>' +
+                (isNowPlaying ? "SONANDO" : "EN PAUSA");
               art.appendChild(status);
             }
-
             const label = document.createElement("div");
             label.className = "nm";
-            const name = song.name || "Sin t\u00edtulo";
-            const track = document.createElement("span");
+            const songName =
+                h.querySelector(".psongname")?.textContent || "Sin t?tulo",
+              track = document.createElement("span"),
+              run = document.createElement("span"),
+              nameText = document.createElement("span"),
+              duplicate = document.createElement("span"),
+              measure = document.createElement("span");
             track.className = "nm-track";
-            const run = document.createElement("span");
             run.className = "nm-run";
-            const nameText = document.createElement("span");
             nameText.className = "nm-text";
-            nameText.textContent = name;
-            const duplicate = document.createElement("span");
+            nameText.textContent = songName;
             duplicate.className = "nm-text nm-copy";
-            duplicate.textContent = name;
+            duplicate.textContent = songName;
             duplicate.setAttribute("aria-hidden", "true");
             duplicate.hidden = true;
             run.append(nameText, duplicate);
             track.appendChild(run);
-            const measure = document.createElement("span");
             measure.className = "nm-measure";
-            measure.textContent = name;
+            measure.textContent = songName;
             label.append(track, measure);
             tile.append(art, label);
-            tile.onclick = () => requestSongTab(i);
-            tile.onkeydown = (event) => {
-              if (event.target === tile && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); requestSongTab(i); }
-            };
+            tile.onclick = () => h.click();
             box.appendChild(tile);
             if (songNameObserver) songNameObserver.observe(label);
             else updateSongNameMarquee(label);
@@ -11361,9 +11368,6 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             attributes: true,
             attributeFilter: ["class", "style"],
           });
-        // Si el estado inicial llegó antes de instalar el observador, pintar
-        // también las canciones que ya estén cargadas en la biblioteca.
-        setlist();
         /* =====================================================================
            EDICIÓN DE SECCIONES (estilo Playback) + SALTO DE SECCIÓN EN COLA
            Las secciones son regiones de REAPER. EDIT abre un borrador: se puede
