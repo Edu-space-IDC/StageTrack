@@ -43,6 +43,8 @@ private:
         juce::String artist;
         juce::String key;
         juce::String communityId;
+        juce::String communityPackagePath;
+        juce::String communityExtractionPath;
         juce::String libraryPath;
         juce::String hash;            // 16 hex, nombre del archivo de caratula
         double tempo = 92.0;
@@ -104,6 +106,7 @@ private:
     Song* addSong(const juce::String& name, bool activate);
     void activate(int index);
     void closeActive();
+    bool deleteSongFromLibrary(int index, juce::String& error);
     void refreshCover(Song&);
     void saveCoverOverride(const juce::String& hash, const juce::String& value);
     void loadLibrary();

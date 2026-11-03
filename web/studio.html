@@ -2061,7 +2061,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           border-color 0.15s,
           transform 0.15s;
       }
-      .psongkey{position:absolute;right:8px;bottom:8px;z-index:2;width:27px;height:27px;border-radius:50%;display:grid;place-items:center;background:#101820ef;border:1px solid #d8e1ea;color:#fff;font:700 12px system-ui,sans-serif;box-shadow:0 2px 8px #0009}
+      .psongkey{position:absolute!important;right:8px!important;bottom:8px!important;z-index:50!important;width:30px!important;height:30px!important;min-width:30px!important;padding:0!important;border-radius:50%!important;display:grid!important;place-items:center!important;background:#101820f2!important;border:1px solid #f2f6fa!important;color:#fff!important;font:700 13px/1 system-ui,sans-serif!important;box-shadow:0 2px 8px #000b!important;opacity:1!important;pointer-events:none!important}
       .psong:active .pcover {
         transform: scale(0.97);
       }
@@ -8564,7 +8564,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             const meta = document.createElement("small"); meta.style.cssText = "display:block;margin-top:4px;color:#9da6af"; meta.textContent = `${item.artist || "Comunidad"} · ${item.bpm || "--"} BPM · ${item.meter || "4/4"}`;
             info.append(name, meta);
             const down = document.createElement("button"); down.type = "button";
-            const installed = isCommunitySequenceInstalled(item) && !findCommunityNameConflict(item);
+            const installed = isCommunitySequenceInstalled(item);
             down.textContent = installed ? "Instalado" : "Descargar"; down.disabled = installed;
             down.setAttribute("aria-label", installed ? `${item.name || "Secuencia"}: instalado` : `Descargar ${item.name || "secuencia"}`);
             down.style.cssText = `padding:8px 10px;border:1px solid ${installed ? "#3d604c" : "#46627a"};border-radius:8px;background:${installed ? "#1b2a21" : "#1d3141"};color:${installed ? "#9dd4ad" : "#d6ecff"};cursor:${installed ? "default" : "pointer"}`;
@@ -8826,6 +8826,12 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             info.append(name, meta); select.append(art, info);
             select.onclick = () => { songLibraryOverlay.remove(); songLibraryOverlay = null; if (i !== songs.active) window.activateSongTab(i); };
             row.append(select);
+            const remove = document.createElement("button"); remove.type = "button"; remove.className = "library-delete-song";
+            remove.setAttribute("aria-label", `Eliminar ${song.name} de Mi biblioteca`); remove.title = "Eliminar de Mi biblioteca"; remove.hidden = !window.STAGETRACKS_NATIVE;
+            remove.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2m3 0-.8 14H5.8L5 6m4 4v6m6-6v6"/></svg>';
+            remove.style.cssText = "flex:0 0 34px;width:34px;height:34px;display:grid;place-items:center;border:1px solid #684448;border-radius:8px;background:#2d2022;color:#e9a6a7;cursor:pointer";
+            remove.onclick = (event) => { event.stopPropagation(); confirmDeleteLibrarySong(song, i); };
+            row.append(remove);
             if (window.STAGETRACKS_NATIVE && song.name && song.name !== "Sin título" && song.artist?.trim()) {
               const upload = document.createElement("button"); upload.type = "button"; upload.textContent = "Subir a comunidad";
               upload.style.cssText = "flex:0 0 auto;padding:8px 10px;border:1px solid #2d8050;border-radius:8px;background:#1e3b2a;color:#d8f5e3;cursor:pointer;font-size:12px";
@@ -8836,11 +8842,30 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             list.appendChild(row);
           });
         }
+        function confirmDeleteLibrarySong(song, index) {
+          const overlay = document.createElement("div");
+          overlay.style.cssText = "position:fixed;inset:0;z-index:12030;display:grid;place-items:center;padding:18px;background:#000b;backdrop-filter:blur(5px);font:14px system-ui,sans-serif;color:#eef1f3";
+          overlay.innerHTML = `<section role="alertdialog" aria-modal="true" aria-labelledby="deleteLibrarySongTitle" style="box-sizing:border-box;width:min(440px,100%);padding:22px;background:#191c1f;border:1px solid #513c3f;border-radius:16px;box-shadow:0 24px 70px #000c"><strong id="deleteLibrarySongTitle" style="font-size:19px">Eliminar de Mi biblioteca</strong><p data-copy style="margin:12px 0 20px;color:#b8bec4;line-height:1.5"></p><footer style="display:flex;justify-content:flex-end;gap:8px"><button type="button" data-cancel style="padding:9px 12px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff;cursor:pointer">Cancelar</button><button type="button" data-confirm style="padding:9px 14px;border:1px solid #9a484c;border-radius:9px;background:#713236;color:#fff;cursor:pointer">Eliminar canción</button></footer></section>`;
+          const copy = overlay.querySelector("[data-copy]");
+          copy.textContent = `¿Eliminar «${song.name}${song.artist ? " - " + song.artist : ""}» de tu biblioteca? Se borrarán las copias administradas por StageTracks${song.communityId ? " y su paquete de comunidad" : ""}. Los archivos originales fuera de StageTracks se conservarán.`;
+          const close = () => overlay.remove();
+          overlay.querySelector("[data-cancel]").onclick = close;
+          overlay.querySelector("[data-confirm]").onclick = () => {
+            const button = overlay.querySelector("[data-confirm]"); button.disabled = true; button.textContent = "Eliminando…";
+            sendCmd(`songdelete_${index}`, false, null, (ok, message) => {
+              close();
+              if (!ok) { toast(message || "No se pudo eliminar la canción.", true); return; }
+              songs.sig = ""; wwr_req("GET/EXTSTATE/WebControl/songs"); toast(message || "Canción eliminada de Mi biblioteca.", false);
+            });
+          };
+          overlay.onclick = (event) => { if (event.target === overlay) close(); };
+          document.body.appendChild(overlay); overlay.querySelector("[data-cancel]").focus();
+        }
         function openNewProjectDialog(editIndex = -1) {
           const existing = editIndex >= 0 ? songs.list[editIndex] : null;
           const overlay = document.createElement("div");
           overlay.style.cssText = "position:fixed;inset:0;z-index:12020;display:grid;place-items:center;padding:18px;background:#000b;backdrop-filter:blur(5px);font:14px system-ui,sans-serif;color:#eef1f3";
-          overlay.innerHTML = `<section role="dialog" aria-modal="true" style="box-sizing:border-box;width:min(560px,100%);padding:22px;background:#191c1f;border:1px solid #3b4147;border-radius:16px;box-shadow:0 24px 70px #000c"><header style="display:flex;justify-content:space-between;align-items:center"><strong style="font-size:20px">${existing ? "Editar secuencia" : "Nuevo proyecto"}</strong><button type="button" data-close style="border:0;background:transparent;color:#c8cdd2;font-size:25px;cursor:pointer">×</button></header><p style="color:#aeb4ba;line-height:1.45">Define el título y el autor para agregarlo a tu biblioteca y preparar su publicación.</p><form data-form><label style="display:block;margin:12px 0 5px">Nombre de la secuencia</label><input name="name" required maxlength="120" placeholder="Título de la canción" style="box-sizing:border-box;width:100%;padding:12px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:12px 0 5px">Autor o grupo</label><input name="artist" required maxlength="120" placeholder="Nombre del autor" style="box-sizing:border-box;width:100%;padding:12px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:12px 0 5px">Tonalidad</label><input name="key" maxlength="12" placeholder="Ej. A, F#m o Bb" style="box-sizing:border-box;width:100%;padding:12px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><footer style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px"><button type="button" data-cancel style="padding:10px 14px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff;cursor:pointer">Cancelar</button><button type="submit" style="padding:10px 15px;border:0;border-radius:9px;background:#2c83df;color:#fff;cursor:pointer">Crear proyecto</button></footer></form></section>`;
+          overlay.innerHTML = `<section role="dialog" aria-modal="true" style="box-sizing:border-box;width:min(560px,100%);padding:22px;background:#191c1f;border:1px solid #3b4147;border-radius:16px;box-shadow:0 24px 70px #000c"><header style="display:flex;justify-content:space-between;align-items:center"><strong style="font-size:20px">${existing ? "Editar secuencia" : "Nuevo proyecto"}</strong><button type="button" data-close style="border:0;background:transparent;color:#c8cdd2;font-size:25px;cursor:pointer">×</button></header><p style="color:#aeb4ba;line-height:1.45">${existing ? "Actualiza el título, el autor y la tonalidad de esta secuencia." : "Define el título, el autor y la tonalidad de la nueva secuencia."}</p><form data-form><label style="display:block;margin:12px 0 5px">Nombre de la secuencia</label><input name="name" required maxlength="120" placeholder="Título de la canción" style="box-sizing:border-box;width:100%;padding:12px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:12px 0 5px">Autor o grupo</label><input name="artist" required maxlength="120" placeholder="Nombre del autor" style="box-sizing:border-box;width:100%;padding:12px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:12px 0 5px">Tonalidad</label><input name="key" maxlength="12" placeholder="Ej. A, F#m o Bb" style="box-sizing:border-box;width:100%;padding:12px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><footer style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px"><button type="button" data-cancel style="padding:10px 14px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff;cursor:pointer">Cancelar</button><button type="submit" style="padding:10px 15px;border:0;border-radius:9px;background:#2c83df;color:#fff;cursor:pointer">${existing ? "Guardar" : "Crear proyecto"}</button></footer></form></section>`;
           const close = () => overlay.remove(), form = overlay.querySelector("[data-form]");
           overlay.querySelector("[data-close]").onclick = close;
           overlay.querySelector("[data-cancel]").onclick = close;
@@ -8876,6 +8901,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           overlay.querySelector("[data-query]").after(filterBar);
           const resultList = overlay.querySelector("[data-list]");
           resultList.classList.add("library-list", "view-list");
+          resultList.style.cssText += ";box-sizing:border-box;flex:0 1 auto;min-height:0;max-height:320px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding-right:4px";
           filterBar.querySelectorAll("input,select").forEach((control) => control.addEventListener("input", () => {
             if (control.matches("[data-view]")) resultList.classList.toggle("view-grid", control.value === "grid"), resultList.classList.toggle("view-list", control.value === "list");
             if (songLibraryMode === "community") renderCommunitySongRows(filterLibraryItems(communityResultItems));
@@ -9295,7 +9321,8 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             pl.innerHTML =
               '<span class="eq"><i></i><i></i><i></i><i></i></span><span class="tx"></span>';
             d.appendChild(c);
-            if (s.key) { const key = document.createElement("span"); key.className = "psongkey"; key.textContent = s.key; key.title = "Tonalidad: " + s.key; c.appendChild(key); }
+            const songKey = String(s.key || "").trim();
+            if (songKey) { const key = document.createElement("span"); key.className = "psongkey"; key.textContent = songKey; key.title = "Tonalidad: " + songKey; key.setAttribute("aria-label", "Tonalidad " + songKey); key.style.cssText = "position:absolute;right:8px;bottom:8px;z-index:2147483000;width:30px;height:30px;min-width:30px;box-sizing:border-box;padding:0;border-radius:50%;display:grid;place-items:center;background:#101820f2;border:1px solid #f2f6fa;color:#fff;font:700 13px/1 system-ui,sans-serif;box-shadow:0 2px 8px #000b;opacity:1;pointer-events:none"; c.appendChild(key); }
             d.appendChild(pl);
             d.appendChild(n);
             d.addEventListener("click", () => {

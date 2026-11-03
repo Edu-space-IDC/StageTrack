@@ -231,6 +231,60 @@ void PlayerBridge::closeActive()
     ++structRev;
 }
 
+bool PlayerBridge::deleteSongFromLibrary(int index, juce::String& error)
+{
+    if (index < 0 || index >= (int)songs.size()) { error = "La canción ya no está en la biblioteca."; return false; }
+    if (songs[(size_t)index].loading) { error = "Espera a que termine la carga de audio antes de eliminar esta canción."; return false; }
+    const auto song = songs[(size_t)index];
+    const auto isInside = [](const juce::File& root, const juce::File& target) {
+        return target.getFullPathName().startsWithIgnoreCase(root.getFullPathName() + juce::File::getSeparatorString());
+    };
+    const auto removeManagedFolder = [&](const juce::String& path, const juce::File& root) {
+        if (path.isEmpty()) return true;
+        const juce::File target(path);
+        if (!isInside(root, target)) return true;
+        return !target.exists() || target.deleteRecursively();
+    };
+    if (!removeManagedFolder(song.libraryPath, multitrackDir())) {
+        error = "No se pudo quitar la carpeta administrada de esta canción."; return false;
+    }
+    if (!removeManagedFolder(song.communityExtractionPath, appDir().getChildFile("Sequences"))) {
+        error = "No se pudo quitar la copia extraída de esta secuencia."; return false;
+    }
+    if (song.communityPackagePath.isNotEmpty()) {
+        const juce::File package(song.communityPackagePath);
+        const auto downloads = appDir().getChildFile("CommunityDownloads");
+        if (isInside(downloads, package)) {
+            if (package.existsAsFile() && !package.deleteFile()) { error = "No se pudo quitar el paquete descargado."; return false; }
+            const auto sidecar = package.withFileExtension("community.json");
+            if (isInside(downloads, sidecar) && sidecar.existsAsFile() && !sidecar.deleteFile()) { error = "No se pudo quitar la información de la descarga."; return false; }
+        }
+    }
+
+    slotGenerations[(size_t)song.slot].fetch_add(1, std::memory_order_acq_rel);
+    engine.stopSongAndRewind(song.slot);
+    engine.releaseSong(song.slot);
+    ext.erase("sections_" + juce::String(song.slot));
+    const auto coverFile = appDir().getChildFile("Covers").getChildFile(song.hash + ".txt");
+    if (coverFile.existsAsFile()) coverFile.deleteFile();
+    coverByVer.erase(song.coverVer);
+    recent.removeString(song.communityPackagePath);
+
+    const bool removedActive = index == active;
+    songs.erase(songs.begin() + index);
+    if (songs.empty()) {
+        active = 0; engine.setActiveSong(0); engine.bpm.store(92.0); engine.setMaster(0.82f);
+    } else if (removedActive) {
+        const int next = juce::jmin(index, (int)songs.size() - 1);
+        active = -1; activate(next);
+    } else if (index < active) {
+        --active;
+    }
+    ++structRev;
+    saveLibrary();
+    return true;
+}
+
 void PlayerBridge::refreshCover(Song& s)
 {
     juce::String value, state = "n";
@@ -274,6 +328,8 @@ void PlayerBridge::saveLibrary()
         o->setProperty("artist", s.artist);
         o->setProperty("key", s.key);
         o->setProperty("communityId", s.communityId);
+        o->setProperty("communityPackagePath", s.communityPackagePath);
+        o->setProperty("communityExtractionPath", s.communityExtractionPath);
         o->setProperty("libraryPath", s.libraryPath);
         o->setProperty("hash", s.hash);
         o->setProperty("tempo", s.tempo);
@@ -304,6 +360,8 @@ void PlayerBridge::saveLibrary()
             auto* config = new juce::DynamicObject();
             config->setProperty("id", s.id); config->setProperty("name", s.name); config->setProperty("artist", s.artist); config->setProperty("key", s.key);
             config->setProperty("communityId", s.communityId);
+            config->setProperty("communityPackagePath", s.communityPackagePath);
+            config->setProperty("communityExtractionPath", s.communityExtractionPath);
             config->setProperty("tempo", s.tempo); config->setProperty("timeSigNum", s.timeSigNum); config->setProperty("timeSigDen", s.timeSigDen);
             config->setProperty("positionSeconds", engine.getSongPositionSeconds(s.slot)); config->setProperty("repeat", engine.getSongRepeat(s.slot));
             config->setProperty("tracks", files);
@@ -355,6 +413,8 @@ void PlayerBridge::loadLibrary()
             s.artist = v.getProperty("artist", {}).toString();
             s.key = v.getProperty("key", {}).toString();
             s.communityId = v.getProperty("communityId", {}).toString();
+            s.communityPackagePath = v.getProperty("communityPackagePath", {}).toString();
+            s.communityExtractionPath = v.getProperty("communityExtractionPath", {}).toString();
             s.libraryPath = v.getProperty("libraryPath", {}).toString();
             s.hash = v.getProperty("hash", {}).toString();
             const auto storedTempo = v.getProperty("tempo", {});
@@ -423,6 +483,7 @@ void PlayerBridge::loadLibrary()
                 if (meter.size() == 2) { song.timeSigNum = juce::jlimit(1,32,meter[0].getIntValue()); song.timeSigDen = juce::jlimit(1,32,meter[1].getIntValue()); }
                 const auto cover = metadata.getProperty("cover", {}).toString();
                 if (cover.startsWith("data:image/")) saveCoverOverride(song.hash, cover);
+                song.communityPackagePath = sidecar.withFileExtension("zip").existsAsFile() ? sidecar.withFileExtension("zip").getFullPathName() : sidecar.withFileExtension("rpseq").getFullPathName();
                 communityMetadataChanged = true;
                 installed = true; break;
             }
@@ -431,6 +492,7 @@ void PlayerBridge::loadLibrary()
                 song.key = metadata.getProperty("key", {}).toString();
                 const auto cover = metadata.getProperty("cover", {}).toString();
                 if (cover.startsWith("data:image/")) saveCoverOverride(song.hash, cover);
+                song.communityPackagePath = sidecar.withFileExtension("zip").existsAsFile() ? sidecar.withFileExtension("zip").getFullPathName() : sidecar.withFileExtension("rpseq").getFullPathName();
                 communityMetadataChanged = true;
                 installed = true; break;
             }
@@ -616,16 +678,16 @@ void PlayerBridge::startImport(int slot, juce::Array<juce::File> files, juce::St
             } else errors << files[i].getFileName() << ": " << err << "\n";
             if (next < total && !closing) launch(next++);
         }
-        {
-            const juce::ScopedLock sl(lock);
-            if (slotGenerations[(size_t)slot].load(std::memory_order_acquire) == generation)
-                for (auto& song : songs) if (song.slot == slot) { song.loading = false; break; }
-        }
         if (restorePosition && slotGenerations[(size_t)slot].load(std::memory_order_acquire) == generation) {
             const juce::ScopedLock sl(lock);
             for (const auto& song : songs) if (song.slot == slot) { engine.setSongPositionSeconds(slot, song.positionSeconds); break; }
         }
         if (slotGenerations[(size_t)slot].load(std::memory_order_acquire) == generation) saveLibrary();
+        {
+            const juce::ScopedLock sl(lock);
+            if (slotGenerations[(size_t)slot].load(std::memory_order_acquire) == generation)
+                for (auto& song : songs) if (song.slot == slot) { song.loading = false; break; }
+        }
         if (errors.isNotEmpty()) toast(errors.trim(), true);
         else {
             juce::String msg = ok == 1 ? juce::String("Audio listo (1 pista") : "Audio listo (" + juce::String(ok) + " pistas";
@@ -722,6 +784,8 @@ void PlayerBridge::loadSequence(const juce::File& source)
                     if (meter.size() == 2) { object->setProperty("timeSigNum", meter[0].getIntValue()); object->setProperty("timeSigDen", meter[1].getIntValue()); }
                 }
                 if (metadata->hasProperty("id")) object->setProperty("communityId", metadata->getProperty("id"));
+                object->setProperty("communityPackagePath", source.getFullPathName());
+                object->setProperty("communityExtractionPath", base.getFullPathName());
                 if (metadata->getProperty("cover").toString().startsWith("data:image/")) object->setProperty("coverData", metadata->getProperty("cover"));
             }
         }
@@ -839,6 +903,8 @@ void PlayerBridge::appendSequenceSong(const juce::var& model, const juce::File& 
         s->artist = model.getProperty("artist", {}).toString();
         s->key = model.getProperty("key", {}).toString();
         s->communityId = model.getProperty("communityId", {}).toString();
+        s->communityPackagePath = model.getProperty("communityPackagePath", {}).toString();
+        s->communityExtractionPath = model.getProperty("communityExtractionPath", {}).toString();
         s->tempoKnown = !model.getProperty("tempo", {}).isVoid();
         s->timeSigNum = juce::jlimit(1, 32, (int) model.getProperty("timeSigNum", 4));
         s->timeSigDen = juce::jlimit(1, 32, (int) model.getProperty("timeSigDen", 4));
@@ -1431,6 +1497,11 @@ void PlayerBridge::execCommand(const juce::String& cmd)
         activate(i);
         saveLibrary();
         result(nonce, true, "Canción cambiada.");
+    } else if (kind == "songdelete") {
+        const int index = P(1).getIntValue();
+        juce::String error;
+        if (!P(1).containsOnly("0123456789") || !deleteSongFromLibrary(index, error)) { result(nonce, false, error.isNotEmpty() ? error : "La canción ya no está en la biblioteca."); return; }
+        result(nonce, true, "Canción eliminada de Mi biblioteca.");
     } else if (kind == "close") {
         if (!s) { result(nonce, false, "No hay canción abierta."); return; }
         closeActive();

@@ -1,16 +1,15 @@
 {
-  "version": "0.5.19",
-  "intro": "StageTracks conserva los metadatos y la portada original de las secuencias de la comunidad.",
+  "version": "0.5.20",
+  "intro": "La biblioteca de StageTracks muestra con claridad el estado y la tonalidad de tus secuencias.",
   "implementations": [
-    "La biblioteca muestra el título junto al artista y una insignia con la tonalidad de cada canción.",
-    "El menú Editar permite modificar el título, el artista y la tonalidad; Nuevo proyecto también incluye la tonalidad.",
-    "La tonalidad, el BPM, el compás y la portada se sincronizan al instalar secuencias de la comunidad."
+    "La tonalidad aparece en un indicador circular en la esquina inferior derecha de cada portada.",
+    "Editar una canción existente ahora muestra el botón Guardar.",
+    "La lista de secuencias de la comunidad conserva el estado Instalado y permite volver a descargar una secuencia después de eliminarla.",
+    "Mi biblioteca permite eliminar canciones con confirmación y muestra hasta cuatro resultados antes de activar el scroll."
   ],
   "fixes": [
-    "La portada comunitaria conserva el archivo de imagen descargado sin convertirlo a otra imagen.",
-    "Los proyectos inactivos y cerrados liberan sus buffers de audio; la posición se conserva al cambiar de proyecto.",
-    "Se protege el cierre de proyectos frente a importaciones de audio que todavía están en curso.",
-    "Se reparan automáticamente textos visibles que aparecen con caracteres dañados."
+    "Al eliminar una secuencia comunitaria se borran las copias administradas y el paquete descargado; los archivos originales externos se conservan.",
+    "Las listas largas ya no desbordan el cuadro del buscador."
   ],
   "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"
 }
