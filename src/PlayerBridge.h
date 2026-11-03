@@ -41,6 +41,7 @@ private:
         juce::String id;              // identificador estable
         juce::String name;
         juce::String artist;
+        juce::String communityId;
         juce::String libraryPath;
         juce::String hash;            // 16 hex, nombre del archivo de caratula
         double tempo = 92.0;

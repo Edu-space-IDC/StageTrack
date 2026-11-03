@@ -261,6 +261,7 @@ void PlayerBridge::saveLibrary()
         o->setProperty("id", s.id);
         o->setProperty("name", s.name);
         o->setProperty("artist", s.artist);
+        o->setProperty("communityId", s.communityId);
         o->setProperty("libraryPath", s.libraryPath);
         o->setProperty("hash", s.hash);
         o->setProperty("tempo", s.tempo);
@@ -288,6 +289,7 @@ void PlayerBridge::saveLibrary()
         if (s.libraryPath.isNotEmpty()) {
             auto* config = new juce::DynamicObject();
             config->setProperty("id", s.id); config->setProperty("name", s.name); config->setProperty("artist", s.artist);
+            config->setProperty("communityId", s.communityId);
             config->setProperty("tempo", s.tempo); config->setProperty("timeSigNum", s.timeSigNum); config->setProperty("timeSigDen", s.timeSigDen);
             config->setProperty("tracks", files);
             const auto sections = ext.find("sections_" + juce::String(s.slot));
@@ -327,6 +329,7 @@ void PlayerBridge::loadLibrary()
         juce::StringArray names, routings, volumes, pans, mutes, solos, colors;
     };
     std::vector<Pending> pending;
+    std::vector<juce::File> recoverCommunityPackages;
     if (auto* list = parsed.getProperty("songs", {}).getArray())
         for (const auto& v : *list) {
             if ((int) songs.size() >= AudioEngine::maxSongs) break;
@@ -335,6 +338,7 @@ void PlayerBridge::loadLibrary()
             s.id = v.getProperty("id", juce::Uuid().toString()).toString();
             s.name = v.getProperty("name", juce::String("Canción")).toString();
             s.artist = v.getProperty("artist", {}).toString();
+            s.communityId = v.getProperty("communityId", {}).toString();
             s.libraryPath = v.getProperty("libraryPath", {}).toString();
             s.hash = v.getProperty("hash", {}).toString();
             const auto storedTempo = v.getProperty("tempo", {});
@@ -378,6 +382,33 @@ void PlayerBridge::loadLibrary()
         }
     if (auto* rec = parsed.getProperty("recent", {}).getArray())
         for (const auto& r : *rec) if (recent.size() < 10 && juce::File(r.toString()).existsAsFile()) recent.add(r.toString());
+    const auto communityFolder = appDir().getChildFile("CommunityDownloads");
+    juce::Array<juce::File> sidecars;
+    communityFolder.findChildFiles(sidecars, juce::File::findFiles, false, "*.community.json");
+    for (const auto& sidecar : sidecars) {
+        const auto metadata = juce::JSON::parse(sidecar);
+        const auto name = metadata.getProperty("name", {}).toString().trim();
+        const auto artist = metadata.getProperty("artist", {}).toString().trim();
+        const auto id = metadata.getProperty("id", {}).toString();
+        if (name.isEmpty()) continue;
+        bool installed = false;
+        for (auto& song : songs) {
+            if ((id.isNotEmpty() && song.communityId == id)
+                || (song.name.compareIgnoreCase(name) == 0 && song.artist.compareIgnoreCase(artist) == 0)) { installed = true; break; }
+            if (song.artist.isEmpty() && song.name.compareIgnoreCase(name) == 0) {
+                song.artist = artist; song.communityId = id;
+                const auto cover = metadata.getProperty("cover", {}).toString();
+                if (cover.startsWith("data:image/")) saveCoverOverride(song.hash, cover);
+                installed = true; break;
+            }
+        }
+        if (installed) continue;
+        auto baseName = sidecar.getFileName();
+        baseName = baseName.dropLastCharacters(juce::String(".community.json").length());
+        auto package = communityFolder.getChildFile(baseName + ".zip");
+        if (!package.existsAsFile()) package = communityFolder.getChildFile(baseName + ".rpseq");
+        if (package.existsAsFile()) recoverCommunityPackages.push_back(package);
+    }
     active = juce::jlimit(0, juce::jmax(0, (int) songs.size() - 1), (int) parsed.getProperty("active", 0));
     if (!songs.empty()) engine.setActiveSong(songs[(size_t) active].slot);
     // la cancion activa se carga primero (queda lista para tocar enseguida); el resto va detras en segundo plano
@@ -386,6 +417,8 @@ void PlayerBridge::loadLibrary()
         if (p.slot == activeSlot && !p.files.isEmpty())
             startImport(p.slot, p.files, p.names, p.routings, p.volumes, p.pans, p.mutes, p.solos, p.colors, false);
     runBackground([] { AudioEngine::pruneCache(); });   // limpia .tmp y mantiene la cache bajo ~6 GB
+    for (const auto& package : recoverCommunityPackages)
+        runBackground([this, package] { loadSequence(package); addRecent(package); saveLibrary(); });
 }
 
 // ------------------------------------------------------------------ importar / abrir
@@ -568,6 +601,7 @@ void PlayerBridge::loadSequence(const juce::File& source)
             for (auto& song : *arr) if (auto* object = song.getDynamicObject()) {
                 if (metadata->hasProperty("name")) object->setProperty("name", metadata->getProperty("name"));
                 if (metadata->hasProperty("artist")) object->setProperty("artist", metadata->getProperty("artist"));
+                if (metadata->hasProperty("id")) object->setProperty("communityId", metadata->getProperty("id"));
                 if (metadata->getProperty("cover").toString().startsWith("data:image/")) object->setProperty("coverData", metadata->getProperty("cover"));
             }
         }
@@ -682,6 +716,7 @@ void PlayerBridge::appendSequenceSong(const juce::var& model, const juce::File& 
         hash = s->hash;
         s->tempo = juce::jlimit(1.0, 999.0, std::round((double) model.getProperty("tempo", 92.0)));
         s->artist = model.getProperty("artist", {}).toString();
+        s->communityId = model.getProperty("communityId", {}).toString();
         s->tempoKnown = !model.getProperty("tempo", {}).isVoid();
         s->timeSigNum = juce::jlimit(1, 32, (int) model.getProperty("timeSigNum", 4));
         s->timeSigDen = juce::jlimit(1, 32, (int) model.getProperty("timeSigDen", 4));
@@ -984,7 +1019,7 @@ juce::String PlayerBridge::songsString()
 {
     juce::StringArray rows;
     for (const auto& s : songs)
-        rows.add(hex(s.name) + "~" + hex("stagetracks:" + s.id) + "~" + s.hash + "~" + s.coverState + "~" + s.coverVer + "~" + num(s.tempo, 2) + "~" + juce::String(s.timeSigNum) + "~" + juce::String(s.timeSigDen) + "~" + (s.tempoManual ? "1" : "0") + "~" + (s.tempoKnown ? "1" : "0") + "~" + hex(s.artist));
+        rows.add(hex(s.name) + "~" + hex("stagetracks:" + s.id) + "~" + s.hash + "~" + s.coverState + "~" + s.coverVer + "~" + num(s.tempo, 2) + "~" + juce::String(s.timeSigNum) + "~" + juce::String(s.timeSigDen) + "~" + (s.tempoManual ? "1" : "0") + "~" + (s.tempoKnown ? "1" : "0") + "~" + hex(s.artist) + "~" + hex(s.communityId));
     return juce::String(songs.empty() ? 0 : active) + "|" + rows.joinIntoString("|");
 }
 
@@ -1280,9 +1315,19 @@ void PlayerBridge::execCommand(const juce::String& cmd)
         saveLibrary();
         result(nonce, true, "Canción cerrada.");
     } else if (kind == "new") {
-        if (addSong("Sin título", true) == nullptr) { result(nonce, false, "Se alcanzó el límite de 32 canciones."); return; }
+        const auto projectName = unhex(P(1)).trim();
+        auto* created = addSong(projectName.isNotEmpty() ? projectName : juce::String("Sin título"), true);
+        if (created == nullptr) { result(nonce, false, "Se alcanzó el límite de 32 canciones."); return; }
+        created->artist = unhex(P(2)).trim();
         saveLibrary();
         result(nonce, true, "Nueva canción creada.");
+    } else if (kind == "projmeta") {
+        if (!s) { result(nonce, false, "No hay canción abierta."); return; }
+        const auto name = unhex(P(1)).trim(), artist = unhex(P(2)).trim();
+        if (name.isNotEmpty()) s->name = name;
+        s->artist = artist;
+        saveLibrary(); ++structRev;
+        result(nonce, true, "Datos del proyecto guardados.");
     } else if (kind == "open") {
         const auto path = unhex(P(1));
         if (!juce::File(path).existsAsFile()) { result(nonce, false, "No se encontró el archivo."); return; }

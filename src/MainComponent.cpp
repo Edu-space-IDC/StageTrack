@@ -61,11 +61,11 @@ MainComponent::MainComponent()
         server->onHostMessage = [safe = juce::Component::SafePointer<MainComponent>(this)](const juce::String& msg) {
             juce::MessageManager::callAsync([safe, msg] { if (safe != nullptr) safe->onHostMessage(msg); });
         };
-        server->onCommunityDownload = [safe = juce::Component::SafePointer<MainComponent>(this)](const juce::File& file, const juce::String& name, const juce::String& artist, const juce::String& cover) {
-            juce::MessageManager::callAsync([safe, file, name, artist, cover] {
+        server->onCommunityDownload = [safe = juce::Component::SafePointer<MainComponent>(this)](const juce::File& file, const juce::String& name, const juce::String& artist, const juce::String& cover, const juce::String& communityId) {
+            juce::MessageManager::callAsync([safe, file, name, artist, cover, communityId] {
                 if (safe != nullptr && safe->bridge != nullptr) {
                     auto* sidecar = new juce::DynamicObject();
-                    sidecar->setProperty("name", name); sidecar->setProperty("artist", artist); sidecar->setProperty("cover", cover);
+                    sidecar->setProperty("name", name); sidecar->setProperty("artist", artist); sidecar->setProperty("cover", cover); sidecar->setProperty("id", communityId);
                     file.withFileExtension("community.json").replaceWithText(juce::JSON::toString(juce::var(sidecar)));
                     safe->bridge->openPaths({ file });
                     safe->bridge->toast("Secuencia descargada. Preparando el setlist…", false);

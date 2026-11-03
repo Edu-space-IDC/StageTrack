@@ -372,7 +372,7 @@ void WebControlServer::serve(juce::StreamingSocket& client)
         const auto metadata = juce::JSON::parse(req.body);
         if (onCommunityDownload) onCommunityDownload(completed,
             metadata.getProperty("name", {}).toString(), metadata.getProperty("artist", {}).toString(),
-            metadata.getProperty("cover", {}).toString());
+            metadata.getProperty("cover", {}).toString(), metadata.getProperty("id", {}).toString());
         sendText(client, 200, "text/plain; charset=utf-8", "ok");
         return;
     }

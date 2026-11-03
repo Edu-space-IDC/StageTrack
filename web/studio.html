@@ -2557,6 +2557,14 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         overflow: hidden;
         text-overflow: ellipsis;
       }
+      .psongartist {
+        margin-top: 2px;
+        color: #8f9ba8;
+        font: 400 12px system-ui, sans-serif;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
       .psong.active .psongname {
         color: #fff;
       }
@@ -5442,7 +5450,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           };
           next();
         };
-        $("pNewProject").addEventListener("click", () => sendCmd("new"));
+        $("pNewProject").addEventListener("click", openNewProjectDialog);
         $("pOpenProject").addEventListener("click", () =>
           requestLocalPicker("openProject"),
         );
@@ -8232,6 +8240,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           songLibraryMode = "local",
           communitySearchSeq = 0,
           communitySearchTimer = 0;
+        let communityResultItems = [];
         let communityUploadForm = null;
         window.receiveCommunityExport = (ok, value) => {
           const form = communityUploadForm;
@@ -8350,6 +8359,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           overlay.style.cssText = "position:fixed;inset:0;z-index:12002;display:grid;place-items:center;padding:18px;background:#000b;backdrop-filter:blur(5px);font:14px system-ui,sans-serif;color:#eef1f3";
           overlay.innerHTML = `<section role="dialog" aria-modal="true" style="box-sizing:border-box;width:min(520px,100%);max-height:90vh;overflow:auto;padding:20px;background:#191c1f;border:1px solid #3b4147;border-radius:16px;box-shadow:0 24px 70px #000c"><header style="display:flex;align-items:center;justify-content:space-between"><strong style="font-size:19px">${communityText("Subir secuencia a la comunidad", "Upload a sequence to the community")}</strong><button type="button" data-close style="border:0;background:transparent;color:#c8cdd2;font-size:25px;cursor:pointer">×</button></header><p style="color:#aeb4ba;line-height:1.45">${communityText("En StageTracks puedes subir directamente la secuencia activa de Mi biblioteca. También puedes elegir un archivo .rpseq o .zip. Se sube en bloques y puede pesar hasta 1 GB.", "In StageTracks, upload the active sequence from My Library directly. You can also choose a .rpseq or .zip file. Uploads are chunked and can be up to 1 GB.")}</p><form data-form><label style="display:block;margin:10px 0 5px">${communityText("Nombre de la canción", "Song title")}</label><input name="name" required maxlength="120" value="${String(current.name || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:10px 0 5px">${communityText("Artista o grupo", "Artist or band")}</label><input name="artist" required maxlength="120" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="display:block;margin:10px 0 5px">${communityText("Tonalidad", "Key")}</label><select name="key" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option value="">—</option>${"C C# Db D D# Eb E F F# Gb G G# Ab A A# Bb B Cm C#m Dbm Dm D#m Ebm Em Fm F#m Gbm Gm G#m Abm Am A#m Bbm Bm".split(" ").map(key => `<option>${key}</option>`).join("")}</select></div><div><label style="display:block;margin:10px 0 5px">BPM</label><input name="bpm" type="number" min="40" max="240" value="${current.tempoKnown ? Math.round(current.tempo) : 120}" required style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="display:block;margin:10px 0 5px">${communityText("Compás", "Time signature")}</label><select name="meter" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option>4/4</option><option>3/4</option><option>6/8</option><option>2/4</option><option>5/4</option><option>7/4</option><option>9/8</option><option>12/8</option></select></div><div><label style="display:block;margin:10px 0 5px">${communityText("Género", "Genre")}</label><select name="genre" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option>Adoración</option><option>Gospel</option><option>Contemporáneo</option><option>Acústico</option><option>Rock</option><option>Otro</option></select></div></div><label style="display:block;margin:12px 0 5px">${communityText("Paquete .rpseq o .zip", "Sequence package (.rpseq or .zip)")}</label><input name="package" type="file" accept=".rpseq,.zip,application/zip" required><label style="display:block;margin:12px 0 5px">${communityText("Carátula opcional", "Optional cover")}</label><input name="cover" type="file" accept="image/png,image/jpeg,image/webp"><small data-status aria-live="polite" style="display:block;min-height:20px;margin-top:10px;color:#aeb4ba"></small><footer style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px"><button type="button" data-cancel style="padding:9px 13px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff;cursor:pointer">${communityText("Cancelar", "Cancel")}</button><button type="submit" style="padding:9px 14px;border:0;border-radius:9px;background:#2c83df;color:#fff;cursor:pointer">${communityText("Subir", "Upload")}</button></footer></form></section>`;
           const form = overlay.querySelector("[data-form]"), status = overlay.querySelector("[data-status]"), submit = form.querySelector('[type="submit"]');
+          form.elements.artist.value = current.artist || "";
           let uploadInBackground = false, uploadPending = false, uploadFinished = false, uploadPercent = 0, uploadState = "upload";
           const close = () => {
             if (uploadPending && !uploadFinished) { uploadInBackground = true; showCommunityUploadProgress(uploadPercent, status.textContent || "La subida continúa en segundo plano…", uploadState); }
@@ -8364,8 +8374,10 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           if (native) { packageInput.hidden = true; packageInput.required = false; }
           else currentButton.hidden = true;
           currentButton.onclick = () => {
-            status.textContent = "Empaquetando la secuencia activa de Mi biblioteca…";
-            window.chrome.webview.postMessage("exportCommunitySequence");
+            const name = form.elements.name.value.trim(), artist = form.elements.artist.value.trim();
+            if (!name || !artist) { form.elements.artist.required = true; form.elements.artist.reportValidity(); return; }
+            status.textContent = "Guardando los datos y empaquetando la secuencia…";
+            sendCmd("projmeta_" + hex(name) + "_" + hex(artist), false, () => window.chrome.webview.postMessage("exportCommunitySequence"));
           };
           packageInput.onchange = () => { delete form.dataset.communityPackageSize; };
           const backgroundButton = document.createElement("button"); backgroundButton.type = "button"; backgroundButton.hidden = true; backgroundButton.textContent = "Continuar en segundo plano";
@@ -8408,7 +8420,40 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             remote = songLibraryOverlay?.querySelector('[data-mode="community"]');
           local?.classList.toggle("on", mode === "local");
           remote?.classList.toggle("on", mode === "community");
+          songLibraryOverlay?.querySelectorAll("[data-mode]").forEach((button) => {
+            button.setAttribute("aria-pressed", String(button.dataset.mode === mode));
+          });
+          ["[data-filter-key]", "[data-filter-genre]"].forEach((selector) => {
+            const filter = songLibraryOverlay?.querySelector(selector);
+            if (filter) { filter.disabled = mode === "local"; filter.title = mode === "local" ? "Este dato solo está disponible en Comunidad" : ""; }
+          });
+          if (mode === "local") {
+            const keyFilter = songLibraryOverlay?.querySelector("[data-filter-key]"), genreFilter = songLibraryOverlay?.querySelector("[data-filter-genre]");
+            if (keyFilter) keyFilter.value = "";
+            if (genreFilter) genreFilter.value = "";
+          }
           renderSongLibrarySearch();
+        }
+        function libraryFilters() {
+          const root = songLibraryOverlay;
+          return {
+            min: Number(root?.querySelector("[data-filter-min]")?.value) || 0,
+            max: Number(root?.querySelector("[data-filter-max]")?.value) || 999,
+            meter: root?.querySelector("[data-filter-meter]")?.value || "",
+            key: root?.querySelector("[data-filter-key]")?.value || "",
+            genre: root?.querySelector("[data-filter-genre]")?.value || "",
+          };
+        }
+        function filterLibraryItems(items) {
+          const filter = libraryFilters();
+          const normalized = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase();
+          return items.filter((item) => {
+            const bpm = Number(item.bpm ?? item.tempo) || 0;
+            return bpm >= filter.min && bpm <= filter.max
+              && (!filter.meter || String(item.meter || `${item.sigNum || 4}/${item.sigDen || 4}`) === filter.meter)
+              && (!filter.key || normalized(item.key) === normalized(filter.key))
+              && (!filter.genre || normalized(item.genre) === normalized(filter.genre));
+          });
         }
         const communityInstalledStorageKey = "stageTracksCommunityInstalledV1";
         const communityArtistStorageKey = "stageTracksCommunityArtistsV1";
@@ -8429,7 +8474,9 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           } catch (_) {}
         }
         function isCommunitySequenceInstalled(item) {
-          return getCommunityInstalledIds().has(String(item.id || ""));
+          const normalize = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+          const id = String(item.id || ""), name = normalize(item.name), artist = normalize(item.artist);
+          return songs.list.some((song) => (id && song.communityId === id) || (name && artist && normalize(song.name) === name && normalize(song.artist) === artist));
         }
         function findCommunityNameConflict(item) {
           const normalize = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -8441,6 +8488,22 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             if (!knownArtist) try { knownArtist = JSON.parse(localStorage.getItem(communityArtistStorageKey) || "{}")[normalizeTrackText(song.name)] || ""; } catch (_) {}
             return !!artist && !!knownArtist && normalize(knownArtist) === artist;
           }) || null;
+        }
+        const communityDuplicateCache = new Map();
+        function communityHasPublishedMatch(song) {
+          const normalize = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+          const name = normalize(song.name), artist = normalize(song.artist), key = name + "|" + artist;
+          if (!name || !artist) return Promise.resolve(false);
+          if (song.communityId) return Promise.resolve(true);
+          if (communityDuplicateCache.has(key)) return communityDuplicateCache.get(key);
+          const base = communityApiBase();
+          if (!base) return Promise.resolve(false);
+          const query = fetch(base + "/api/sequences?q=" + encodeURIComponent(song.name) + "&limit=40", { headers: { Accept: "application/json" }, cache: "no-store" })
+            .then((response) => response.ok ? response.json() : { results: [] })
+            .then((data) => (data.results || []).some((item) => normalize(item.name) === name && normalize(item.artist) === artist))
+            .catch(() => false);
+          communityDuplicateCache.set(key, query);
+          return query;
         }
         function confirmCommunityNameConflict(item, existing, onDownload) {
           const overlay = document.createElement("div");
@@ -8520,8 +8583,9 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             if (!response.ok) throw new Error("La comunidad respondió " + response.status + ".");
             const data = await response.json();
             if (seq !== communitySearchSeq) return;
-            if (status) status.textContent = `${data.total ?? (data.results || []).length} secuencias disponibles.`;
-            renderCommunitySongRows(data.results || []);
+            communityResultItems = data.results || [];
+            if (status) status.textContent = `${data.total ?? communityResultItems.length} secuencias disponibles.`;
+            renderCommunitySongRows(filterLibraryItems(communityResultItems));
           } catch (error) {
             if (seq !== communitySearchSeq) return;
             if (status) status.textContent = error.message || "No se pudo conectar con la comunidad.";
@@ -8671,7 +8735,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
                   }
                 } catch (_) {}
               }
-              try { finished = await fetch("/host/community/finish/" + encodeURIComponent(job.token), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: item.name || "", artist: item.artist || "", cover }) }); }
+              try { finished = await fetch("/host/community/finish/" + encodeURIComponent(job.token), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: String(item.id || ""), name: item.name || "", artist: item.artist || "", cover }) }); }
               finally { job.writingHost = false; }
               if (!finished.ok) throw new Error("No se pudo abrir el paquete descargado.");
               markCommunitySequenceInstalled(item);
@@ -8714,9 +8778,11 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           const q = songLibraryOverlay.querySelector("[data-query]").value.trim().toLocaleLowerCase();
           const list = songLibraryOverlay.querySelector("[data-list]");
           list.innerHTML = "";
-          const matches = songs.list.map((song, i) => ({song, i})).filter(({song}) => (song.name + " " + (song.artist || "")).toLocaleLowerCase().includes(q));
+          const matches = filterLibraryItems(songs.list.map((song, i) => ({ ...song, i, tempo: song.tempo })))
+            .filter((song) => (song.name + " " + (song.artist || "")).toLocaleLowerCase().includes(q));
           if (!matches.length) { list.textContent = "No hay canciones que coincidan."; return; }
-          matches.forEach(({song, i}) => {
+          matches.forEach((song) => {
+            const i = song.i;
             const row = document.createElement("div");
             row.style.cssText = "width:100%;display:flex;align-items:center;gap:8px;padding:9px;border:1px solid #353a40;border-radius:12px;background:#191c1f;color:#f3f5f6";
             const select = document.createElement("button"); select.type = "button";
@@ -8732,18 +8798,36 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             name.textContent = song.name;
             const meta = document.createElement("small");
             meta.style.cssText = "display:block;margin-top:4px;color:#9da6af";
-            meta.textContent = `${song.artist ? song.artist + " ? " : ""}${song.tempoKnown ? Math.round(song.tempo) : "--"} BPM · ${song.sigNum || 4}/${song.sigDen || 4}`;
+            meta.textContent = `${song.artist ? song.artist + " · " : ""}${song.tempoKnown ? Math.round(song.tempo) : "--"} BPM · ${song.sigNum || 4}/${song.sigDen || 4}`;
             info.append(name, meta); select.append(art, info);
             select.onclick = () => { songLibraryOverlay.remove(); songLibraryOverlay = null; if (i !== songs.active) window.activateSongTab(i); };
             row.append(select);
-            if (window.STAGETRACKS_NATIVE) {
+            if (window.STAGETRACKS_NATIVE && song.name && song.name !== "Sin título" && song.artist?.trim()) {
               const upload = document.createElement("button"); upload.type = "button"; upload.textContent = "Subir a comunidad";
               upload.style.cssText = "flex:0 0 auto;padding:8px 10px;border:1px solid #2d8050;border-radius:8px;background:#1e3b2a;color:#d8f5e3;cursor:pointer;font-size:12px";
               upload.onclick = () => requestSongTab(i, () => { songLibraryOverlay?.remove(); songLibraryOverlay = null; setTimeout(openCommunityUploadDialog, 300); });
               row.append(upload);
+              communityHasPublishedMatch(song).then((duplicate) => { if (!upload.isConnected) return; if (duplicate) upload.remove(); });
             }
             list.appendChild(row);
           });
+        }
+        function openNewProjectDialog() {
+          const overlay = document.createElement("div");
+          overlay.style.cssText = "position:fixed;inset:0;z-index:12020;display:grid;place-items:center;padding:18px;background:#000b;backdrop-filter:blur(5px);font:14px system-ui,sans-serif;color:#eef1f3";
+          overlay.innerHTML = `<section role="dialog" aria-modal="true" style="box-sizing:border-box;width:min(560px,100%);padding:22px;background:#191c1f;border:1px solid #3b4147;border-radius:16px;box-shadow:0 24px 70px #000c"><header style="display:flex;justify-content:space-between;align-items:center"><strong style="font-size:20px">Nuevo proyecto</strong><button type="button" data-close style="border:0;background:transparent;color:#c8cdd2;font-size:25px;cursor:pointer">×</button></header><p style="color:#aeb4ba;line-height:1.45">Define el título y el autor para agregarlo a tu biblioteca y preparar su publicación.</p><form data-form><label style="display:block;margin:12px 0 5px">Nombre de la secuencia</label><input name="name" required maxlength="120" placeholder="Título de la canción" style="box-sizing:border-box;width:100%;padding:12px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:12px 0 5px">Autor o grupo</label><input name="artist" required maxlength="120" placeholder="Nombre del autor" style="box-sizing:border-box;width:100%;padding:12px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><footer style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px"><button type="button" data-cancel style="padding:10px 14px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff;cursor:pointer">Cancelar</button><button type="submit" style="padding:10px 15px;border:0;border-radius:9px;background:#2c83df;color:#fff;cursor:pointer">Crear proyecto</button></footer></form></section>`;
+          const close = () => overlay.remove(), form = overlay.querySelector("[data-form]");
+          overlay.querySelector("[data-close]").onclick = close;
+          overlay.querySelector("[data-cancel]").onclick = close;
+          overlay.onclick = (event) => { if (event.target === overlay) close(); };
+          form.onsubmit = (event) => {
+            event.preventDefault();
+            const name = form.elements.name.value.trim(), artist = form.elements.artist.value.trim();
+            if (!name || !artist) return;
+            sendCmd("new_" + hex(name) + "_" + hex(artist), false, close);
+          };
+          document.body.appendChild(overlay);
+          form.elements.name.focus();
         }
         function openSongLibrarySearch() {
           songLibraryOverlay?.remove();
@@ -8751,13 +8835,32 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           songLibraryOverlay = overlay;
           overlay.style.cssText = "position:fixed;inset:0;z-index:12000;display:grid;place-items:center;padding:18px;background:#000b;backdrop-filter:blur(5px);font:14px system-ui,sans-serif;color:#eef1f3";
           overlay.innerHTML = `<section role="dialog" aria-modal="true" style="box-sizing:border-box;width:min(580px,100%);max-height:min(720px,90vh);display:flex;flex-direction:column;padding:18px;background:#191c1f;border:1px solid #3b4147;border-radius:16px;box-shadow:0 24px 70px #000c"><header style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><strong style="font-size:19px">Buscar canción</strong><button type="button" data-close style="border:0;background:transparent;color:#c8cdd2;font-size:25px;cursor:pointer">×</button></header><div style="display:flex;gap:7px;margin-bottom:10px"><button type="button" data-mode="local" style="padding:8px 12px;border:1px solid #426179;border-radius:8px;background:#1e3040;color:#e7f4ff;cursor:pointer">Mi biblioteca</button><button type="button" data-mode="community" style="padding:8px 12px;border:1px solid #353a40;border-radius:8px;background:#191c1f;color:#bbc4cd;cursor:pointer">Comunidad</button><button type="button" data-upload-open style="margin-left:auto;padding:8px 12px;border:1px solid #2d8050;border-radius:8px;background:#1e3b2a;color:#d8f5e3;cursor:pointer">${communityText("Subir secuencia", "Upload sequence")}</button></div><input data-query type="search" placeholder="Nombre de canción o artista…" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #3a4046;border-radius:10px;background:#101214;color:#fff"><small data-community-status style="min-height:16px;margin-top:6px;color:#9da6af"></small><div data-list style="overflow:auto;display:grid;gap:8px;margin-top:8px"></div></section>`;
+          const section = overlay.querySelector('[role="dialog"]');
+          section.style.width = "min(860px, 96vw)";
+          section.style.maxHeight = "min(820px, 90vh)";
+          section.style.padding = "24px";
+          const visualStyle = document.createElement("style");
+          visualStyle.textContent = `.library-mode-btn{position:relative;transition:transform .18s ease,background .18s ease,border-color .18s ease,color .18s ease}.library-mode-btn.on{background:#25435a!important;border-color:#5eb9ef!important;color:#fff!important;box-shadow:0 0 0 2px #55b8f455,0 5px 18px #0005;transform:translateY(-1px)}.library-mode-btn:not(.on){background:#171a1d!important;color:#aeb8c1!important}.library-list.view-grid{grid-template-columns:repeat(auto-fill,minmax(290px,1fr))!important;align-content:start}.library-list.view-grid>div{width:auto!important;min-height:102px}.library-list.view-list{grid-template-columns:1fr!important}`;
+          overlay.appendChild(visualStyle);
+          overlay.querySelectorAll("[data-mode]").forEach((button) => button.classList.add("library-mode-btn"));
+          const filterBar = document.createElement("div");
+          filterBar.style.cssText = "display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:10px";
+          filterBar.innerHTML = `<input data-filter-min type="number" min="1" max="999" placeholder="BPM mínimo" aria-label="BPM mínimo" style="padding:9px;border:1px solid #3a4046;border-radius:8px;background:#101214;color:#fff"><input data-filter-max type="number" min="1" max="999" placeholder="BPM máximo" aria-label="BPM máximo" style="padding:9px;border:1px solid #3a4046;border-radius:8px;background:#101214;color:#fff"><select data-filter-meter aria-label="Filtrar por compás" style="padding:9px;border:1px solid #3a4046;border-radius:8px;background:#101214;color:#fff"><option value="">Todos los compases</option>${["2/4","3/4","4/4","5/4","6/8","7/4","9/8","12/8"].map(x=>`<option>${x}</option>`).join("")}</select><select data-filter-key aria-label="Filtrar por tonalidad" style="padding:9px;border:1px solid #3a4046;border-radius:8px;background:#101214;color:#fff"><option value="">Todas las tonalidades</option>${"C C# Db D D# Eb E F F# Gb G G# Ab A A# Bb B Cm C#m Dbm Dm D#m Ebm Em Fm F#m Gbm Gm G#m Abm Am A#m Bbm Bm".split(" ").map(x=>`<option>${x}</option>`).join("")}</select><select data-filter-genre aria-label="Filtrar por género" style="padding:9px;border:1px solid #3a4046;border-radius:8px;background:#101214;color:#fff"><option value="">Todos los géneros</option>${["Adoración","Gospel","Contemporáneo","Acústico","Rock","Otro"].map(x=>`<option>${x}</option>`).join("")}</select><select data-view aria-label="Modo de vista" style="padding:9px;border:1px solid #3a4046;border-radius:8px;background:#101214;color:#fff"><option value="list">Vista de lista</option><option value="grid">Vista de tarjetas</option></select>`;
+          overlay.querySelector("[data-query]").after(filterBar);
+          const resultList = overlay.querySelector("[data-list]");
+          resultList.classList.add("library-list", "view-list");
+          filterBar.querySelectorAll("input,select").forEach((control) => control.addEventListener("input", () => {
+            if (control.matches("[data-view]")) resultList.classList.toggle("view-grid", control.value === "grid"), resultList.classList.toggle("view-list", control.value === "list");
+            if (songLibraryMode === "community") renderCommunitySongRows(filterLibraryItems(communityResultItems));
+            else renderSongLibrarySearch();
+          }));
           overlay.querySelector("[data-query]").oninput = renderSongLibrarySearch;
           overlay.querySelector('[data-mode="local"]').onclick = () => selectSongLibraryMode("local");
           overlay.querySelector('[data-mode="community"]').onclick = () => selectSongLibraryMode("community");
           overlay.querySelector('[data-upload-open]').onclick = openCommunityUploadDialog;
           overlay.querySelector("[data-close]").onclick = () => { overlay.remove(); songLibraryOverlay = null; };
           overlay.onclick = e => { if (e.target === overlay) { overlay.remove(); songLibraryOverlay = null; } };
-          document.body.appendChild(overlay); songLibraryMode = "local"; renderSongLibrarySearch(); overlay.querySelector("[data-query]").focus();
+          document.body.appendChild(overlay); selectSongLibraryMode("local"); overlay.querySelector("[data-query]").focus();
         }
         function openBpmEditor() {
           if (!songs.list[songs.active]) return;
@@ -8847,6 +8950,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
               tempoManual: a[8] === "1",
               tempoKnown: a[9] === "1",
               artist: hexToStr(a[10] || ""),
+              communityId: hexToStr(a[11] || ""),
             };
           });
           const sig = active + "|" + parts.join("|");
@@ -9165,6 +9269,13 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             d.appendChild(c);
             d.appendChild(pl);
             d.appendChild(n);
+            if (s.artist) {
+              const artist = document.createElement("div");
+              artist.className = "psongartist";
+              artist.textContent = s.artist;
+              artist.title = s.artist;
+              d.appendChild(artist);
+            }
             d.addEventListener("click", () => {
               if (i === songs.active) return;
               requestSongTab(i);

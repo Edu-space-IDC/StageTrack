@@ -1,15 +1,15 @@
-﻿{
-  "version": "0.5.16",
-  "intro": "StageTracks guarda las secuencias instaladas en una biblioteca local y conserva sus metadatos de comunidad.",
+{
+  "version": "0.5.17",
+  "intro": "La biblioteca sincroniza las secuencias comunitarias instaladas y muestra el autor en las tarjetas.",
   "implementations": [
-    "Las secuencias instaladas desde la comunidad conservan el autor y la carátula al abrirse en StageTracks.",
-    "Las pistas importadas se copian a %APPDATA%\\StageTracks\\Multitracks, junto con sequence.json y la carátula disponible.",
-    "La biblioteca permite buscar secuencias por título y autor."
+    "El buscador de biblioteca ahora ofrece filtros por BPM, comp?s, tonalidad y g?nero, adem?s de vista de lista o tarjetas.",
+    "Los paquetes comunitarios descargados y guardados localmente se recuperan en Mi biblioteca al iniciar StageTracks.",
+    "Los proyectos nuevos solicitan t?tulo y autor; el autor aparece debajo del nombre de cada secuencia.",
+    "El men? marca con una animaci?n la secci?n activa y oculta publicar cuando no hay autor o ya existe una copia en Comunidad."
   ],
   "fixes": [
-    "La importación decodifica una pista a la vez para reducir los picos de uso de memoria.",
-    "Los errores de memoria y decodificación ahora se muestran en español.",
-    "Los paquetes de la comunidad transfieren sus metadatos de título, autor y carátula a la biblioteca local."
+    "El estado Instalado ahora se compara con la biblioteca real de StageTracks, no con una marca aislada del navegador.",
+    "Se reparan los metadatos de t?tulo, autor e identificador de descargas comunitarias anteriores al cargarlas."
   ],
   "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"
 }
