@@ -335,7 +335,7 @@ app.get('/api/sequences', (req, res) => {
   const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
   const results = entries.filter((item) => item.status === 'approved' && (!query || `${item.name} ${item.artist} ${item.key} ${item.genre}`.toLocaleLowerCase().includes(query)))
     .sort((a, b) => b.downloads - a.downloads || a.name.localeCompare(b.name)).slice(0, limit)
-    .map((item) => ({ id: item.id, name: item.name, artist: item.artist, bpm: Math.round(Number(item.bpm)) || null, meter: item.meter, key: item.key, genre: item.genre, cover: item.coverDriveFileId ? `/media/${item.coverDriveFileId}` : (item.cover ? `/media/${item.cover}` : ''), downloads: item.downloads, fileSize: item.fileSize, createdAt: item.createdAt }));
+    .map((item) => ({ id: item.id, name: item.name, downloadName: item.downloadName, artist: item.artist, bpm: Math.round(Number(item.bpm)) || null, meter: item.meter, key: item.key, genre: item.genre, cover: item.coverDriveFileId ? `/media/${item.coverDriveFileId}` : (item.cover ? `/media/${item.cover}` : ''), downloads: item.downloads, fileSize: item.fileSize, createdAt: item.createdAt }));
   res.json({ results, total: entries.filter((item) => item.status === 'approved' && (!query || `${item.name} ${item.artist} ${item.key} ${item.genre}`.toLocaleLowerCase().includes(query))).length });
 });
 app.put('/api/sequences/:id', (req, res, next) => {
@@ -410,7 +410,9 @@ app.get('/api/sequences/:id/download', async (req, res, next) => {
         const value = upstream.headers.get(key);
         if (value) res.setHeader(key, value);
       }
-      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(item.downloadName || item.name + '.rpseq')}`);
+      const downloadName = item.downloadName || item.name + '.rpseq';
+      const fallbackName = downloadName.replace(/[^\x20-\x7E]|["\\;]/g, '-');
+      res.setHeader('Content-Disposition', `attachment; filename="${fallbackName}"; filename*=UTF-8''${encodeURIComponent(downloadName)}`);
       res.setHeader('Cache-Control', 'no-store');
       if (upstream.body) Readable.fromWeb(upstream.body).on('error', next).pipe(res);
       else res.end();

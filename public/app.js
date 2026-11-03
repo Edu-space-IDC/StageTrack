@@ -96,11 +96,51 @@ function sequenceCard(item) {
   const downloads = document.createElement("div"); downloads.className = "meta"; downloads.textContent = `⬇ ${Number(item.downloads || 0).toLocaleString("es")}`;
   info.append(title, artist, downloads);
   const link = document.createElement("a"); link.className = "btn sm"; link.href = `${API}/api/sequences/${encodeURIComponent(item.id)}/download`;
-  link.download = `${item.name || "StageTracks"}.zip`; link.textContent = "Descargar"; link.setAttribute("aria-label", `Descargar ${item.name || "secuencia"}`);
+  const downloadName = String(item.downloadName || `${item.name || "StageTracks"}.rpseq`).replace(/[\\/:*?"<>|]/g, "-");
+  link.download = downloadName; link.target = "_blank"; link.rel = "noopener"; link.textContent = "Descargar"; link.setAttribute("aria-label", `Descargar ${item.name || "secuencia"}`);
+  const downloadStatus = document.createElement("small"); downloadStatus.className = "meta"; downloadStatus.setAttribute("role", "status"); downloadStatus.setAttribute("aria-live", "polite");
+  link.addEventListener("click", async (event) => {
+    if (typeof window.showSaveFilePicker !== "function") return;
+    event.preventDefault();
+    if (link.dataset.downloading === "1") return;
+    let handle, writable, reader;
+    try {
+      handle = await window.showSaveFilePicker({ suggestedName: downloadName });
+      link.dataset.downloading = "1"; link.textContent = "Descargando..."; downloadStatus.textContent = "Conectando con la comunidad...";
+      const response = await fetch(link.href, { mode: "cors", credentials: "omit", cache: "no-store", headers: { Accept: "application/octet-stream" } });
+      if (!response.ok) {
+        let message = `La descarga respondio HTTP ${response.status}.`;
+        try { message = (await response.json()).error || message; } catch {}
+        throw new Error(message);
+      }
+      if (!response.body) throw new Error("El navegador no pudo abrir el flujo de descarga.");
+      const total = Number(response.headers.get("Content-Length")) || Number(item.fileSize) || 0;
+      writable = await handle.createWritable();
+      reader = response.body.getReader(); let loaded = 0, lastUpdate = 0;
+      while (true) {
+        const part = await reader.read();
+        if (part.done) break;
+        await writable.write(part.value); loaded += part.value.byteLength;
+        const now = Date.now();
+        if (now - lastUpdate > 250) {
+          downloadStatus.textContent = total ? `Descargando ${Math.min(100, Math.round(loaded / total * 100))} %` : `Descargando ${(loaded / 1048576).toFixed(0)} MB...`;
+          lastUpdate = now;
+        }
+      }
+      await writable.close(); writable = null;
+      downloadStatus.textContent = "Descarga completa.";
+    } catch (error) {
+      if (reader) await reader.cancel().catch(() => {});
+      if (writable) await writable.abort().catch(() => {});
+      if (error?.name !== "AbortError") downloadStatus.textContent = error?.message || "No se pudo descargar la secuencia.";
+    } finally {
+      delete link.dataset.downloading; link.textContent = "Descargar";
+    }
+  });
   const actions = document.createElement("div"); actions.style.cssText = "display:flex;gap:8px;flex-wrap:wrap";
   const edit = document.createElement("button"); edit.type = "button"; edit.className = "btn o sm"; edit.textContent = "Editar";
   edit.setAttribute("aria-label", `Editar ${item.name || "secuencia"}`); edit.onclick = () => openSequenceEditor(item);
-  actions.append(link, edit);
+  actions.append(link, edit, downloadStatus);
   card.append(cover, info, actions); return card;
 }
 const editDialog = $("#editSequenceDialog"), editForm = $("#editSequenceForm"), editStatus = $("#editSequenceStatus");
