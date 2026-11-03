@@ -415,8 +415,8 @@ fetch("/downloads/release.json").then((response) => response.ok ? response.json(
     if (url) { link.href = url.startsWith("/") ? new URL(url, window.location.origin).href : url; link.removeAttribute("aria-disabled"); }
     else { link.removeAttribute("href"); link.setAttribute("aria-disabled", "true"); link.title = "Configura el enlace de descarga en community-config.js"; }
   };
-  applyDownload("#downloadStage", configured.installer || (local ? release?.installer : ""));
-  applyDownload("#downloadPortable", configured.portable || (local ? release?.portable : ""));
-  applyDownload("#downloadStudioExe", configured.reaperStudioExe || (local ? release?.reaperStudioExe : ""));
+  applyDownload("#downloadStage", release?.installer || configured.installer || (local ? release?.installer : ""));
+  applyDownload("#downloadPortable", release?.portable || configured.portable || (local ? release?.portable : ""));
+  applyDownload("#downloadStudioExe", release?.reaperStudioExe || configured.reaperStudioExe || (local ? release?.reaperStudioExe : ""));
 }).catch(() => {});
 refreshCommunity(""); route();

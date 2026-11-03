@@ -1,13 +1,15 @@
 {
-  "version": "0.5.13",
-  "intro": "Version 0.5.13 corrige la lista de canciones en la interfaz de StageTracks.",
+  "version": "0.5.14",
+  "intro": "Version 0.5.14 fixes the blank StageTracks window at launch.",
   "implementations": [
-    "Las tarjetas de canciones se dibujan directamente desde la biblioteca de StageTracks.",
-    "Importar audio a StageTracks esta disponible en Opciones del proyecto, junto a Nuevo y Abrir."
+    "Song cards render directly from the StageTracks library.",
+    "The official download links now follow the current release manifest.",
+    "Audio import is available in Project options, next to New and Open."
   ],
   "fixes": [
-    "Se elimina la dependencia de una lista heredada oculta para mostrar las canciones abiertas.",
-    "La lista visible se actualiza al abrir, cerrar o cambiar de cancion y al cambiar el estado de reproduccion."
+    "A malformed Unicode regular expression no longer prevents the complete interface from starting.",
+    "Project and song cards remain visible when StageTracks starts.",
+    "The website no longer prioritizes outdated hard-coded installer links."
   ],
   "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"
 }
