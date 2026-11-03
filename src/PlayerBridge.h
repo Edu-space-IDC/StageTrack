@@ -104,6 +104,7 @@ private:
     void refreshCover(Song&);
     void saveCoverOverride(const juce::String& hash, const juce::String& value);
     void loadLibrary();
+    void migrateLegacyLibrary();
     void addRecent(const juce::File&);
     void startImport(int slot, juce::Array<juce::File> files, juce::StringArray names, juce::StringArray routings = {},
                      juce::StringArray volumes = {}, juce::StringArray pans = {}, juce::StringArray mutes = {},

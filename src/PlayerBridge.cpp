@@ -419,6 +419,72 @@ void PlayerBridge::loadLibrary()
     runBackground([] { AudioEngine::pruneCache(); });   // limpia .tmp y mantiene la cache bajo ~6 GB
     for (const auto& package : recoverCommunityPackages)
         runBackground([this, package] { loadSequence(package); addRecent(package); saveLibrary(); });
+    runBackground([this] { migrateLegacyLibrary(); });
+}
+
+void PlayerBridge::migrateLegacyLibrary()
+{
+    struct Migration {
+        juce::String id, folder;
+        std::vector<std::pair<juce::String, juce::String>> paths;
+    };
+    std::vector<Migration> migrations;
+    {
+        const juce::ScopedLock sl(lock);
+        for (const auto& song : songs) {
+            if (song.sources.empty()) continue;
+            const auto folderName = safeLibraryName(song.name + (song.artist.isNotEmpty() ? " - " + song.artist : juce::String())) + "-" + song.id.substring(0, 8);
+            const auto folder = multitrackDir().getChildFile(folderName);
+            migrations.push_back({ song.id, folder.getFullPathName(), {} });
+        }
+    }
+
+    bool changed = false;
+    for (auto& migration : migrations) {
+        const auto folder = juce::File(migration.folder);
+        const auto audioFolder = folder.getChildFile("audio");
+        audioFolder.createDirectory();
+        std::vector<SrcTrack> sources;
+        {
+            const juce::ScopedLock sl(lock);
+            for (const auto& song : songs) if (song.id == migration.id) { sources = song.sources; break; }
+        }
+        int index = 0;
+        for (const auto& source : sources) {
+            ++index;
+            const juce::File original(source.path);
+            if (!original.existsAsFile()) continue;
+            const auto audioPath = audioFolder.getFullPathName() + juce::File::getSeparatorString();
+            if (original.getFullPathName().startsWithIgnoreCase(audioPath)) {
+                migration.paths.emplace_back(original.getFullPathName(), original.getFullPathName());
+                continue;
+            }
+            const auto baseName = juce::String::formatted("%02d-", index) + safeLibraryName(original.getFileName());
+            auto destination = audioFolder.getChildFile(baseName);
+            if (destination.existsAsFile() && (uint64_t) destination.getSize() == (uint64_t) original.getSize()) {
+                migration.paths.emplace_back(original.getFullPathName(), destination.getFullPathName());
+                continue;
+            }
+            for (int suffix = 2; destination.existsAsFile(); ++suffix) {
+                auto alternate = audioFolder.getChildFile(juce::String::formatted("%02d-%02d-", index, suffix) + safeLibraryName(original.getFileName()));
+                if (!alternate.existsAsFile() || (uint64_t) alternate.getSize() == (uint64_t) original.getSize()) { destination = alternate; break; }
+            }
+            if (original.copyFileTo(destination))
+                migration.paths.emplace_back(original.getFullPathName(), destination.getFullPathName());
+        }
+        if (!migration.paths.empty()) {
+            const juce::ScopedLock sl(lock);
+            for (auto& song : songs) if (song.id == migration.id) {
+                song.libraryPath = migration.folder;
+                for (auto& source : song.sources)
+                    for (const auto& path : migration.paths)
+                        if (source.path == path.first) { source.path = path.second; break; }
+                changed = true;
+                break;
+            }
+        }
+    }
+    if (changed) saveLibrary();
 }
 
 // ------------------------------------------------------------------ importar / abrir

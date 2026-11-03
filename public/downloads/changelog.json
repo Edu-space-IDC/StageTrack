@@ -1,15 +1,13 @@
 {
-  "version": "0.5.17",
-  "intro": "La biblioteca sincroniza las secuencias comunitarias instaladas y muestra el autor en las tarjetas.",
+  "version": "0.5.18",
+  "intro": "Al actualizar, StageTracks copia a Multitracks las secuencias que ya estaban guardadas en la biblioteca.",
   "implementations": [
-    "El buscador de biblioteca ahora ofrece filtros por BPM, comp?s, tonalidad y g?nero, adem?s de vista de lista o tarjetas.",
-    "Los paquetes comunitarios descargados y guardados localmente se recuperan en Mi biblioteca al iniciar StageTracks.",
-    "Los proyectos nuevos solicitan t?tulo y autor; el autor aparece debajo del nombre de cada secuencia.",
-    "El men? marca con una animaci?n la secci?n activa y oculta publicar cuando no hay autor o ya existe una copia en Comunidad."
+    "La primera apertura tras actualizar crea las carpetas de las canciones y copia sus audios existentes.",
+    "Cada carpeta conserva la configuraci?n, los metadatos y la car?tula de la secuencia."
   ],
   "fixes": [
-    "El estado Instalado ahora se compara con la biblioteca real de StageTracks, no con una marca aislada del navegador.",
-    "Se reparan los metadatos de t?tulo, autor e identificador de descargas comunitarias anteriores al cargarlas."
+    "Las secuencias creadas antes de la biblioteca Multitracks dejan de depender de sus rutas originales para volver a abrirse.",
+    "La migraci?n conserva los archivos originales y puede reanudarse si se interrumpe."
   ],
   "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"
 }

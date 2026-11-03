@@ -1,9 +1,9 @@
-﻿name: Build and publish Windows release
+name: Build and publish Windows release
 
 on:
   push:
     tags:
-      - 'v0.5.17'
+      - 'v0.5.18'
 
 permissions:
   contents: write
@@ -102,5 +102,5 @@ jobs:
             'release-artifacts/Reaper Control Studio.exe' `
             'public/downloads/Reaper-Control-Studio-Reaper-files.zip' `
             --repo $env:GITHUB_REPOSITORY `
-            --title 'StageTracks 0.5.17' `
+            --title 'StageTracks 0.5.18' `
             --notes 'Restore downloaded community sequences in the library, add metadata-first projects, and expand library search views.'
