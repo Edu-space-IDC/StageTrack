@@ -2061,6 +2061,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           border-color 0.15s,
           transform 0.15s;
       }
+      .psongkey{position:absolute;right:8px;bottom:8px;z-index:2;width:27px;height:27px;border-radius:50%;display:grid;place-items:center;background:#101820ef;border:1px solid #d8e1ea;color:#fff;font:700 12px system-ui,sans-serif;box-shadow:0 2px 8px #0009}
       .psong:active .pcover {
         transform: scale(0.97);
       }
@@ -4309,6 +4310,29 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
     <script id="purple-control-v3-engine">
       (function () {
         const $ = (id) => document.getElementById(id);
+        const repairVisibleText = (value) => {
+          let text = String(value ?? "");
+          for (let pass = 0; pass < 3 && /(?:Ã|Â|â€|ðŸ)/.test(text); pass++) {
+            const cp1252 = { 0x20ac:0x80,0x201a:0x82,0x0192:0x83,0x201e:0x84,0x2026:0x85,0x2020:0x86,0x2021:0x87,0x02c6:0x88,0x2030:0x89,0x0160:0x8a,0x2039:0x8b,0x0152:0x8c,0x017d:0x8e,0x2018:0x91,0x2019:0x92,0x201c:0x93,0x201d:0x94,0x2022:0x95,0x2013:0x96,0x2014:0x97,0x02dc:0x98,0x2122:0x99,0x0161:0x9a,0x203a:0x9b,0x0153:0x9c,0x017e:0x9e,0x0178:0x9f };
+            const bytes = [];
+            for (const char of text) { const code=char.codePointAt(0); if (code <= 255) bytes.push(code); else if (cp1252[code] != null) bytes.push(cp1252[code]); else { bytes.length=0; break; } }
+            if (!bytes.length) break;
+            try { const decoded = new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(bytes)); if (decoded === text) break; text = decoded; }
+            catch (_) { break; }
+          }
+          return text;
+        };
+        const repairVisibleTree = (root) => {
+          if (!root) return;
+          if (root.nodeType === Node.TEXT_NODE) { root.nodeValue = repairVisibleText(root.nodeValue); return; }
+          if (root.nodeType !== Node.ELEMENT_NODE && root !== document) return;
+          if (root.nodeType === Node.ELEMENT_NODE && /^(SCRIPT|STYLE|CODE|PRE)$/i.test(root.tagName)) return;
+          const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode(node) { return node.parentElement?.closest("script,style,code,pre") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT; } });
+          let node; while ((node = walker.nextNode())) { const fixed = repairVisibleText(node.nodeValue); if (fixed !== node.nodeValue) node.nodeValue = fixed; }
+          if (root.querySelectorAll) root.querySelectorAll("[title],[aria-label],[placeholder],[alt]").forEach((el) => { for (const attr of ["title","aria-label","placeholder","alt"]) if (el.hasAttribute(attr)) el.setAttribute(attr, repairVisibleText(el.getAttribute(attr))); });
+        };
+        repairVisibleTree(document);
+        new MutationObserver((records) => records.forEach((record) => { if (record.type === "characterData") { const fixed=repairVisibleText(record.target.nodeValue); if(fixed!==record.target.nodeValue)record.target.nodeValue=fixed; } else record.addedNodes.forEach(repairVisibleTree); })).observe(document.documentElement, { subtree:true, childList:true, characterData:true });
         window.setAppLogo = (data) => {
           const logo = $("pAppLogo");
           if (logo && data) logo.src = data;
@@ -8374,10 +8398,10 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           if (native) { packageInput.hidden = true; packageInput.required = false; }
           else currentButton.hidden = true;
           currentButton.onclick = () => {
-            const name = form.elements.name.value.trim(), artist = form.elements.artist.value.trim();
+            const name = form.elements.name.value.trim(), artist = form.elements.artist.value.trim(), key = form.elements.key.value.trim();
             if (!name || !artist) { form.elements.artist.required = true; form.elements.artist.reportValidity(); return; }
             status.textContent = "Guardando los datos y empaquetando la secuencia…";
-            sendCmd("projmeta_" + hex(name) + "_" + hex(artist), false, () => window.chrome.webview.postMessage("exportCommunitySequence"));
+            sendCmd("projmeta_" + hex(name) + "_" + hex(artist) + "_" + hex(key || "-"), false, () => window.chrome.webview.postMessage("exportCommunitySequence"));
           };
           packageInput.onchange = () => { delete form.dataset.communityPackageSize; };
           const backgroundButton = document.createElement("button"); backgroundButton.type = "button"; backgroundButton.hidden = true; backgroundButton.textContent = "Continuar en segundo plano";
@@ -8735,7 +8759,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
                   }
                 } catch (_) {}
               }
-              try { finished = await fetch("/host/community/finish/" + encodeURIComponent(job.token), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: String(item.id || ""), name: item.name || "", artist: item.artist || "", cover }) }); }
+              try { finished = await fetch("/host/community/finish/" + encodeURIComponent(job.token), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: String(item.id || ""), name: item.name || "", artist: item.artist || "", key: item.key || "", bpm: item.bpm || item.tempo || "", meter: item.meter || (item.timeSigNum && item.timeSigDen ? `${item.timeSigNum}/${item.timeSigDen}` : "4/4"), cover }) }); }
               finally { job.writingHost = false; }
               if (!finished.ok) throw new Error("No se pudo abrir el paquete descargado.");
               markCommunitySequenceInstalled(item);
@@ -8812,20 +8836,23 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             list.appendChild(row);
           });
         }
-        function openNewProjectDialog() {
+        function openNewProjectDialog(editIndex = -1) {
+          const existing = editIndex >= 0 ? songs.list[editIndex] : null;
           const overlay = document.createElement("div");
           overlay.style.cssText = "position:fixed;inset:0;z-index:12020;display:grid;place-items:center;padding:18px;background:#000b;backdrop-filter:blur(5px);font:14px system-ui,sans-serif;color:#eef1f3";
-          overlay.innerHTML = `<section role="dialog" aria-modal="true" style="box-sizing:border-box;width:min(560px,100%);padding:22px;background:#191c1f;border:1px solid #3b4147;border-radius:16px;box-shadow:0 24px 70px #000c"><header style="display:flex;justify-content:space-between;align-items:center"><strong style="font-size:20px">Nuevo proyecto</strong><button type="button" data-close style="border:0;background:transparent;color:#c8cdd2;font-size:25px;cursor:pointer">×</button></header><p style="color:#aeb4ba;line-height:1.45">Define el título y el autor para agregarlo a tu biblioteca y preparar su publicación.</p><form data-form><label style="display:block;margin:12px 0 5px">Nombre de la secuencia</label><input name="name" required maxlength="120" placeholder="Título de la canción" style="box-sizing:border-box;width:100%;padding:12px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:12px 0 5px">Autor o grupo</label><input name="artist" required maxlength="120" placeholder="Nombre del autor" style="box-sizing:border-box;width:100%;padding:12px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><footer style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px"><button type="button" data-cancel style="padding:10px 14px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff;cursor:pointer">Cancelar</button><button type="submit" style="padding:10px 15px;border:0;border-radius:9px;background:#2c83df;color:#fff;cursor:pointer">Crear proyecto</button></footer></form></section>`;
+          overlay.innerHTML = `<section role="dialog" aria-modal="true" style="box-sizing:border-box;width:min(560px,100%);padding:22px;background:#191c1f;border:1px solid #3b4147;border-radius:16px;box-shadow:0 24px 70px #000c"><header style="display:flex;justify-content:space-between;align-items:center"><strong style="font-size:20px">${existing ? "Editar secuencia" : "Nuevo proyecto"}</strong><button type="button" data-close style="border:0;background:transparent;color:#c8cdd2;font-size:25px;cursor:pointer">×</button></header><p style="color:#aeb4ba;line-height:1.45">Define el título y el autor para agregarlo a tu biblioteca y preparar su publicación.</p><form data-form><label style="display:block;margin:12px 0 5px">Nombre de la secuencia</label><input name="name" required maxlength="120" placeholder="Título de la canción" style="box-sizing:border-box;width:100%;padding:12px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:12px 0 5px">Autor o grupo</label><input name="artist" required maxlength="120" placeholder="Nombre del autor" style="box-sizing:border-box;width:100%;padding:12px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:12px 0 5px">Tonalidad</label><input name="key" maxlength="12" placeholder="Ej. A, F#m o Bb" style="box-sizing:border-box;width:100%;padding:12px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><footer style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px"><button type="button" data-cancel style="padding:10px 14px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff;cursor:pointer">Cancelar</button><button type="submit" style="padding:10px 15px;border:0;border-radius:9px;background:#2c83df;color:#fff;cursor:pointer">Crear proyecto</button></footer></form></section>`;
           const close = () => overlay.remove(), form = overlay.querySelector("[data-form]");
           overlay.querySelector("[data-close]").onclick = close;
           overlay.querySelector("[data-cancel]").onclick = close;
           overlay.onclick = (event) => { if (event.target === overlay) close(); };
           form.onsubmit = (event) => {
             event.preventDefault();
-            const name = form.elements.name.value.trim(), artist = form.elements.artist.value.trim();
+            const name = form.elements.name.value.trim(), artist = form.elements.artist.value.trim(), key = form.elements.key.value.trim();
             if (!name || !artist) return;
-            sendCmd("new_" + hex(name) + "_" + hex(artist), false, close);
+            if (existing) { const save = () => sendCmd("projmeta_" + hex(name) + "_" + hex(artist) + "_" + hex(key || "-"), false, close); if (editIndex !== songs.active) requestSongTab(editIndex, save); else save(); }
+            else sendCmd("new_" + hex(name) + "_" + hex(artist) + "_" + hex(key || "-"), false, close);
           };
+          if (existing) { form.elements.name.value = existing.name || ""; form.elements.artist.value = existing.artist || ""; form.elements.key.value = existing.key || ""; }
           document.body.appendChild(overlay);
           form.elements.name.focus();
         }
@@ -8951,6 +8978,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
               tempoKnown: a[9] === "1",
               artist: hexToStr(a[10] || ""),
               communityId: hexToStr(a[11] || ""),
+              key: hexToStr(a[12] || ""),
             };
           });
           const sig = active + "|" + parts.join("|");
@@ -9149,7 +9177,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           [
             ["save", "Guardar proyecto", saveSong],
             ["saveas", "Guardar como…", saveAsSong],
-            ["rename", "Renombrar…", renameSong],
+            ["rename", "Editar…", (i) => openNewProjectDialog(i)],
             ["x", "Cerrar proyecto", closeSong],
           ].forEach(([ic, label, fn]) => {
             const b = document.createElement("button");
@@ -9260,22 +9288,16 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             );
             const n = document.createElement("div");
             n.className = "psongname";
-            n.textContent = s.name;
-            n.title = s.name;
+            n.textContent = s.artist ? `${s.name} - ${s.artist}` : s.name;
+            n.title = n.textContent;
             const pl = document.createElement("div");
             pl.className = "pplay";
             pl.innerHTML =
               '<span class="eq"><i></i><i></i><i></i><i></i></span><span class="tx"></span>';
             d.appendChild(c);
+            if (s.key) { const key = document.createElement("span"); key.className = "psongkey"; key.textContent = s.key; key.title = "Tonalidad: " + s.key; c.appendChild(key); }
             d.appendChild(pl);
             d.appendChild(n);
-            if (s.artist) {
-              const artist = document.createElement("div");
-              artist.className = "psongartist";
-              artist.textContent = s.artist;
-              artist.title = s.artist;
-              d.appendChild(artist);
-            }
             d.addEventListener("click", () => {
               if (i === songs.active) return;
               requestSongTab(i);

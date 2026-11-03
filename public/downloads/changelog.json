@@ -1,13 +1,16 @@
 {
-  "version": "0.5.18",
-  "intro": "Al actualizar, StageTracks copia a Multitracks las secuencias que ya estaban guardadas en la biblioteca.",
+  "version": "0.5.19",
+  "intro": "StageTracks conserva los metadatos y la portada original de las secuencias de la comunidad.",
   "implementations": [
-    "La primera apertura tras actualizar crea las carpetas de las canciones y copia sus audios existentes.",
-    "Cada carpeta conserva la configuraci?n, los metadatos y la car?tula de la secuencia."
+    "La biblioteca muestra el título junto al artista y una insignia con la tonalidad de cada canción.",
+    "El menú Editar permite modificar el título, el artista y la tonalidad; Nuevo proyecto también incluye la tonalidad.",
+    "La tonalidad, el BPM, el compás y la portada se sincronizan al instalar secuencias de la comunidad."
   ],
   "fixes": [
-    "Las secuencias creadas antes de la biblioteca Multitracks dejan de depender de sus rutas originales para volver a abrirse.",
-    "La migraci?n conserva los archivos originales y puede reanudarse si se interrumpe."
+    "La portada comunitaria conserva el archivo de imagen descargado sin convertirlo a otra imagen.",
+    "Los proyectos inactivos y cerrados liberan sus buffers de audio; la posición se conserva al cambiar de proyecto.",
+    "Se protege el cierre de proyectos frente a importaciones de audio que todavía están en curso.",
+    "Se reparan automáticamente textos visibles que aparecen con caracteres dañados."
   ],
   "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"
 }

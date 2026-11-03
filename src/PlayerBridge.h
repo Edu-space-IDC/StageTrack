@@ -41,10 +41,13 @@ private:
         juce::String id;              // identificador estable
         juce::String name;
         juce::String artist;
+        juce::String key;
         juce::String communityId;
         juce::String libraryPath;
         juce::String hash;            // 16 hex, nombre del archivo de caratula
         double tempo = 92.0;
+        double positionSeconds = 0.0;
+        bool repeat = false;
         double masterVolume = 0.82;
         int timeSigNum = 4, timeSigDen = 4;
         bool tempoManual = false;
@@ -108,7 +111,7 @@ private:
     void addRecent(const juce::File&);
     void startImport(int slot, juce::Array<juce::File> files, juce::StringArray names, juce::StringArray routings = {},
                      juce::StringArray volumes = {}, juce::StringArray pans = {}, juce::StringArray mutes = {},
-                     juce::StringArray solos = {}, juce::StringArray colors = {}, bool rememberSources = true);
+                     juce::StringArray solos = {}, juce::StringArray colors = {}, bool rememberSources = true, bool restorePosition = false);
     void loadSequence(const juce::File&);
     void appendSequenceSong(const juce::var& model, const juce::File& baseDirectory, bool activateIt);
     void runBackground(std::function<void()> fn);
@@ -116,6 +119,7 @@ private:
     AudioEngine& engine;
     juce::CriticalSection lock;
     std::vector<Song> songs;
+    std::array<std::atomic<uint64_t>, AudioEngine::maxSongs> slotGenerations {};
     int active = 0;
     std::map<juce::String, juce::String> ext;        // claves escritas por la web (WebControl/*)
     std::map<juce::String, juce::String> coverByVer;
@@ -130,6 +134,7 @@ private:
     juce::ThreadPool pool { 1 };
     std::atomic<bool> closing { false };
     std::atomic<bool> projectDirty { false };
+    std::thread autosaveThread;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PlayerBridge)
 };

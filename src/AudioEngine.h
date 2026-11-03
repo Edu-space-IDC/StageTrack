@@ -16,7 +16,7 @@ public:
     struct Track {
         std::unique_ptr<juce::AudioBuffer<float>> audio;
         juce::String name;
-        int songIndex = 0;
+        int songIndex = -1;
         double sourceRate = 44100.0;
         uint64_t decodedBytes = 0;
         std::array<float, peakCount> peaks {};
@@ -89,6 +89,8 @@ public:
     bool isSongPlaying(int song) const noexcept { return song >= 0 && song < maxSongs && transports[(size_t)song].playing.load(std::memory_order_acquire); }
     bool getRepeat() const noexcept { return transports[(size_t)activeSong.load(std::memory_order_acquire)].repeat.load(std::memory_order_acquire); }
     void setRepeat(bool enabled) noexcept { transports[(size_t)activeSong.load(std::memory_order_acquire)].repeat.store(enabled, std::memory_order_release); }
+    bool getSongRepeat(int song) const noexcept { return song >= 0 && song < maxSongs && transports[(size_t)song].repeat.load(std::memory_order_acquire); }
+    void setSongRepeat(int song, bool enabled) noexcept { if (song >= 0 && song < maxSongs) transports[(size_t)song].repeat.store(enabled, std::memory_order_release); }
     void setSectionPlayback(double startSeconds, double endSeconds, bool loop, bool enabled) noexcept
     {
         auto& t = transports[(size_t)activeSong.load(std::memory_order_acquire)];
@@ -112,7 +114,7 @@ public:
     void stopSongAndRewind(int song) noexcept;
     void setPositionSeconds(double seconds) noexcept;
     void removeTrack(int indexInActiveSong) noexcept;  // hides the track and silences it
-    void releaseSong(int slot) noexcept;                // hides every track of the slot
+    void releaseSong(int slot, bool resetTransport = true) noexcept; // releases decoded audio and hides every track
     double getTrackSeconds(const Track&) const noexcept;
     float getMasterPeak() const noexcept { return masterPeak.load(std::memory_order_relaxed); }
     float getPadPeak() const noexcept { return padPeak.load(std::memory_order_relaxed); }
@@ -120,6 +122,8 @@ public:
     void clearSongDuration(int slot) noexcept { if (slot >= 0 && slot < maxSongs) durations[(size_t)slot].store(0.0); }
     float getMaster() const noexcept { return master.load(); }
     double getPositionSeconds() const noexcept;
+    double getSongPositionSeconds(int song) const noexcept;
+    void setSongPositionSeconds(int song, double seconds) noexcept;
     double getDurationSeconds() const noexcept;
     double getSampleRate() const noexcept { return sampleRate.load(); }
     std::atomic<double> bpm { 92.0 };
@@ -157,6 +161,8 @@ public:
 private:
     bool reserveBytes(uint64_t required, Prepared&, juce::String& error);
     juce::CriticalSection commitLock;
+    std::atomic<int> callbackReaders { 0 };
+    std::atomic<bool> trackMaintenance { false };
     std::array<std::unique_ptr<Track>, maxTracks> tracks;
     std::atomic<int> trackCount { 0 };
     std::atomic<float> master { 0.82f };
