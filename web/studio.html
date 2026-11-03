@@ -9384,6 +9384,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           "Preferencias de reproducción y cierre": ["Playback and closing preferences", "Preferências de reprodução e encerramento", "Préférences de lecture et de fermeture", "Wiedergabe- und Schließeinstellungen"],
           "Opciones del proyecto": ["Project options", "Opções do projeto", "Options du projet", "Projektoptionen"],
           "Nuevo proyecto": ["New project", "Novo projeto", "Nouveau projet", "Neues Projekt"],
+          "Importar audio a StageTracks": ["Import audio to StageTracks", "Importar áudio para o StageTracks", "Importer de l’audio dans StageTracks", "Audio in StageTracks importieren"],
           "PROYECTO": ["PROJECT", "PROJETO", "PROJET", "PROJEKT"],
           "Master": ["Master", "Master", "Master", "Master"],
           "Nombre": ["Name", "Nome", "Nom", "Name"],
@@ -9608,6 +9609,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           menu.innerHTML = '<div class="om-head">Opciones del proyecto</div>';
           row("＋", "Nuevo proyecto", () => $("pNewProject")?.click());
           row("↗", "Abrir proyecto…", () => $("pOpenProject")?.click());
+          row("↥", "Importar audio a StageTracks", () => $("pImportMedia")?.click());
           const recent = $("pRecentProjects"),
             items = recent ? [...recent.options].filter((o) => o.value) : [];
           const section = document.createElement("div");
@@ -11378,6 +11380,9 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             attributes: true,
             attributeFilter: ["class", "style"],
           });
+        // Si el estado inicial llegó antes de instalar el observador, pintar
+        // también las canciones que ya estén cargadas en la biblioteca.
+        setlist();
         /* =====================================================================
            EDICIÓN DE SECCIONES (estilo Playback) + SALTO DE SECCIÓN EN COLA
            Las secciones son regiones de REAPER. EDIT abre un borrador: se puede

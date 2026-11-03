@@ -1,8 +1,8 @@
-﻿{
-    "version":  "0.5.11",
-    "portable":  "https://github.com/Edu-space-IDC/StageTrack/releases/download/v0.5.11/StageTracks-portable-windows-x64.zip",
-    "installer":  "https://github.com/Edu-space-IDC/StageTrack/releases/download/v0.5.11/StageTracks-Setup-windows-x64.exe",
-    "installerUrl":  "https://github.com/Edu-space-IDC/StageTrack/releases/download/v0.5.11/StageTracks-Setup-windows-x64.exe",
-    "reaperStudioExe":  "https://github.com/Edu-space-IDC/StageTrack/releases/download/v0.5.11/Reaper.Control.Studio.exe",
-    "updated":  "2026-11-03T02:09:29.2952867Z"
+{
+  "version": "0.5.12",
+  "portable": "https://github.com/Edu-space-IDC/StageTrack/releases/download/v0.5.12/StageTracks-portable-windows-x64.zip",
+  "installer": "https://github.com/Edu-space-IDC/StageTrack/releases/download/v0.5.12/StageTracks-Setup-windows-x64.exe",
+  "installerUrl": "https://github.com/Edu-space-IDC/StageTrack/releases/download/v0.5.12/StageTracks-Setup-windows-x64.exe",
+  "reaperStudioExe": "https://github.com/Edu-space-IDC/StageTrack/releases/download/v0.5.12/Reaper.Control.Studio.exe",
+  "updated": "2026-11-02T00:00:00Z"
 }

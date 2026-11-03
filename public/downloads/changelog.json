@@ -1,20 +1,12 @@
-﻿{
-  "version": "0.5.11",
-  "intro": "La versión 0.5.11 incluye mejoras para Control web, descargas y textos del estudio.",
+{
+  "version": "0.5.12",
+  "intro": "La versión 0.5.12 restaura la lista de canciones y añade la importación desde las opciones del proyecto.",
   "implementations": [
-    "El progreso de descarga e instalación de actualizaciones se muestra en una barra inferior.",
-    "El aviso de novedades aparece una vez al abrir una versión nueva e incluye un changelog.",
-    "El enlace «¿Encontraste errores?» abre directamente el formulario de comentarios.",
-    "Las subidas a la comunidad muestran su progreso aunque continúes en segundo plano.",
-    "Control web muestra el botón «Desconectarse» para volver a la sesión local.",
-    "El botón de importación indica que añade audio a la secuencia activa de StageTracks."
+    "Importar audio a StageTracks está disponible junto a Nuevo proyecto y Abrir proyecto.",
+    "La lista de canciones se dibuja también con los proyectos que ya estaban cargados al iniciar la interfaz."
   ],
   "fixes": [
-    "Se restauró el botón «Comprobar actualización» en Configuración.",
-    "El botón de comprobación informa si hay una versión nueva o si ya tienes la última.",
-    "El progreso de subida ya no desaparece al cerrar el diálogo.",
-    "La exportación de secuencias vuelve a mostrarse dentro de la aplicación StageTracks.",
-    "Los nombres antiguos con codificación incorrecta se reparan al mostrarse."
+    "Se corrige la franja vacía donde deben mostrarse las canciones abiertas."
   ],
   "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"
 }
