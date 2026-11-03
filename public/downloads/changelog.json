@@ -1,12 +1,13 @@
 {
-  "version": "0.5.12",
-  "intro": "La versión 0.5.12 restaura la lista de canciones y añade la importación desde las opciones del proyecto.",
+  "version": "0.5.13",
+  "intro": "Version 0.5.13 corrige la lista de canciones en la interfaz de StageTracks.",
   "implementations": [
-    "Importar audio a StageTracks está disponible junto a Nuevo proyecto y Abrir proyecto.",
-    "La lista de canciones se dibuja también con los proyectos que ya estaban cargados al iniciar la interfaz."
+    "Las tarjetas de canciones se dibujan directamente desde la biblioteca de StageTracks.",
+    "Importar audio a StageTracks esta disponible en Opciones del proyecto, junto a Nuevo y Abrir."
   ],
   "fixes": [
-    "Se corrige la franja vacía donde deben mostrarse las canciones abiertas."
+    "Se elimina la dependencia de una lista heredada oculta para mostrar las canciones abiertas.",
+    "La lista visible se actualiza al abrir, cerrar o cambiar de cancion y al cambiar el estado de reproduccion."
   ],
   "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"
 }

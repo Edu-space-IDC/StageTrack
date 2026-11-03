@@ -3,7 +3,7 @@ name: Build and publish Windows release
 on:
   push:
     tags:
-      - 'v0.5.12'
+      - 'v0.5.13'
 
 permissions:
   contents: write
@@ -102,5 +102,5 @@ jobs:
             'release-artifacts/Reaper Control Studio.exe' `
             'public/downloads/Reaper-Control-Studio-Reaper-files.zip' `
             --repo $env:GITHUB_REPOSITORY `
-            --title 'StageTracks 0.5.12' `
-            --notes 'Restored the open song list and added audio import to project options.'
+            --title 'StageTracks 0.5.13' `
+            --notes 'Render the open song list directly from the StageTracks library and keep project import in project options.'
