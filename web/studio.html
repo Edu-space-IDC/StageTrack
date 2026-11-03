@@ -2237,14 +2237,6 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         font-weight: 750;
         letter-spacing: 0.01em;
       }
-      #studioOptionsMenu .om-section {
-        padding: 12px 10px 6px;
-        color: #89919a;
-        font-size: 10px;
-        font-weight: 800;
-        letter-spacing: 0.13em;
-        text-transform: uppercase;
-      }
       #studioOptionsMenu button {
         width: 100%;
         min-height: 42px;
@@ -2276,39 +2268,6 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         color: #7fbaff;
         font-size: 15px;
         flex: none;
-      }
-      #studioOptionsMenu .om-recent {
-        font-weight: 500;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-      #studioOptionsMenu .om-recent[hidden] {
-        display: none;
-      }
-      #studioOptionsMenu .om-search {
-        box-sizing: border-box;
-        width: 100%;
-        height: 38px;
-        margin: 4px 0 6px;
-        padding: 0 11px;
-        border: 1px solid #ffffff1c;
-        border-radius: 9px;
-        background: #111416;
-        color: #f2f4f6;
-        font:
-          500 12px system-ui,
-          sans-serif;
-        outline: none;
-      }
-      #studioOptionsMenu .om-search:focus {
-        border-color: #56bd8c;
-        box-shadow: 0 0 0 2px #56bd8c24;
-      }
-      #studioOptionsMenu .om-empty {
-        padding: 9px 12px 12px;
-        color: #858b91;
-        font-size: 12px;
       }
       #studioOptionsMenu .om-switch {
         display: flex;
@@ -2703,11 +2662,6 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         background: #2a2a2a;
         margin: 0 4px;
       }
-      #pRecentProjects {
-        min-width: 210px;
-        max-width: 280px;
-        color-scheme: dark;
-      }
       .pseg {
         display: inline-flex;
         border-radius: 12px;
@@ -2763,10 +2717,6 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         align-items: center;
         white-space: nowrap;
       }
-      #pRecentProjects {
-        flex: 0 1 250px;
-        min-width: 120px;
-      }
       #pTopbar .pseg .pbtn {
         min-width: 84px;
       }
@@ -2783,9 +2733,6 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           min-width: 44px;
           padding: 0 12px;
         }
-        #pRecentProjects {
-          flex-basis: 170px;
-        }
       }
       @media (max-width: 700px) {
         #pMainRow {
@@ -2801,9 +2748,6 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         #pMainRow .pgr,
         #pMainRow .pseg {
           flex: none;
-        }
-        #pRecentProjects {
-          flex: 0 0 130px;
         }
       }
       #pTimelineScroll {
@@ -4023,13 +3967,6 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           >
             ⇩
           </button>
-          <select
-            class="tb pRecent"
-            id="pRecentProjects"
-            title="Proyectos recientes"
-          >
-            <option value="">Proyectos...</option>
-          </select>
         </div>
         <div class="pProjectInfo">
           <div class="pproject" id="pProject">
@@ -4322,6 +4259,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           }
           return text;
         };
+        window.stageTracksRepairText = repairVisibleText;
         const repairVisibleTree = (root) => {
           if (!root) return;
           if (root.nodeType === Node.TEXT_NODE) { root.nodeValue = repairVisibleText(root.nodeValue); return; }
@@ -5018,12 +4956,6 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
                   } else if (
                     tok[0] === "EXTSTATE" &&
                     tok[1] === "WebControl" &&
-                    tok[2] === "recent"
-                  ) {
-                    updateRecentProjects(tok.slice(3).join("\t"));
-                  } else if (
-                    tok[0] === "EXTSTATE" &&
-                    tok[1] === "WebControl" &&
                     tok[2] === "timeline"
                   ) {
                     updateTimeline(tok.slice(3).join("\t"));
@@ -5481,39 +5413,6 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         $("pImportMedia").addEventListener("click", () =>
           requestLocalPicker("importMedia"),
         );
-        $("pRecentProjects").addEventListener("change", (e) => {
-          const path = e.target.value;
-          if (path) sendCmd("open_" + path);
-          e.target.value = "";
-        });
-        function updateRecentProjects(encoded) {
-          const select = $("pRecentProjects"),
-            items = String(encoded || "")
-              .split("|")
-              .filter(Boolean)
-              .slice(0, 10);
-          const signature = items.join("|");
-          if (select.dataset.signature === signature) return;
-          select.dataset.signature = signature;
-          select.innerHTML = '<option value="">Proyectos recientes...</option>';
-          items.forEach((pathHex) => {
-            try {
-              const bytes = new Uint8Array(
-                (pathHex.match(/.{1,2}/g) || []).map((x) => parseInt(x, 16)),
-              );
-              const path = new TextDecoder().decode(bytes);
-              const name = path
-                .split(/[\\/]/)
-                .pop()
-                .replace(/\.[^.]+$/, "");
-              const o = document.createElement("option");
-              o.value = pathHex;
-              o.textContent = name || path;
-              o.title = path;
-              select.appendChild(o);
-            } catch (_) {}
-          });
-        }
         const timeline = {
           open: false,
           duration: 30,
@@ -6001,7 +5900,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         }, 1500);
         function toast(msg, err) {
           const el = $("pToast");
-          el.textContent = msg;
+          el.textContent = repairVisibleText(String(msg ?? ""));
           el.className = err ? "err" : "";
           el.style.display = "block";
           clearTimeout(toastTimer);
@@ -9322,7 +9221,13 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
               '<span class="eq"><i></i><i></i><i></i><i></i></span><span class="tx"></span>';
             d.appendChild(c);
             const songKey = String(s.key || "").trim();
-            if (songKey) { const key = document.createElement("span"); key.className = "psongkey"; key.textContent = songKey; key.title = "Tonalidad: " + songKey; key.setAttribute("aria-label", "Tonalidad " + songKey); key.style.cssText = "position:absolute;right:8px;bottom:8px;z-index:2147483000;width:30px;height:30px;min-width:30px;box-sizing:border-box;padding:0;border-radius:50%;display:grid;place-items:center;background:#101820f2;border:1px solid #f2f6fa;color:#fff;font:700 13px/1 system-ui,sans-serif;box-shadow:0 2px 8px #000b;opacity:1;pointer-events:none"; c.appendChild(key); }
+            const keyBadge = document.createElement("span");
+            keyBadge.className = "psongkey";
+            keyBadge.textContent = songKey || "?";
+            keyBadge.title = songKey ? "Tonalidad: " + songKey : "Tonalidad sin definir";
+            keyBadge.setAttribute("aria-label", songKey ? "Tonalidad " + songKey : "Tonalidad sin definir");
+            keyBadge.style.cssText = "position:absolute;right:8px;bottom:8px;z-index:2147483000;width:30px;height:30px;min-width:30px;box-sizing:border-box;padding:0;border-radius:50%;display:grid;place-items:center;background:#101820f2;border:1px solid #f2f6fa;color:#fff;font:700 13px/1 system-ui,sans-serif;box-shadow:0 2px 8px #000b;opacity:1;pointer-events:none";
+            c.appendChild(keyBadge);
             d.appendChild(pl);
             d.appendChild(n);
             d.addEventListener("click", () => {
@@ -9466,11 +9371,10 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         };
         window.playSongExclusive = (i, done) =>
           sendCmd("playexclusive_" + i, false, null, done);
-        window.setRecentProjects = updateRecentProjects;
         setInterval(
           () =>
             wwr_req(
-              "GET/EXTSTATE/WebControl/project;GET/EXTSTATE/WebControl/projectpath;GET/EXTSTATE/WebControl/projectdirty;GET/EXTSTATE/WebControl/recent;GET/EXTSTATE/WebControl/foldermap",
+              "GET/EXTSTATE/WebControl/project;GET/EXTSTATE/WebControl/projectpath;GET/EXTSTATE/WebControl/projectdirty;GET/EXTSTATE/WebControl/foldermap",
             ),
           2000,
         );
@@ -9558,9 +9462,6 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           "Abrir proyecto…": ["Open project…", "Abrir projeto…", "Ouvrir un projet…", "Projekt öffnen…"],
           "Abrir proyecto...": ["Open project...", "Abrir projeto...", "Ouvrir un projet...", "Projekt öffnen..."],
           "Abrir proyecto": ["Open project", "Abrir projeto", "Ouvrir un projet", "Projekt öffnen"],
-          "Proyectos recientes": ["Recent projects", "Projetos recentes", "Projets récents", "Zuletzt verwendete Projekte"],
-          "Buscar proyecto reciente…": ["Search recent projects…", "Buscar projetos recentes…", "Rechercher parmi les projets récents…", "Zuletzt verwendete Projekte suchen…"],
-          "No hay proyectos recientes": ["No recent projects", "Nenhum projeto recente", "Aucun projet récent", "Keine zuletzt verwendeten Projekte"],
 
           "Evitar dos proyectos a la vez": ["Prevent simultaneous projects", "Impedir projetos simultâneos", "Empêcher la lecture simultanée de projets", "Gleichzeitige Projekte verhindern"],
           "Pregunta si quieres guardar los cambios antes de cerrar el control.": ["Ask whether to save changes before closing the controller.", "Pergunta se deseja salvar as alterações antes de fechar o controle.", "Demander si vous souhaitez enregistrer les modifications avant de fermer le contrôleur.", "Vor dem Schließen der Steuerung fragen, ob Änderungen gespeichert werden sollen."],
@@ -9598,7 +9499,6 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           "Conectando": ["Connecting", "Conectando", "Connexion…", "Verbindung wird hergestellt"],
           "Proyectos…": ["Projects…", "Projetos…", "Projets…", "Projekte…"],
           "Proyectos...": ["Projects...", "Projetos...", "Projets...", "Projekte..."],
-          "Buscar proyecto reciente...": ["Search recent projects...", "Buscar projetos recentes...", "Rechercher parmi les projets récents...", "Zuletzt verwendete Projekte suchen..."],
           "Guardar como...": ["Save as...", "Salvar como...", "Enregistrer sous...", "Speichern unter..."],
           "Renombrar...": ["Rename...", "Renomear...", "Renommer...", "Umbenennen..."],
           "Sin secciones": ["No sections", "Sem seções", "Aucune section", "Keine Abschnitte"],
@@ -9770,50 +9670,6 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           row("＋", "Nuevo proyecto", () => $("pNewProject")?.click());
           row("↗", "Abrir proyecto…", () => $("pOpenProject")?.click());
           row("↥", "Importar audio a StageTracks", () => $("pImportMedia")?.click());
-          const recent = $("pRecentProjects"),
-            items = recent ? [...recent.options].filter((o) => o.value) : [];
-          const section = document.createElement("div");
-          section.className = "om-section";
-          section.textContent = "Proyectos recientes";
-          menu.appendChild(section);
-          if (items.length) {
-            const filter = document.createElement("input");
-            filter.className = "om-search";
-            filter.type = "search";
-            filter.placeholder = "Buscar proyecto reciente…";
-            filter.setAttribute("aria-label", "Buscar proyecto reciente");
-            menu.appendChild(filter);
-            const list = document.createElement("div");
-            menu.appendChild(list);
-            const recentRows = [];
-            items.forEach((o) => {
-              const b = document.createElement("button");
-              b.type = "button";
-              b.className = "om-recent";
-              b.innerHTML = '<span class="om-ico">◷</span><span></span>';
-              b.lastChild.textContent = o.textContent.trim();
-              b.title = o.textContent.trim();
-              b.dataset.search = normText(o.textContent);
-              b.onclick = () => {
-                menu.classList.remove("on");
-                recent.value = o.value;
-                recent.dispatchEvent(new Event("change", { bubbles: true }));
-              };
-              list.appendChild(b);
-              recentRows.push(b);
-            });
-            filter.addEventListener("input", () => {
-              const q = normText(filter.value);
-              recentRows.forEach(
-                (b) => (b.hidden = !!q && !b.dataset.search.includes(q)),
-              );
-            });
-          } else {
-            const empty = document.createElement("div");
-            empty.className = "om-empty";
-            empty.textContent = "No hay proyectos recientes";
-            menu.appendChild(empty);
-          }
           menu.classList.add("on");
           menu._anchor = anchor;
           menu._place = () => {
@@ -9831,9 +9687,6 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
               Math.max(12, Math.min(innerHeight - h - 12, top)) + "px";
           };
           menu._place();
-          const search = menu.querySelector(".om-search");
-          if (search && !window.matchMedia("(pointer: coarse)").matches)
-            requestAnimationFrame(() => search.focus({ preventScroll: true }));
         }
         let settingsMidiAccess = null,
           midiLearning = null,
@@ -9963,14 +9816,15 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             document.body.appendChild(panel);
           }
           const label = panel.querySelector("[data-update-progress-label]"), fill = panel.querySelector("[data-update-progress-fill]");
-          if (label) label.textContent = message || "Descargando actualización…";
+          const safeMessage = repairVisibleText(String(message || "Descargando actualización..."));
+          if (label) label.textContent = safeMessage;
           const failed = Number(percent) <= -2, unknown = Number(percent) === -1;
           if (fill) { fill.style.width = unknown ? "35%" : `${Math.max(0, Math.min(100, Number(percent) || 0))}%`; fill.style.background = failed ? "#d15b5b" : unknown ? "#438bd2" : "#36b878"; }
           const settingsProgress = document.getElementById("stagetracksUpdateProgressSettings");
           if (settingsProgress) {
             settingsProgress.hidden = false;
             const settingsLabel = settingsProgress.querySelector("[data-update-progress-label]"), settingsFill = settingsProgress.querySelector("[data-update-progress-fill]");
-            if (settingsLabel) settingsLabel.textContent = message || "Descargando actualización…";
+            if (settingsLabel) settingsLabel.textContent = safeMessage;
             if (settingsFill) { settingsFill.style.width = unknown ? "35%" : `${Math.max(0, Math.min(100, Number(percent) || 0))}%`; settingsFill.style.background = failed ? "#d15b5b" : unknown ? "#438bd2" : "#36b878"; }
           }
           if (Number(percent) === 100) setTimeout(() => panel?.remove(), 8000);

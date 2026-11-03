@@ -1,15 +1,14 @@
 {
-  "version": "0.5.20",
-  "intro": "La biblioteca de StageTracks muestra con claridad el estado y la tonalidad de tus secuencias.",
+  "version": "0.5.21",
+  "intro": "La biblioteca muestra siempre el indicador de tonalidad y las opciones de proyecto quedan más directas.",
   "implementations": [
-    "La tonalidad aparece en un indicador circular en la esquina inferior derecha de cada portada.",
-    "Editar una canción existente ahora muestra el botón Guardar.",
-    "La lista de secuencias de la comunidad conserva el estado Instalado y permite volver a descargar una secuencia después de eliminarla.",
-    "Mi biblioteca permite eliminar canciones con confirmación y muestra hasta cuatro resultados antes de activar el scroll."
+    "Cada carátula muestra un círculo con la tonalidad; si aún no está definida, aparece un signo de interrogación.",
+    "Se quitaron los proyectos abiertos recientemente del menú y de la barra de proyecto; usa el buscador de canciones para encontrar secuencias.",
+    "Los mensajes de actualización y carga de audio corrigen el texto antes de aparecer en StageTracks y Reaper Control Studio."
   ],
   "fixes": [
-    "Al eliminar una secuencia comunitaria se borran las copias administradas y el paquete descargado; los archivos originales externos se conservan.",
-    "Las listas largas ya no desbordan el cuadro del buscador."
+    "La tonalidad guardada en los datos de la secuencia continúa mostrándose en el indicador.",
+    "El progreso del instalador usa el mismo texto corregido en el aviso flotante y en Ajustes."
   ],
   "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"
 }

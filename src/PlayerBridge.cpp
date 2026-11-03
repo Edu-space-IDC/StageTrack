@@ -142,7 +142,7 @@ juce::String PlayerBridge::takeHostScript()
 void PlayerBridge::toast(const juce::String& message, bool error)
 {
     const auto m = juce::JSON::toString(juce::var(message), true);
-    queueScript("(function(){var el=document.getElementById('pToast');if(!el)return;el.textContent=" + m
+    queueScript("(function(){var el=document.getElementById('pToast');if(!el)return;var message=" + m + ";el.textContent=window.stageTracksRepairText?window.stageTracksRepairText(message):message;"
                 + ";el.className=" + (error ? "'err'" : "''") + ";el.style.display='block';clearTimeout(window.__tt);"
                   "window.__tt=setTimeout(function(){el.style.display='none'}," + juce::String(error ? 6000 : 3500) + ");})()");
 }
@@ -636,7 +636,7 @@ void PlayerBridge::startImport(int slot, juce::Array<juce::File> files, juce::St
         juce::String errors;
         for (int i = 0; i < total; ++i) {
             if (!futures[(size_t) i].valid()) break;   // cierre del programa
-            toast("Cargando audio… " + juce::String(i + 1) + "/" + juce::String(total), false);
+            toast("Cargando audios... " + juce::String(i + 1) + "/" + juce::String(total), false);
             auto prepared = futures[(size_t) i].get();
             if (slotGenerations[(size_t)slot].load(std::memory_order_acquire) != generation) break;
             const bool cached = prepared.fromCache;

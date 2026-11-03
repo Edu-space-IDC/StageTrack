@@ -3,7 +3,7 @@ name: Build and publish Windows release
 on:
   push:
     tags:
-      - 'v0.5.20'
+      - 'v0.5.21'
 
 permissions:
   contents: write
@@ -102,5 +102,5 @@ jobs:
             'release-artifacts/Reaper Control Studio.exe' `
             'public/downloads/Reaper-Control-Studio-Reaper-files.zip' `
             --repo $env:GITHUB_REPOSITORY `
-            --title 'StageTracks 0.5.20' `
-            --notes 'Show song keys on library covers, correct edit labels, keep community downloads marked as installed, add confirmed library deletion, and make long sequence lists scroll.'
+            --title 'StageTracks 0.5.21' `
+            --notes 'Show a key badge on every library cover, repair update and audio loading messages, and remove recent projects from project options.'

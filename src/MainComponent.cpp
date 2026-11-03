@@ -283,15 +283,15 @@ void MainComponent::downloadUpdateInstaller(const juce::String& url, bool autoIn
             else {
                 char buffer[256 * 1024];
                 int bytes = 0; int64_t downloaded = 0; const int64_t totalBytes = input->getTotalLength(); int lastPercent = -1;
-                reportProgress(0, "Descargando instalador… 0%");
+                reportProgress(0, "Descargando instalador... 0%");
                 while ((bytes = input->read(buffer, (int) sizeof(buffer))) > 0) {
                     if (!output->write(buffer, (size_t) bytes)) { error = "La descarga del instalador se interrumpió al guardar el archivo."; break; }
                     downloaded += bytes;
                     if (totalBytes > 0) {
                         const int percent = (int) juce::jlimit<int64_t>(0, 99, downloaded * 100 / totalBytes);
-                        if (percent != lastPercent) { lastPercent = percent; reportProgress(percent, "Descargando instalador… " + juce::String(percent) + "%"); }
+                        if (percent != lastPercent) { lastPercent = percent; reportProgress(percent, "Descargando instalador... " + juce::String(percent) + "%"); }
                     } else if (downloaded % (5 * 1024 * 1024) < bytes) {
-                        reportProgress(-1, "Descargando instalador… " + juce::String(downloaded / (1024 * 1024)) + " MB");
+                        reportProgress(-1, "Descargando instalador... " + juce::String(downloaded / (1024 * 1024)) + " MB");
                     }
                 }
                 output->flush();
