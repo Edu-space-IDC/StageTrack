@@ -266,11 +266,11 @@ bool AudioEngine::reserveBytes(uint64_t required, Prepared& p, juce::String& err
     const uint64_t budget = juce::jlimit<uint64_t>(512ULL << 20, 8ULL << 30, systemBytes * 2 / 5);
     uint64_t used = decodedBytes.load(std::memory_order_relaxed);
     if (required > budget || used > budget - required) {
-        error = "Import stopped to protect memory: decoded tracks would exceed the safe RAM budget. Use shorter files or fewer tracks.";
+        error = "No se pudo cargar la pista sin poner en riesgo la memoria disponible. Libera RAM o importa menos pistas a la vez.";
         return false;
     }
     while (!decodedBytes.compare_exchange_weak(used, used + required, std::memory_order_acq_rel)) {
-        if (used > budget - required) { error = "Not enough safe RAM budget to import this track."; return false; }
+        if (used > budget - required) { error = "No hay memoria disponible suficiente para cargar esta pista de forma segura."; return false; }
     }
     p.total = &decodedBytes; p.bytes = required;
     return true;
@@ -282,7 +282,7 @@ AudioEngine::Prepared AudioEngine::prepareFile(const juce::File& file, juce::Str
     p.fileBase = file.getFileNameWithoutExtension();
     p.name = trackName.isNotEmpty() ? trackName : p.fileBase;
     try {
-        if (!file.existsAsFile()) { p.error = "File not found."; return p; }
+        if (!file.existsAsFile()) { p.error = "No se encontró el archivo de audio."; return p; }
 
         // 1) cache en disco (audio ya decodificado + picos): evita decodificar al reabrir el programa
         const bool useCache = !isUncompressedPcm(file);
@@ -314,17 +314,17 @@ AudioEngine::Prepared AudioEngine::prepareFile(const juce::File& file, juce::Str
         juce::AudioFormatManager formats;
         formats.registerBasicFormats();
         std::unique_ptr<juce::AudioFormatReader> reader(formats.createReaderFor(file));
-        if (!reader) { p.error = "Could not decode this file. Try WAV, AIFF, FLAC, or a supported MP3."; return p; }
+        if (!reader) { p.error = "No se pudo decodificar este audio. Prueba con WAV, AIFF, FLAC o un MP3 compatible."; return p; }
         if (reader->lengthInSamples <= 0 || reader->lengthInSamples > std::numeric_limits<int>::max()
             || reader->sampleRate <= 0.0 || reader->numChannels == 0) {
-            p.error = "This audio file has invalid or unsupported stream information."; return p;
+            p.error = "El archivo de audio tiene información de duración o formato no válida."; return p;
         }
         const uint64_t channels = juce::jmin<uint32_t>(reader->numChannels, 2);
         const uint64_t required = (uint64_t)reader->lengthInSamples * channels * sizeof(float);
         if (!reserveBytes(required, p, p.error)) return p;
         auto data = std::make_unique<juce::AudioBuffer<float>>((int)channels, (int)reader->lengthInSamples);
         if (!reader->read(data.get(), 0, (int)reader->lengthInSamples, 0, true, true)) {
-            p.error = "The audio decoder could not read the complete file."; p.release(); return p;
+            p.error = "No se pudo leer el archivo de audio completo."; p.release(); return p;
         }
         computePeaks(*data, p.peaks);
         p.sourceRate = reader->sampleRate;
@@ -333,11 +333,11 @@ AudioEngine::Prepared AudioEngine::prepareFile(const juce::File& file, juce::Str
         p.ok = true;
         return p;
     } catch (const std::bad_alloc&) {
-        p.error = "Windows ran out of memory while decoding this audio file. No track was added.";
+        p.error = "Windows se quedó sin memoria al decodificar este audio. No se agregó la pista.";
     } catch (const std::exception& ex) {
-        p.error = "Import failed safely: " + juce::String(ex.what());
+        p.error = "La importación se detuvo para proteger el programa: " + juce::String(ex.what());
     } catch (...) {
-        p.error = "Import failed with an unknown decoder error.";
+        p.error = "La importación falló por un error desconocido del decodificador.";
     }
     p.release(); p.data.reset(); p.ok = false;
     return p;

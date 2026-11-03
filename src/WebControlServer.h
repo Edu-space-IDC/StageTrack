@@ -21,7 +21,7 @@ public:
     int getPort() const noexcept { return port; }
     juce::String getUrl() const { return "http://127.0.0.1:" + juce::String(port) + "/"; }
     std::function<void(const juce::String&)> onHostMessage;   // se llama desde un hilo del servidor
-    std::function<void(const juce::File&)> onCommunityDownload;
+    std::function<void(const juce::File&, const juce::String&, const juce::String&, const juce::String&)> onCommunityDownload;
     std::function<juce::File()> onCommunityExportFile;
     std::function<void()> onCommunityExportCleanup;
 private:

@@ -8660,7 +8660,18 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             if (native) {
               job.writingHost = true;
               let finished;
-              try { finished = await fetch("/host/community/finish/" + encodeURIComponent(job.token), { method: "POST" }); }
+              let cover = "";
+              if (item.cover) {
+                try {
+                  const coverUrl = /^https?:/i.test(item.cover) ? item.cover : base + item.cover;
+                  const response = await fetch(coverUrl, { cache: "force-cache" });
+                  const blob = await response.blob();
+                  if (response.ok && blob.size > 0 && blob.size <= 4 * 1024 * 1024 && /^image\//i.test(blob.type)) {
+                    cover = await new Promise((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result || "")); reader.onerror = () => resolve(""); reader.readAsDataURL(blob); });
+                  }
+                } catch (_) {}
+              }
+              try { finished = await fetch("/host/community/finish/" + encodeURIComponent(job.token), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: item.name || "", artist: item.artist || "", cover }) }); }
               finally { job.writingHost = false; }
               if (!finished.ok) throw new Error("No se pudo abrir el paquete descargado.");
               markCommunitySequenceInstalled(item);
@@ -8703,7 +8714,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           const q = songLibraryOverlay.querySelector("[data-query]").value.trim().toLocaleLowerCase();
           const list = songLibraryOverlay.querySelector("[data-list]");
           list.innerHTML = "";
-          const matches = songs.list.map((song, i) => ({song, i})).filter(({song}) => song.name.toLocaleLowerCase().includes(q));
+          const matches = songs.list.map((song, i) => ({song, i})).filter(({song}) => (song.name + " " + (song.artist || "")).toLocaleLowerCase().includes(q));
           if (!matches.length) { list.textContent = "No hay canciones que coincidan."; return; }
           matches.forEach(({song, i}) => {
             const row = document.createElement("div");
@@ -8721,7 +8732,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             name.textContent = song.name;
             const meta = document.createElement("small");
             meta.style.cssText = "display:block;margin-top:4px;color:#9da6af";
-            meta.textContent = `${song.tempoKnown ? Math.round(song.tempo) : "--"} BPM · ${song.sigNum || 4}/${song.sigDen || 4}`;
+            meta.textContent = `${song.artist ? song.artist + " ? " : ""}${song.tempoKnown ? Math.round(song.tempo) : "--"} BPM · ${song.sigNum || 4}/${song.sigDen || 4}`;
             info.append(name, meta); select.append(art, info);
             select.onclick = () => { songLibraryOverlay.remove(); songLibraryOverlay = null; if (i !== songs.active) window.activateSongTab(i); };
             row.append(select);
@@ -8835,6 +8846,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
               sigDen: Number(a[7]) || 4,
               tempoManual: a[8] === "1",
               tempoKnown: a[9] === "1",
+              artist: hexToStr(a[10] || ""),
             };
           });
           const sig = active + "|" + parts.join("|");
@@ -9409,7 +9421,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           "Cerrar proyecto": ["Close project", "Fechar projeto", "Fermer le projet", "Projekt schließen"],
           "Renombrar…": ["Rename…", "Renomear…", "Renommer…", "Umbenennen…"],
           "Cambiar carátula": ["Change artwork", "Alterar capa", "Changer la pochette", "Cover ändern"],
-          "CanciÃ³n anterior": ["Previous song", "Faixa anterior", "Morceau précédent", "Vorheriger Titel"],
+          "Canción anterior": ["Previous song", "Faixa anterior", "Morceau précédent", "Vorheriger Titel"],
           "Canción anterior": ["Previous song", "Faixa anterior", "Morceau précédent", "Vorheriger Titel"],
           "Canción siguiente": ["Next song", "Próxima faixa", "Morceau suivant", "Nächster Titel"],
           "Reproducir": ["Play", "Reproduzir", "Lire", "Wiedergabe"],

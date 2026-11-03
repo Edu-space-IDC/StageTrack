@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(StageTracks VERSION 0.5.15 LANGUAGES C CXX)
+project(StageTracks VERSION 0.5.16 LANGUAGES C CXX)
 
 include(FetchContent)
 FetchContent_Declare(JUCE
@@ -13,7 +13,7 @@ juce_add_gui_app(StageTracks
     PRODUCT_NAME "StageTracks"
     COMPANY_NAME "StageTracks"
     BUNDLE_ID "com.stagetracks.player"
-    VERSION "0.5.15"
+    VERSION "0.5.16"
     ICON_BIG "${CMAKE_SOURCE_DIR}/assets/app-icon.png"
     ICON_SMALL "${CMAKE_SOURCE_DIR}/assets/app-icon.png"
     NEEDS_WEBVIEW2 TRUE)
@@ -58,7 +58,7 @@ endif()
 target_compile_definitions(StageTracks PRIVATE
     JUCE_WEB_BROWSER=1 JUCE_USE_WIN_WEBVIEW2_WITH_STATIC_LINKING=1
     JUCE_USE_CURL=0 JUCE_APPLICATION_NAME_STRING="StageTracks"
-    JUCE_APPLICATION_VERSION_STRING="0.5.15")
+    JUCE_APPLICATION_VERSION_STRING="0.5.16")
 target_link_libraries(StageTracks PRIVATE
     StageTracksWeb
     juce::juce_audio_utils

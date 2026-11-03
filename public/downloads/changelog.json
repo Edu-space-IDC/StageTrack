@@ -1,13 +1,15 @@
-{
-  "version": "0.5.15",
-  "intro": "Version 0.5.15 restores the proven 0.5.10 song-card renderer.",
+﻿{
+  "version": "0.5.16",
+  "intro": "StageTracks guarda las secuencias instaladas en una biblioteca local y conserva sus metadatos de comunidad.",
   "implementations": [
-    "The song interface is restored to the 0.5.10 rendering flow.",
-    "Import audio to StageTracks is available in Project options next to New and Open."
+    "Las secuencias instaladas desde la comunidad conservan el autor y la carátula al abrirse en StageTracks.",
+    "Las pistas importadas se copian a %APPDATA%\\StageTracks\\Multitracks, junto con sequence.json y la carátula disponible.",
+    "La biblioteca permite buscar secuencias por título y autor."
   ],
   "fixes": [
-    "Removed the unvalidated song-card renderer introduced in 0.5.13.",
-    "Restored the original project and song card initialization sequence."
+    "La importación decodifica una pista a la vez para reducir los picos de uso de memoria.",
+    "Los errores de memoria y decodificación ahora se muestran en español.",
+    "Los paquetes de la comunidad transfieren sus metadatos de título, autor y carátula a la biblioteca local."
   ],
   "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"
 }

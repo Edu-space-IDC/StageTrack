@@ -369,7 +369,10 @@ void WebControlServer::serve(juce::StreamingSocket& client)
             state.stream->flush(); state.stream.reset(); completed = state.file;
             communityDownloads.erase(it);
         }
-        if (onCommunityDownload) onCommunityDownload(completed);
+        const auto metadata = juce::JSON::parse(req.body);
+        if (onCommunityDownload) onCommunityDownload(completed,
+            metadata.getProperty("name", {}).toString(), metadata.getProperty("artist", {}).toString(),
+            metadata.getProperty("cover", {}).toString());
         sendText(client, 200, "text/plain; charset=utf-8", "ok");
         return;
     }

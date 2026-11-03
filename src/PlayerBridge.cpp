@@ -85,6 +85,18 @@ juce::File PlayerBridge::appDir()
     return juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory).getChildFile("StageTracks");
 }
 
+juce::File PlayerBridge::multitrackDir()
+{
+    return appDir().getChildFile("Multitracks");
+}
+
+static juce::String safeLibraryName(juce::String name)
+{
+    name = name.replaceCharacters("\\/:*?\"<>|", "---------").trim().substring(0, 100);
+    while (name.endsWithChar('.') || name.endsWithChar(' ')) name = name.dropLastCharacters(1);
+    return name.isEmpty() ? "Sin título" : name;
+}
+
 juce::String PlayerBridge::num(double v, int decimals) { return juce::String(v, decimals); }
 
 juce::String PlayerBridge::timeStr(double sec)
@@ -248,6 +260,8 @@ void PlayerBridge::saveLibrary()
         auto* o = new juce::DynamicObject();
         o->setProperty("id", s.id);
         o->setProperty("name", s.name);
+        o->setProperty("artist", s.artist);
+        o->setProperty("libraryPath", s.libraryPath);
         o->setProperty("hash", s.hash);
         o->setProperty("tempo", s.tempo);
         o->setProperty("masterVolume", s.masterVolume);
@@ -271,6 +285,21 @@ void PlayerBridge::saveLibrary()
             files.add(juce::var(f));
         }
         o->setProperty("tracks", files);
+        if (s.libraryPath.isNotEmpty()) {
+            auto* config = new juce::DynamicObject();
+            config->setProperty("id", s.id); config->setProperty("name", s.name); config->setProperty("artist", s.artist);
+            config->setProperty("tempo", s.tempo); config->setProperty("timeSigNum", s.timeSigNum); config->setProperty("timeSigDen", s.timeSigDen);
+            config->setProperty("tracks", files);
+            const auto sections = ext.find("sections_" + juce::String(s.slot));
+            if (sections != ext.end()) config->setProperty("sections", sections->second);
+            const auto coverFile = appDir().getChildFile("Covers").getChildFile(s.hash + ".txt");
+            if (coverFile.existsAsFile()) {
+                coverFile.copyFileTo(juce::File(s.libraryPath).getChildFile("cover.txt"));
+                config->setProperty("coverFile", "cover.txt");
+            }
+            juce::File(s.libraryPath).createDirectory();
+            juce::File(s.libraryPath).getChildFile("sequence.json").replaceWithText(juce::JSON::toString(juce::var(config), true));
+        }
         list.add(juce::var(o));
     }
     juce::Array<juce::var> rec;
@@ -305,6 +334,8 @@ void PlayerBridge::loadLibrary()
             s.slot = (int) songs.size();
             s.id = v.getProperty("id", juce::Uuid().toString()).toString();
             s.name = v.getProperty("name", juce::String("Canción")).toString();
+            s.artist = v.getProperty("artist", {}).toString();
+            s.libraryPath = v.getProperty("libraryPath", {}).toString();
             s.hash = v.getProperty("hash", {}).toString();
             const auto storedTempo = v.getProperty("tempo", {});
             s.tempo = juce::jlimit(1.0, 999.0, std::round(storedTempo.isVoid() ? 92.0 : (double) storedTempo));
@@ -368,11 +399,30 @@ void PlayerBridge::startImport(int slot, juce::Array<juce::File> files, juce::St
     }
     runBackground([this, slot, files = std::move(files), names = std::move(names), routings = std::move(routings),
                    volumes = std::move(volumes), pans = std::move(pans), mutes = std::move(mutes),
-                   solos = std::move(solos), colors = std::move(colors), rememberSources] {
+                   solos = std::move(solos), colors = std::move(colors), rememberSources]() mutable {
         const int total = files.size();
         // Varias pistas se decodifican a la vez (o se leen de la cache); el commit al motor es siempre en orden.
-        const int window = juce::jlimit(2, 4, (int) std::thread::hardware_concurrency() / 2);
+        const int window = 1; // evita que varias pistas grandes se decodifiquen simultáneamente en RAM
         std::vector<std::future<AudioEngine::Prepared>> futures((size_t) total);
+        if (rememberSources) {
+            juce::String songName, artist, songId;
+            { const juce::ScopedLock sl(lock); for (const auto& s : songs) if (s.slot == slot) { songName = s.name; artist = s.artist; songId = s.id; break; } }
+            const auto folder = multitrackDir().getChildFile(safeLibraryName(songName + (artist.isNotEmpty() ? " - " + artist : juce::String())) + "-" + songId.substring(0, 8));
+            const auto audioFolder = folder.getChildFile("audio");
+            audioFolder.createDirectory();
+            juce::Array<juce::File> managed;
+            for (int i = 0; i < files.size(); ++i) {
+                const auto source = files[i];
+                const auto baseName = juce::String::formatted("%02d-", i + 1) + safeLibraryName(source.getFileName());
+                auto destination = audioFolder.getChildFile(baseName);
+                for (int suffix = 2; destination.existsAsFile() && destination.getFullPathName() != source.getFullPathName(); ++suffix)
+                    destination = audioFolder.getChildFile(juce::String::formatted("%02d-%02d-", i + 1, suffix) + safeLibraryName(source.getFileName()));
+                if (source.getFullPathName() != destination.getFullPathName() && !destination.existsAsFile()) source.copyFileTo(destination);
+                managed.add(destination.existsAsFile() ? destination : source);
+            }
+            files = std::move(managed);
+            { const juce::ScopedLock sl(lock); for (auto& s : songs) if (s.slot == slot) { s.libraryPath = folder.getFullPathName(); break; } }
+        }
         auto launch = [&](int i) {
             const juce::File file = files[i];
             const juce::String name = i < names.size() ? names[i] : juce::String();
@@ -387,7 +437,6 @@ void PlayerBridge::startImport(int slot, juce::Array<juce::File> files, juce::St
             if (!futures[(size_t) i].valid()) break;   // cierre del programa
             toast("Cargando audio… " + juce::String(i + 1) + "/" + juce::String(total), false);
             auto prepared = futures[(size_t) i].get();
-            if (next < total && !closing) launch(next++);
             const bool cached = prepared.fromCache;
             juce::String err;
             if (engine.commitPrepared(std::move(prepared), slot, err)) {
@@ -424,6 +473,7 @@ void PlayerBridge::startImport(int slot, juce::Array<juce::File> files, juce::St
                     }
                 ++structRev;
             } else errors << files[i].getFileName() << ": " << err << "\n";
+            if (next < total && !closing) launch(next++);
         }
         {
             const juce::ScopedLock sl(lock);
@@ -513,6 +563,14 @@ void PlayerBridge::loadSequence(const juce::File& source)
         const auto parsed = juce::JSON::parse(docFile);
         auto* arr = parsed.getProperty("songs", {}).getArray();
         if (arr == nullptr || arr->isEmpty()) throw std::runtime_error("No es una secuencia válida o no tiene canciones.");
+        const auto community = juce::JSON::parse(source.withFileExtension("community.json"));
+        if (auto* metadata = community.getDynamicObject()) {
+            for (auto& song : *arr) if (auto* object = song.getDynamicObject()) {
+                if (metadata->hasProperty("name")) object->setProperty("name", metadata->getProperty("name"));
+                if (metadata->hasProperty("artist")) object->setProperty("artist", metadata->getProperty("artist"));
+                if (metadata->getProperty("cover").toString().startsWith("data:image/")) object->setProperty("coverData", metadata->getProperty("cover"));
+            }
+        }
         bool first = true;
         for (const auto& song : *arr) {
             appendSequenceSong(song, base, first);
@@ -533,6 +591,7 @@ bool PlayerBridge::saveSequenceFile(const juce::File& destination, juce::String&
 
     auto* songObject = new juce::DynamicObject();
     songObject->setProperty("name", song->name);
+    songObject->setProperty("artist", song->artist);
     songObject->setProperty("tempo", song->tempo);
     songObject->setProperty("timeSigNum", song->timeSigNum);
     songObject->setProperty("timeSigDen", song->timeSigDen);
@@ -622,14 +681,20 @@ void PlayerBridge::appendSequenceSong(const juce::var& model, const juce::File& 
         slot = s->slot;
         hash = s->hash;
         s->tempo = juce::jlimit(1.0, 999.0, std::round((double) model.getProperty("tempo", 92.0)));
+        s->artist = model.getProperty("artist", {}).toString();
         s->tempoKnown = !model.getProperty("tempo", {}).isVoid();
         s->timeSigNum = juce::jlimit(1, 32, (int) model.getProperty("timeSigNum", 4));
         s->timeSigDen = juce::jlimit(1, 32, (int) model.getProperty("timeSigDen", 4));
         if (activateIt) engine.bpm.store(s->tempo);
     }
     // caratula empaquetada: se guarda como la elegida por el usuario (si no hay una ya)
+    const auto coverData = model.getProperty("coverData", {}).toString();
+    if (coverData.startsWith("data:image/")) {
+        const juce::ScopedLock sl(lock);
+        saveCoverOverride(hash, coverData);
+    }
     const auto coverRel = model.getProperty("cover", {}).toString();
-    if (coverRel.isNotEmpty()) {
+    if (coverRel.isNotEmpty() && coverData.isEmpty()) {
         const auto coverPath = baseDirectory.getChildFile(coverRel.replaceCharacter('\\', '/'));
         const auto full = coverPath.getFullPathName(), prefix = baseDirectory.getFullPathName() + juce::File::getSeparatorString();
         if (full.startsWithIgnoreCase(prefix) && coverPath.existsAsFile()) {
@@ -919,7 +984,7 @@ juce::String PlayerBridge::songsString()
 {
     juce::StringArray rows;
     for (const auto& s : songs)
-        rows.add(hex(s.name) + "~" + hex("stagetracks:" + s.id) + "~" + s.hash + "~" + s.coverState + "~" + s.coverVer + "~" + num(s.tempo, 2) + "~" + juce::String(s.timeSigNum) + "~" + juce::String(s.timeSigDen) + "~" + (s.tempoManual ? "1" : "0") + "~" + (s.tempoKnown ? "1" : "0"));
+        rows.add(hex(s.name) + "~" + hex("stagetracks:" + s.id) + "~" + s.hash + "~" + s.coverState + "~" + s.coverVer + "~" + num(s.tempo, 2) + "~" + juce::String(s.timeSigNum) + "~" + juce::String(s.timeSigDen) + "~" + (s.tempoManual ? "1" : "0") + "~" + (s.tempoKnown ? "1" : "0") + "~" + hex(s.artist));
     return juce::String(songs.empty() ? 0 : active) + "|" + rows.joinIntoString("|");
 }
 

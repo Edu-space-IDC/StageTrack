@@ -40,6 +40,8 @@ private:
         int slot = 0;                 // indice dentro del motor
         juce::String id;              // identificador estable
         juce::String name;
+        juce::String artist;
+        juce::String libraryPath;
         juce::String hash;            // 16 hex, nombre del archivo de caratula
         double tempo = 92.0;
         double masterVolume = 0.82;
@@ -60,6 +62,7 @@ private:
     static juce::String coverHash(const juce::String&);
     static juce::String imageToDataUri(const juce::File&);
     static juce::File appDir();
+    static juce::File multitrackDir();
     static juce::String num(double v, int decimals = 6);
     static juce::String timeStr(double seconds);
 
