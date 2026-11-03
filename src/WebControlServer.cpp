@@ -25,13 +25,14 @@ document.documentElement.classList.add('stagetracks-native');
     if(h==='localhost'||h==='127.0.0.1'||h==='::1')return;
     var badge=document.createElement('div');badge.style.cssText='position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:20000;display:flex;align-items:center;gap:10px;padding:6px 13px;border:1px solid #50d89066;border-radius:20px;background:#10251bef;color:#75e6a9;font:600 12px system-ui,sans-serif;box-shadow:0 4px 18px #0008';
     var label=document.createElement('span');label.textContent='Control web · Sesión remota';badge.appendChild(label);
+    var disconnect=document.createElement('button');disconnect.type='button';disconnect.textContent='Desconectarse';disconnect.style.cssText='border:1px solid #75e6a955;border-radius:14px;padding:4px 9px;background:#183b2a;color:#d8ffe8;font:600 12px system-ui,sans-serif;cursor:pointer';disconnect.onclick=function(){if(history.length>1)history.back();else location.href='/';};badge.appendChild(disconnect);
     badge.setAttribute('role','status');
     document.body.appendChild(badge);
   });
   window.addEventListener('dragover',function(e){e.preventDefault();});
   window.addEventListener('drop',function(e){e.preventDefault();});
   window.addEventListener('load',function(){
-    var b=document.getElementById('pExportSeq');if(b){if(window.STAGETRACKS_NATIVE||window.chrome&&window.chrome.webview){b.hidden=false;b.style.display='';}else b.style.display='none';}
+    var b=document.getElementById('pExportSeq');if(b){if(window.STAGETRACKS_NATIVE||window.chrome&&window.chrome.webview){b.hidden=false;b.style.setProperty('display','inline-flex','important');}else b.style.display='none';}
     var l=document.getElementById('pLogout');if(l){l.textContent='Audio';l.title='Configuración de audio';}
     if(!window.STAGETRACKS_NATIVE&&l)l.style.display='none';
   });

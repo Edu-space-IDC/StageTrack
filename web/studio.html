@@ -4000,8 +4000,8 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             class="tb picon"
             id="pImportMedia"
             type="button"
-            title="Importar archivos"
-            aria-label="Importar archivos"
+            title="Importar audio a StageTracks"
+            aria-label="Importar audio a StageTracks"
           >
             ⇧
           </button>
@@ -8023,13 +8023,26 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             .replace(/\s*[\(\[][A-G][#b]?m?[\)\]]\s*$/, "")
             .replace(/\s+/g, " ")
             .trim();
+        function repairLegacyText(value) {
+          if (!/[ÃÂ][\u0080-\u00bf]|â[€-ž]/.test(value)) return value;
+          const cp1252 = new Map([[0x20ac,0x80],[0x201a,0x82],[0x192,0x83],[0x201e,0x84],[0x2026,0x85],[0x2020,0x86],[0x2021,0x87],[0x2c6,0x88],[0x2030,0x89],[0x160,0x8a],[0x2039,0x8b],[0x152,0x8c],[0x17d,0x8e],[0x2018,0x91],[0x2019,0x92],[0x201c,0x93],[0x201d,0x94],[0x2022,0x95],[0x2013,0x96],[0x2014,0x97],[0x2dc,0x98],[0x2122,0x99],[0x161,0x9a],[0x203a,0x9b],[0x153,0x9c],[0x17e,0x9e],[0x178,0x9f]]);
+          const bytes = [];
+          for (const char of value) {
+            const code = char.codePointAt(0);
+            if (code <= 255) bytes.push(code);
+            else if (cp1252.has(code)) bytes.push(cp1252.get(code));
+            else return value;
+          }
+          try { return new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(bytes)); }
+          catch (_) { return value; }
+        }
         function hexToStr(h) {
           try {
-            return new TextDecoder().decode(
+            return repairLegacyText(new TextDecoder().decode(
               new Uint8Array(
                 (h.match(/.{1,2}/g) || []).map((x) => parseInt(x, 16)),
               ),
-            );
+            ));
           } catch (_) {
             return "";
           }
@@ -9408,7 +9421,6 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           "Cerrar proyecto": ["Close project", "Fechar projeto", "Fermer le projet", "Projekt schließen"],
           "Renombrar…": ["Rename…", "Renomear…", "Renommer…", "Umbenennen…"],
           "Cambiar carátula": ["Change artwork", "Alterar capa", "Changer la pochette", "Cover ändern"],
-          "CanciÃ³n anterior": ["Previous song", "Faixa anterior", "Morceau précédent", "Vorheriger Titel"],
           "Canción anterior": ["Previous song", "Faixa anterior", "Morceau précédent", "Vorheriger Titel"],
           "Canción siguiente": ["Next song", "Próxima faixa", "Morceau suivant", "Nächster Titel"],
           "Reproducir": ["Play", "Reproduzir", "Lire", "Wiedergabe"],
@@ -10831,7 +10843,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             };
             const cover = document.createElement("button");
             cover.type = "button";
-            cover.title = "Cambiar car?tula";
+            cover.title = "Cambiar carátula";
             cover.innerHTML = I.img;
             cover.onclick = (e) => {
               e.stopPropagation();
@@ -10850,7 +10862,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             const label = document.createElement("div");
             label.className = "nm";
             const songName =
-                h.querySelector(".psongname")?.textContent || "Sin t?tulo",
+                h.querySelector(".psongname")?.textContent || "Sin título",
               track = document.createElement("span"),
               run = document.createElement("span"),
               nameText = document.createElement("span"),

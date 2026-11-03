@@ -105,13 +105,13 @@ local function pollUpload()
   local function ack(nextIx, status, path)
     reaper.SetExtState(SEC, "uploadack", table.concat({id or "?", tostring(nextIx or 0), status or "error", path or ""}, "|"), false)
   end
-  if not id or not ix or not total or total < 1 or ix >= total or #dataHex > 4096 then ack(0, "error", hexencode("Bloque de archivo inv?lido.")); return end
+  if not id or not ix or not total or total < 1 or ix >= total or #dataHex > 4096 then ack(0, "error", hexencode("Bloque de archivo inválido.")); return end
   if not uploadSession or uploadSession.id ~= id then
-    if ix ~= 0 then ack(0, "error", hexencode("La transferencia perdi? su primer bloque.")); return end
+    if ix ~= 0 then ack(0, "error", hexencode("La transferencia perdió su primer bloque.")); return end
     local meta = hexdecode(nameHex)
     local batch, rel = meta:match("^([%w%-]+)|(.+)$")
     if not batch then batch, rel = id, meta end
-    if not batch:match("^[%w%-]+$") then ack(0, "error", hexencode("Identificador de transferencia inv?lido.")); return end
+    if not batch:match("^[%w%-]+$") then ack(0, "error", hexencode("Identificador de transferencia inválido.")); return end
     if rel == "" then rel = kind == "o" and "proyecto.rpp" or "audio.bin" end
     if kind == "o" and not rel:lower():match("%.rpp$") then ack(0, "error", hexencode("Selecciona un proyecto .RPP.")); return end
     local dir = reaper.GetResourcePath() .. "/WebControlUploads/" .. batch
@@ -121,7 +121,7 @@ local function pollUpload()
       part = part:gsub('[<>:"|?*%c]', "_"):gsub("^%.+", "")
       if part ~= "" and part ~= "." and part ~= ".." then parts[#parts + 1] = part end
     end
-    if #parts == 0 then ack(0, "error", hexencode("Nombre de archivo no v?lido.")); return end
+    if #parts == 0 then ack(0, "error", hexencode("Nombre de archivo no válido.")); return end
     local parent = dir
     for i = 1, #parts - 1 do parent = parent .. "/" .. parts[i]; reaper.RecursiveCreateDirectory(parent, 0) end
     local path = parent .. "/" .. parts[#parts]
@@ -569,8 +569,8 @@ local function handle(cmd, nonce)
       undone = undone + 1
       if reaper.GetProjectStateChangeCount(project) == before then break end
     end
-    if reaper.IsProjectDirty(project) then result(nonce, false, "REAPER no pudo volver al ?ltimo estado guardado. El proyecto sigue abierto.")
-    else reaper.UpdateArrange(); result(nonce, true, "Cambios descartados. Proyecto restaurado al ?ltimo guardado.") end
+    if reaper.IsProjectDirty(project) then result(nonce, false, "REAPER no pudo volver al último estado guardado. El proyecto sigue abierto.")
+    else reaper.UpdateArrange(); result(nonce, true, "Cambios descartados. Proyecto restaurado al último guardado.") end
 
   elseif kind == "saveas" then
     local path = hexdecode(parts[2] or "")
@@ -1031,7 +1031,7 @@ local function pollEqReset()
     reaper.SetExtState(SEC, "eqresetResult", "error", false); return
   end
   reaper.Undo_BeginBlock()
-  local ok, reset = pcall(reaper.TrackFX_SetPresetByIndex, tr, fx, -2) -- -2 = preset de f?brica
+  local ok, reset = pcall(reaper.TrackFX_SetPresetByIndex, tr, fx, -2) -- -2 = preset de fábrica
   reaper.Undo_EndBlock("Web: restablecer valores predeterminados de ReaEQ", -1)
   reaper.SetExtState(SEC, "eqresetResult", (ok and reset) and "ok" or "error", false)
   if ok and reset then
