@@ -1,14 +1,17 @@
 {
-  "version": "0.5.22",
-  "intro": "La tonalidad ahora se ve sobre cada portada y se elige desde una lista al editar una secuencia.",
-  "implementations": [
-    "La insignia se dibuja en una capa independiente de la portada para que los controles e imágenes no la oculten.",
-    "Cada tonalidad tiene un color identificable; las tonalidades menores usan una variante más oscura.",
-    "El campo de tonalidad de Nuevo proyecto y Editar secuencia es un selector con las mismas opciones que el formulario de publicación comunitaria."
-  ],
-  "fixes": [
-    "Al editar una secuencia se conserva y selecciona su tonalidad guardada.",
-    "Las canciones sin tonalidad registrada muestran ? en el indicador."
-  ],
-  "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"
+    "version":  "0.5.23",
+    "intro":  "La biblioteca conserva los proyectos guardados aunque los cierres, y ahora puedes reabrirlos desde el buscador.",
+    "implementations":  [
+                            "Cada proyecto guardado crea y mantiene su carpeta en %APPDATA%\\StageTracks\\Multitracks con secuencia.json, audios, carátula y secciones.",
+                            "Las carátulas guardadas se conservan en el proyecto y se incluyen al subir su secuencia a la comunidad.",
+                            "El formulario de publicación toma automáticamente la tonalidad y la carátula del proyecto activo.",
+                            "El indicador de tonalidad se dibuja dentro de cada portada con colores propios para cada tonalidad."
+                        ],
+    "fixes":  [
+                  "Mi biblioteca ahora lista también los proyectos cerrados y permite abrirlos o eliminarlos.",
+                  "Las confirmaciones al cancelar o eliminar secciones aparecen dentro de StageTracks.",
+                  "Ctrl+Z deshace los cambios de secciones; Ctrl+X, Ctrl+Y y Ctrl+Shift+Z los rehacen mientras EDIT está activo.",
+                  "Se corrigió el texto de importación de audio."
+              ],
+    "feedbackUrl":  "https://stagetrack-project.vercel.app/?feedback=1#feedback"
 }

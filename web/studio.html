@@ -2063,6 +2063,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           transform 0.15s;
       }
       .psongkey{position:absolute;top:86px;right:8px;z-index:100;width:30px;height:30px;min-width:30px;box-sizing:border-box;padding:0;border-radius:50%;display:grid;place-items:center;border:1px solid #ffffffd9;color:#fff;font:700 13px/1 system-ui,sans-serif;box-shadow:0 2px 8px #000b;opacity:1;pointer-events:none;text-shadow:0 1px 2px #0008}
+      .pcover .psongkey{top:auto;right:8px;bottom:8px;z-index:10000;width:36px;height:36px;min-width:36px;border:2px solid #fff;font-size:15px;opacity:1!important;visibility:visible!important;display:grid!important}
       .psong:active .pcover {
         transform: scale(0.97);
       }
@@ -4923,6 +4924,12 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
                       coverCache[tok[2].slice(3)] = v;
                       renderSongs(false);
                     }
+                  } else if (
+                    tok[0] === "EXTSTATE" &&
+                    tok[1] === "WebControl" &&
+                    tok[2] === "library"
+                  ) {
+                    updateLibrary(tok.slice(3).join("\t"));
                   } else if (
                     tok[0] === "EXTSTATE" &&
                     tok[1] === "WebControl" &&
@@ -7874,6 +7881,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           play: -1,
           pstate: 0,
         };
+        let librarySongs = [];
         const coverKey = (s) =>
           "wcCover:" + (s.pathHex !== "-" ? s.pathHex : "name:" + s.name);
         const ls = {
@@ -8284,6 +8292,21 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           overlay.innerHTML = `<section role="dialog" aria-modal="true" style="box-sizing:border-box;width:min(520px,100%);max-height:90vh;overflow:auto;padding:20px;background:#191c1f;border:1px solid #3b4147;border-radius:16px;box-shadow:0 24px 70px #000c"><header style="display:flex;align-items:center;justify-content:space-between"><strong style="font-size:19px">${communityText("Subir secuencia a la comunidad", "Upload a sequence to the community")}</strong><button type="button" data-close style="border:0;background:transparent;color:#c8cdd2;font-size:25px;cursor:pointer">×</button></header><p style="color:#aeb4ba;line-height:1.45">${communityText("En StageTracks puedes subir directamente la secuencia activa de Mi biblioteca. También puedes elegir un archivo .rpseq o .zip. Se sube en bloques y puede pesar hasta 1 GB.", "In StageTracks, upload the active sequence from My Library directly. You can also choose a .rpseq or .zip file. Uploads are chunked and can be up to 1 GB.")}</p><form data-form><label style="display:block;margin:10px 0 5px">${communityText("Nombre de la canción", "Song title")}</label><input name="name" required maxlength="120" value="${String(current.name || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:10px 0 5px">${communityText("Artista o grupo", "Artist or band")}</label><input name="artist" required maxlength="120" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="display:block;margin:10px 0 5px">${communityText("Tonalidad", "Key")}</label><select name="key" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option value="">—</option>${"C C# Db D D# Eb E F F# Gb G G# Ab A A# Bb B Cm C#m Dbm Dm D#m Ebm Em Fm F#m Gbm Gm G#m Abm Am A#m Bbm Bm".split(" ").map(key => `<option>${key}</option>`).join("")}</select></div><div><label style="display:block;margin:10px 0 5px">BPM</label><input name="bpm" type="number" min="40" max="240" value="${current.tempoKnown ? Math.round(current.tempo) : 120}" required style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="display:block;margin:10px 0 5px">${communityText("Compás", "Time signature")}</label><select name="meter" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option>4/4</option><option>3/4</option><option>6/8</option><option>2/4</option><option>5/4</option><option>7/4</option><option>9/8</option><option>12/8</option></select></div><div><label style="display:block;margin:10px 0 5px">${communityText("Género", "Genre")}</label><select name="genre" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option>Adoración</option><option>Gospel</option><option>Contemporáneo</option><option>Acústico</option><option>Rock</option><option>Otro</option></select></div></div><label style="display:block;margin:12px 0 5px">${communityText("Paquete .rpseq o .zip", "Sequence package (.rpseq or .zip)")}</label><input name="package" type="file" accept=".rpseq,.zip,application/zip" required><label style="display:block;margin:12px 0 5px">${communityText("Carátula opcional", "Optional cover")}</label><input name="cover" type="file" accept="image/png,image/jpeg,image/webp"><small data-status aria-live="polite" style="display:block;min-height:20px;margin-top:10px;color:#aeb4ba"></small><footer style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px"><button type="button" data-cancel style="padding:9px 13px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff;cursor:pointer">${communityText("Cancelar", "Cancel")}</button><button type="submit" style="padding:9px 14px;border:0;border-radius:9px;background:#2c83df;color:#fff;cursor:pointer">${communityText("Subir", "Upload")}</button></footer></form></section>`;
           const form = overlay.querySelector("[data-form]"), status = overlay.querySelector("[data-status]"), submit = form.querySelector('[type="submit"]');
           form.elements.artist.value = current.artist || "";
+          form.elements.key.value = current.key || "";
+          const coverInput = form.elements.cover;
+          const activeCover = coverOf(current);
+          const defaultCoverPromise = activeCover && /^(data:image\/|https?:\/\/)/i.test(activeCover)
+            ? fetch(activeCover).then((response) => response.blob()).then((blob) => {
+                if (!blob.size) return null;
+                const extension = blob.type === "image/png" ? "png" : blob.type === "image/webp" ? "webp" : "jpg";
+                const file = new File([blob], `${current.name || "cover"}.${extension}`, { type: blob.type || "image/jpeg" });
+                if (form.isConnected && window.DataTransfer && !coverInput.files.length) {
+                  const transfer = new DataTransfer(); transfer.items.add(file); coverInput.files = transfer.files;
+                  coverInput.title = "La carátula guardada en este proyecto se usará al publicar.";
+                }
+                return file;
+              }).catch(() => null)
+            : Promise.resolve(null);
           let uploadInBackground = false, uploadPending = false, uploadFinished = false, uploadPercent = 0, uploadState = "upload";
           const close = () => {
             if (uploadPending && !uploadFinished) { uploadInBackground = true; showCommunityUploadProgress(uploadPercent, status.textContent || "La subida continúa en segundo plano…", uploadState); }
@@ -8310,7 +8333,9 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           backgroundButton.onclick = () => { uploadInBackground = true; showCommunityUploadProgress(uploadPercent, status.textContent || "Subiendo secuencia…", uploadState); close(); toast("La publicación continúa en segundo plano."); };
           overlay.querySelector("[data-close]").onclick = close; overlay.querySelector("[data-cancel]").onclick = close; overlay.onclick = event => { if (event.target === overlay) close(); };
           form.onsubmit = async event => {
-            event.preventDefault(); const data = new FormData(form), selectedPackage = data.get("package"), coverFile = data.get("cover");
+            event.preventDefault(); const data = new FormData(form), selectedPackage = data.get("package");
+            let coverFile = data.get("cover");
+            if (!coverFile?.size) coverFile = await defaultCoverPromise;
             const packageSize = Number(form.dataset.communityPackageSize);
             const packageFile = packageSize ? { name: `${String(data.get("name") || "StageTracks")}.rpseq`, size: packageSize, hostExport: true } : selectedPackage;
             if (!packageFile?.size) { status.textContent = communityText("Selecciona el archivo de secuencia.", "Choose a sequence file."); return; }
@@ -8355,6 +8380,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             const keyFilter = songLibraryOverlay?.querySelector("[data-filter-key]"), genreFilter = songLibraryOverlay?.querySelector("[data-filter-genre]");
             if (keyFilter) keyFilter.value = "";
             if (genreFilter) genreFilter.value = "";
+            if (window.STAGETRACKS_NATIVE) wwr_req("GET/EXTSTATE/WebControl/songs;GET/EXTSTATE/WebControl/library");
           }
           renderSongLibrarySearch();
         }
@@ -8702,7 +8728,8 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           const q = songLibraryOverlay.querySelector("[data-query]").value.trim().toLocaleLowerCase();
           const list = songLibraryOverlay.querySelector("[data-list]");
           list.innerHTML = "";
-          const matches = filterLibraryItems(songs.list.map((song, i) => ({ ...song, i, tempo: song.tempo })))
+          const source = librarySongs.length ? librarySongs : songs.list.map((song, i) => ({ ...song, i, id: song.pathHex?.replace(/^stagetracks:/, ""), open: true }));
+          const matches = filterLibraryItems(source.map((song) => ({ ...song, tempo: song.tempo })))
             .filter((song) => (song.name + " " + (song.artist || "")).toLocaleLowerCase().includes(q));
           if (!matches.length) { list.textContent = "No hay canciones que coincidan."; return; }
           matches.forEach((song) => {
@@ -8724,7 +8751,17 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             meta.style.cssText = "display:block;margin-top:4px;color:#9da6af";
             meta.textContent = `${song.artist ? song.artist + " · " : ""}${song.tempoKnown ? Math.round(song.tempo) : "--"} BPM · ${song.sigNum || 4}/${song.sigDen || 4}`;
             info.append(name, meta); select.append(art, info);
-            select.onclick = () => { songLibraryOverlay.remove(); songLibraryOverlay = null; if (i !== songs.active) window.activateSongTab(i); };
+            select.onclick = () => {
+              if (song.open && Number.isInteger(i) && i >= 0) {
+                songLibraryOverlay.remove(); songLibraryOverlay = null;
+                if (i !== songs.active) window.activateSongTab(i);
+                return;
+              }
+              sendCmd("openlibrary_" + hex(song.id), false, () => {
+                songLibraryOverlay?.remove(); songLibraryOverlay = null;
+                wwr_req("GET/EXTSTATE/WebControl/songs;GET/EXTSTATE/WebControl/library");
+              });
+            };
             row.append(select);
             const remove = document.createElement("button"); remove.type = "button"; remove.className = "library-delete-song";
             remove.setAttribute("aria-label", `Eliminar ${song.name} de Mi biblioteca`); remove.title = "Eliminar de Mi biblioteca"; remove.hidden = !window.STAGETRACKS_NATIVE;
@@ -8735,7 +8772,11 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             if (window.STAGETRACKS_NATIVE && song.name && song.name !== "Sin título" && song.artist?.trim()) {
               const upload = document.createElement("button"); upload.type = "button"; upload.textContent = "Subir a comunidad";
               upload.style.cssText = "flex:0 0 auto;padding:8px 10px;border:1px solid #2d8050;border-radius:8px;background:#1e3b2a;color:#d8f5e3;cursor:pointer;font-size:12px";
-              upload.onclick = () => requestSongTab(i, () => { songLibraryOverlay?.remove(); songLibraryOverlay = null; setTimeout(openCommunityUploadDialog, 300); });
+              upload.onclick = () => {
+                const openDialog = () => { songLibraryOverlay?.remove(); songLibraryOverlay = null; setTimeout(openCommunityUploadDialog, 350); };
+                if (song.open && Number.isInteger(i) && i >= 0) requestSongTab(i, openDialog);
+                else sendCmd("openlibrary_" + hex(song.id), false, () => { wwr_req("GET/EXTSTATE/WebControl/songs"); setTimeout(openDialog, 400); });
+              };
               row.append(upload);
               communityHasPublishedMatch(song).then((duplicate) => { if (!upload.isConnected) return; if (duplicate) upload.remove(); });
             }
@@ -8752,10 +8793,11 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           overlay.querySelector("[data-cancel]").onclick = close;
           overlay.querySelector("[data-confirm]").onclick = () => {
             const button = overlay.querySelector("[data-confirm]"); button.disabled = true; button.textContent = "Eliminando…";
-            sendCmd(`songdelete_${index}`, false, null, (ok, message) => {
+            const command = song.open ? `songdelete_${index}` : `songdeletelib_${hex(song.id)}`;
+            sendCmd(command, false, null, (ok, message) => {
               close();
               if (!ok) { toast(message || "No se pudo eliminar la canción.", true); return; }
-              songs.sig = ""; wwr_req("GET/EXTSTATE/WebControl/songs"); toast(message || "Canción eliminada de Mi biblioteca.", false);
+              songs.sig = ""; wwr_req("GET/EXTSTATE/WebControl/songs;GET/EXTSTATE/WebControl/library"); toast(message || "Canción eliminada de Mi biblioteca.", false);
             });
           };
           overlay.onclick = (event) => { if (event.target === overlay) close(); };
@@ -8935,6 +8977,33 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           songs.list = list;
           renderSongs(true);
           lookupCurrentSongBpm();
+        }
+        function updateLibrary(raw) {
+          librarySongs = String(raw || "").split("|").filter(Boolean).map((row) => {
+            const a = row.split("~");
+            const id = hexToStr(a[0] || "");
+            const openIndex = songs.list.findIndex((song) => hexToStr(song.pathHex || "") === "stagetracks:" + id);
+            const opened = openIndex >= 0;
+            const openSong = opened ? songs.list[openIndex] : null;
+            return {
+              id,
+              name: hexToStr(a[1] || "") || openSong?.name || "Sin título",
+              artist: hexToStr(a[2] || "") || openSong?.artist || "",
+              key: hexToStr(a[3] || "") || openSong?.key || "",
+              hash: a[4] || openSong?.hash || "",
+              ver: a[5] || openSong?.ver || "0",
+              state: (a[5] || "0") !== "0" ? "s" : openSong?.state || "n",
+              tempo: Number(a[6]) || openSong?.tempo || 92,
+              sigNum: Number(a[7]) || openSong?.sigNum || 4,
+              sigDen: Number(a[8]) || openSong?.sigDen || 4,
+              tempoKnown: a[9] === "1" || !!openSong?.tempoKnown,
+              open: a[10] === "1" || opened,
+              i: openIndex,
+              pathHex: opened ? openSong.pathHex : "-",
+              communityId: openSong?.communityId || "",
+            };
+          });
+          if (songLibraryMode === "local") renderSongLibrarySearch();
         }
         /* ===== exportar secuencias (zip + .rpseq para REAPER Playback) ===== */
         window.receiveExportResult = (ok, msg) => {
@@ -9241,15 +9310,15 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             pl.className = "pplay";
             pl.innerHTML =
               '<span class="eq"><i></i><i></i><i></i><i></i></span><span class="tx"></span>';
-            d.appendChild(c);
             const songKey = String(s.key || "").trim();
             const keyBadge = document.createElement("span");
             keyBadge.className = "psongkey";
             keyBadge.textContent = songKey || "?";
             keyBadge.title = songKey ? "Tonalidad: " + songKey : "Tonalidad sin definir";
             keyBadge.setAttribute("aria-label", songKey ? "Tonalidad " + songKey : "Tonalidad sin definir");
-            keyBadge.style.cssText = "position:absolute;top:86px;right:8px;z-index:100;width:30px;height:30px;min-width:30px;box-sizing:border-box;padding:0;border-radius:50%;display:grid;place-items:center;border:1px solid #ffffffd9;color:#fff;font:700 13px/1 system-ui,sans-serif;box-shadow:0 2px 8px #000b;opacity:1;pointer-events:none;text-shadow:0 1px 2px #0008;background:" + keyBadgeColor(songKey);
-            d.appendChild(keyBadge);
+            keyBadge.style.cssText = "position:absolute;top:auto;right:8px;bottom:8px;z-index:10000;width:36px;height:36px;min-width:36px;box-sizing:border-box;padding:0;border-radius:50%;display:grid!important;place-items:center;border:2px solid #fff;color:#fff;font:800 15px/1 system-ui,sans-serif;box-shadow:0 2px 10px #000d;opacity:1!important;visibility:visible!important;pointer-events:none;text-shadow:0 1px 2px #0008;background:" + keyBadgeColor(songKey);
+            c.appendChild(keyBadge);
+            d.appendChild(c);
             d.appendChild(pl);
             d.appendChild(n);
             d.addEventListener("click", () => {
@@ -11431,6 +11500,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         var editMode = false, editDraft = [], editOrig = "", editSel = 0, editSeq = 0, editPPS = 0, editMinPPS = 1,
           editSnap = "bar", editSnapInit = false, editLink = true, editPtrs = new Map(), editG = null,
           wavePaintScroll = -1e9, secPanel = null, secTip = null, pendJump = null, curSecIdx = -2;
+        var editHistory = [], editHistoryIndex = -1, editHistorySig = "";
 
         const r3 = (v) => Math.round(v * 1000) / 1000;
         const secToast = (m, err) => {
@@ -11704,6 +11774,9 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           }));
           sortDraft();
           editOrig = draftSig();
+          editHistory = [editDraft.map((r) => ({ ...r }))];
+          editHistoryIndex = 0;
+          editHistorySig = editOrig;
           const at = curAt(), under = editDraft.find((r) => at >= r.start && at < r.end);
           editSel = under ? under.id : editDraft.length ? editDraft[0].id : 0;
           if (!editSnapInit) {
@@ -11858,7 +11931,14 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           document.addEventListener("keydown", (e) => {
             if (!editMode) return;
             const tag = (document.activeElement && document.activeElement.tagName) || "";
-            if (/INPUT|SELECT|TEXTAREA/.test(tag)) return;
+            const editable = /INPUT|SELECT|TEXTAREA/.test(tag);
+            const editingSections = !!document.activeElement?.closest?.("#secPanel");
+            if ((e.ctrlKey || e.metaKey) && !e.altKey && (!editable || editingSections)) {
+              const key = e.key.toLowerCase();
+              if (key === "z" && !e.shiftKey) { e.preventDefault(); undoSectionEdit(); return; }
+              if ((key === "z" && e.shiftKey) || key === "y" || key === "x") { e.preventDefault(); redoSectionEdit(); return; }
+            }
+            if (editable) return;
             if (e.key === "Delete" || e.key === "Backspace") {
               deleteSection();
               e.preventDefault();
@@ -11942,11 +12022,31 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         }
         function editRefresh() {
           if (!secPanel) return;
+          if (editMode) {
+            const signature = draftSig();
+            if (signature !== editHistorySig) {
+              editHistory = editHistory.slice(0, editHistoryIndex + 1);
+              editHistory.push(editDraft.map((r) => ({ ...r })));
+              if (editHistory.length > 100) editHistory.shift();
+              editHistoryIndex = editHistory.length - 1;
+              editHistorySig = signature;
+            }
+          }
           const d = editDirty(), sv = $("spSave");
           sv.classList.toggle("dirty", d);
           sv.disabled = !d;
           secPanel.classList.toggle("dirty", d);
         }
+        function restoreEditHistory(index) {
+          if (!editMode || index < 0 || index >= editHistory.length || index === editHistoryIndex) return;
+          editHistoryIndex = index;
+          editDraft = editHistory[index].map((r) => ({ ...r }));
+          editHistorySig = draftSig();
+          editSel = editDraft.some((r) => r.id === editSel) ? editSel : editDraft[0]?.id || 0;
+          buildTrack(); layoutTimeline(); refreshPanel();
+        }
+        const undoSectionEdit = () => restoreEditHistory(editHistoryIndex - 1);
+        const redoSectionEdit = () => restoreEditHistory(editHistoryIndex + 1);
         function selectSec(id) {
           editSel = id;
           secEls.forEach(({ el }) => el.classList.toggle("sel", +el.dataset.id === id));
@@ -12024,12 +12124,14 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         function deleteSection() {
           const r = selSec();
           if (!r) return;
-          const i = editDraft.indexOf(r);
-          editDraft.splice(i, 1);
-          editSel = 0;
-          buildTrack();
-          layoutTimeline();
-          refreshPanel();
+          showSectionConfirm(`¿Eliminar la sección «${r.name || "Sin nombre"}»?`, () => {
+            const i = editDraft.indexOf(r);
+            editDraft.splice(i, 1);
+            editSel = 0;
+            buildTrack();
+            layoutTimeline();
+            refreshPanel();
+          }, "Eliminar sección");
         }
         function moveEdge(r, edge, t, nb, linked) {
           if (edge === "s") {
@@ -12222,9 +12324,25 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         window.hasUnsavedSectionEdits = () => editMode && editDirty();
         window.saveSectionEditsForClose = (done) => saveEdit(done);
         window.discardSectionEditsForClose = () => exitEdit();
+        function showSectionConfirm(message, onConfirm, confirmLabel = "Continuar") {
+          document.getElementById("sectionConfirmOverlay")?.remove();
+          const overlay = document.createElement("div");
+          overlay.id = "sectionConfirmOverlay";
+          overlay.style.cssText = "position:fixed;inset:0;z-index:2147482000;display:grid;place-items:center;padding:18px;background:#000b;backdrop-filter:blur(5px);font:14px system-ui,sans-serif;color:#eef1f3";
+          overlay.innerHTML = `<section role="alertdialog" aria-modal="true" style="box-sizing:border-box;width:min(420px,100%);padding:22px;background:#191c1f;border:1px solid #3b4147;border-radius:16px;box-shadow:0 24px 70px #000c"><strong style="font-size:19px">Confirmar cambio</strong><p data-copy style="margin:12px 0 20px;color:#b8bec4;line-height:1.5"></p><footer style="display:flex;justify-content:flex-end;gap:8px"><button type="button" data-cancel style="padding:9px 12px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff;cursor:pointer">Volver</button><button type="button" data-confirm style="padding:9px 14px;border:1px solid #9a484c;border-radius:9px;background:#713236;color:#fff;cursor:pointer"></button></footer></section>`;
+          overlay.querySelector("[data-copy]").textContent = message;
+          const close = () => overlay.remove();
+          const confirm = overlay.querySelector("[data-confirm]");
+          confirm.textContent = confirmLabel;
+          overlay.querySelector("[data-cancel]").onclick = close;
+          confirm.onclick = () => { close(); onConfirm?.(); };
+          overlay.onclick = (event) => { if (event.target === overlay) close(); };
+          overlay.addEventListener("keydown", (event) => { if (event.key === "Escape") close(); });
+          document.body.appendChild(overlay); confirm.focus();
+        }
         function cancelEdit() {
-          if (editDirty() && !window.confirm("¿Descartar los cambios de las secciones?")) return;
-          exitEdit();
+          if (!editDirty()) { exitEdit(); return; }
+          showSectionConfirm("¿Descartar los cambios de las secciones?", exitEdit, "Descartar cambios");
         }
 
         /* ---------- salto de sección: al tocar una, se va a ella cuando termine la actual ---------- */

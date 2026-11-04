@@ -88,6 +88,7 @@ private:
 
     // claves publicadas
     juce::String songsString();
+    juce::String libraryString();
     juce::String playSongString();
     juce::String timelineString();
     juce::String waveRow(double duration);
@@ -110,6 +111,8 @@ private:
     void refreshCover(Song&);
     void saveCoverOverride(const juce::String& hash, const juce::String& value);
     void loadLibrary();
+    void openLibraryProject(const juce::String& id);
+    juce::File ensureLibraryFolder(Song& song);
     void migrateLegacyLibrary();
     void addRecent(const juce::File&);
     void startImport(int slot, juce::Array<juce::File> files, juce::StringArray names, juce::StringArray routings = {},
