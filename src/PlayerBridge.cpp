@@ -189,10 +189,7 @@ void PlayerBridge::activate(int index)
 {
     const juce::ScopedLock sl(lock);
     if (index < 0 || index >= (int) songs.size()) return;
-    if (active >= 0 && active < (int) songs.size() && active != index) {
-        const int previousSlot = songs[(size_t)active].slot;
-        if (!engine.isSongPlaying(previousSlot)) engine.releaseSong(previousSlot, false);
-    }
+    // Keep inactive project tracks resident so switching tabs does not reload audio.
     active = index;
     engine.setActiveSong(songs[(size_t) index].slot);
     engine.bpm.store(songs[(size_t) index].tempo);

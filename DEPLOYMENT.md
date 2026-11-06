@@ -38,7 +38,7 @@ La API ya esta desplegada como Web Service gratuito de Render desde el repositor
 | `HOST` | `0.0.0.0` |
 | `COMMUNITY_DATA_DIR` | `/tmp/stagetracks` para archivos temporales durante la validacion |
 | `MAX_UPLOAD_MB` | `100` para la ruta multipart antigua |
-| `MAX_CHUNKED_UPLOAD_MB` | `1024` para publicaciones de hasta 1 GB en bloques de 8 MB |
+| `MAX_CHUNKED_UPLOAD_MB` | `2048` para publicaciones de hasta 2 GB en bloques de 8 MB |
 | `CORS_ORIGIN` | `https://stagetrack-ten.vercel.app` |
 | `COMMUNITY_ADMIN_TOKEN` | Un token largo y privado para moderar publicaciones |
 | `AUTO_APPROVE` | Ya no se necesita: las publicaciones nuevas se muestran al completar la carga. Las secuencias antiguas pendientes se publican al iniciar la API. |
@@ -54,7 +54,7 @@ https://stagetracks-api.onrender.com/api/sequences
 
 La primera debe devolver JSON con `"ok": true`; la segunda, `results` y `total`. Usa la URL base de este servicio en la siguiente seccion.
 
-**Tamano de las subidas:** la web envia paquetes de hasta 1 GB en bloques de 8 MB al servicio Node; configura `MAX_CHUNKED_UPLOAD_MB=1024` en Render. Render los guarda temporalmente en `COMMUNITY_DATA_DIR`, valida el ZIP y luego envia el archivo a Google Drive. El disco temporal debe tener espacio libre para el paquete completo y no conserva datos tras reiniciar o desplegar; Drive sigue siendo el almacenamiento permanente. La ruta multipart antigua conserva el limite `MAX_UPLOAD_MB`.
+**Tamano de las subidas:** la web envia paquetes de hasta 2 GB en bloques de 8 MB al servicio Node; configura `MAX_CHUNKED_UPLOAD_MB=2048` en Render. Render los guarda temporalmente en `COMMUNITY_DATA_DIR`, valida el ZIP y luego envia el archivo a Google Drive. El disco temporal debe tener espacio libre para el paquete completo y no conserva datos tras reiniciar o desplegar; Drive sigue siendo el almacenamiento permanente. La ruta multipart antigua conserva el limite `MAX_UPLOAD_MB`.
 
 ## 2. Configurar el proyecto Vercel
 
@@ -152,7 +152,7 @@ $token
 ```
 
 6. En Apps Script, abre Deploy > Manage deployments > Edit en la implementación actual y selecciona New version. Déjala como Web app, Execute as: Me y Who has access: Anyone. Actualizar la implementación conserva la URL /exec que ya usa el proyecto.
-7. **Para aceptar paquetes de hasta 1 GB**, vuelve a desplegar una nueva version despues de copiar el `Code.gs` actualizado. Apps Script solo inicia la sesion de carga; la API envia el archivo directamente a Drive. La version desplegada anteriormente rechazaba archivos mayores a 110 MB.
+7. **Para aceptar paquetes de hasta 2 GB**, vuelve a desplegar una nueva version despues de copiar el `Code.gs` actualizado. Apps Script solo inicia la sesion de carga; la API envia el archivo directamente a Drive. La version desplegada anteriormente rechazaba archivos mayores a 110 MB.
 8. En Render > stagetracks-api > Environment, define estos valores privados. Usa la URL /exec que ya compartiste y el mismo secreto en ambas variables de token:
 
 | Variable | Valor |
@@ -187,7 +187,7 @@ Antes de iniciar Vite, ejecuta `packaging/windows/build-release.ps1` desde la ra
 
 - **CORS o `Failed to fetch`:** confirma que `STAGETRACKS_COMMUNITY_API` sea el origen HTTPS base y que `CORS_ORIGIN` en la API sea el dominio de la web, sin `/` final. Guarda cambios y vuelve a desplegar la web.
 - **`404` en `/api/sequences`:** revisa que el servicio API este activo y que la variable no termine en `/api`; el codigo agrega esa ruta.
-- **`413 Payload Too Large`:** confirma `MAX_CHUNKED_UPLOAD_MB=1024` en Render y que la web use la nueva carga por bloques. Cada bloque es de 8 MB y se envia directamente al servicio Node externo, no a una Vercel Function.
+- **`413 Payload Too Large`:** confirma `MAX_CHUNKED_UPLOAD_MB=2048` en Render y que la web use la nueva carga por bloques. Cada bloque es de 8 MB y se envia directamente al servicio Node externo, no a una Vercel Function.
 - **Las publicaciones desaparecen tras reiniciar:** configura `GOOGLE_DRIVE_APPS_SCRIPT_URL` y `GOOGLE_DRIVE_APPS_SCRIPT_TOKEN` en Render, actualiza la implementación de Apps Script y confirma que la carpeta `StageTracks Community` aparezca en Drive.
 - **La publicacion se recibe pero no aparece:** espera a que Render reinicie con la nueva version y revisa `/api/sequences`. Las publicaciones nuevas son inmediatas y la API recupera del estado de Drive las secuencias antiguas pendientes al iniciar.
 - **Los botones de instalador no descargan:** define sus variables `STAGETRACKS_*_URL` con enlaces HTTPS publicos y vuelve a desplegar Vercel.

@@ -14,7 +14,7 @@ cover.jpg              # opcional; el formulario también admite otra carátula
 
 El archivo `.rpseq` debe incluir un objeto `songs` con al menos una canción. Cada pista usa `tracks[].items[].file` para apuntar a una ruta **relativa** como `audio/01-guia.mp3`. Los audios referenciados deben estar dentro del mismo paquete. No uses rutas absolutas, unidades como `C:\` ni rutas con `..`.
 
-Formatos de audio admitidos: MP3, WAV, FLAC, OGG, M4A, AIFF y WMA. El paquete puede pesar hasta 1 GB en el formulario; el administrador del servidor puede cambiar ese límite.
+Formatos de audio admitidos: MP3, WAV, FLAC, OGG, M4A, AIFF y WMA. El paquete puede pesar hasta 2 GB en el formulario; el administrador del servidor puede cambiar ese límite.
 
 ## Campos de publicación
 

@@ -8180,7 +8180,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           const status = form.querySelector("[data-status]");
           if (!ok) { status.textContent = value || "No se pudo preparar la secuencia activa."; toast(status.textContent, true); return; }
           const size = Number(value);
-          if (!size || size > maxCommunityPackageBytes) { status.textContent = "El paquete debe pesar hasta 1 GB."; toast(status.textContent, true); return; }
+          if (!size || size > maxCommunityPackageBytes) { status.textContent = "El paquete debe pesar hasta 2 GB."; toast(status.textContent, true); return; }
           form.dataset.communityPackageSize = String(size);
           form.querySelector('[name="package"]').required = false;
           form.querySelector("[data-current-sequence]").textContent = `Secuencia activa lista · ${(size / 1024 / 1024).toFixed(1)} MB`;
@@ -8191,7 +8191,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           return String(window.STAGETRACKS_COMMUNITY_API || "").trim().replace(/\/+$/, "").replace(/\/api$/i, "");
         }
         function communityText(es, en) { const lang = localStorage.getItem("studioLanguage") || "es", translated = window.uiTranslateText?.(es); return translated && translated !== es ? translated : lang === "en" ? en : es; }
-        const maxCommunityPackageBytes = 1024 * 1024 * 1024;
+        const maxCommunityPackageBytes = 2 * 1024 * 1024 * 1024;
         async function readCommunityExportChunk(from, to, totalBytes) {
           let lastError = null;
           for (let attempt = 0; attempt < 3; attempt++) {
@@ -8289,7 +8289,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           if (!communityApiBase()) { toast(communityText("La comunidad no está disponible por ahora.", "The community is unavailable right now."), true); return; }
           const current = songs.list[songs.active] || {}, overlay = document.createElement("div");
           overlay.style.cssText = "position:fixed;inset:0;z-index:12002;display:grid;place-items:center;padding:18px;background:#000b;backdrop-filter:blur(5px);font:14px system-ui,sans-serif;color:#eef1f3";
-          overlay.innerHTML = `<section role="dialog" aria-modal="true" style="box-sizing:border-box;width:min(520px,100%);max-height:90vh;overflow:auto;padding:20px;background:#191c1f;border:1px solid #3b4147;border-radius:16px;box-shadow:0 24px 70px #000c"><header style="display:flex;align-items:center;justify-content:space-between"><strong style="font-size:19px">${communityText("Subir secuencia a la comunidad", "Upload a sequence to the community")}</strong><button type="button" data-close style="border:0;background:transparent;color:#c8cdd2;font-size:25px;cursor:pointer">×</button></header><p style="color:#aeb4ba;line-height:1.45">${communityText("En StageTracks puedes subir directamente la secuencia activa de Mi biblioteca. También puedes elegir un archivo .rpseq o .zip. Se sube en bloques y puede pesar hasta 1 GB.", "In StageTracks, upload the active sequence from My Library directly. You can also choose a .rpseq or .zip file. Uploads are chunked and can be up to 1 GB.")}</p><form data-form><label style="display:block;margin:10px 0 5px">${communityText("Nombre de la canción", "Song title")}</label><input name="name" required maxlength="120" value="${String(current.name || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:10px 0 5px">${communityText("Artista o grupo", "Artist or band")}</label><input name="artist" required maxlength="120" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="display:block;margin:10px 0 5px">${communityText("Tonalidad", "Key")}</label><select name="key" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option value="">—</option>${"C C# Db D D# Eb E F F# Gb G G# Ab A A# Bb B Cm C#m Dbm Dm D#m Ebm Em Fm F#m Gbm Gm G#m Abm Am A#m Bbm Bm".split(" ").map(key => `<option>${key}</option>`).join("")}</select></div><div><label style="display:block;margin:10px 0 5px">BPM</label><input name="bpm" type="number" min="40" max="240" value="${current.tempoKnown ? Math.round(current.tempo) : 120}" required style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="display:block;margin:10px 0 5px">${communityText("Compás", "Time signature")}</label><select name="meter" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option>4/4</option><option>3/4</option><option>6/8</option><option>2/4</option><option>5/4</option><option>7/4</option><option>9/8</option><option>12/8</option></select></div><div><label style="display:block;margin:10px 0 5px">${communityText("Género", "Genre")}</label><select name="genre" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option>Adoración</option><option>Gospel</option><option>Contemporáneo</option><option>Acústico</option><option>Rock</option><option>Otro</option></select></div></div><label style="display:block;margin:12px 0 5px">${communityText("Paquete .rpseq o .zip", "Sequence package (.rpseq or .zip)")}</label><input name="package" type="file" accept=".rpseq,.zip,application/zip" required><label style="display:block;margin:12px 0 5px">${communityText("Carátula opcional", "Optional cover")}</label><input name="cover" type="file" accept="image/png,image/jpeg,image/webp"><small data-status aria-live="polite" style="display:block;min-height:20px;margin-top:10px;color:#aeb4ba"></small><footer style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px"><button type="button" data-cancel style="padding:9px 13px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff;cursor:pointer">${communityText("Cancelar", "Cancel")}</button><button type="submit" style="padding:9px 14px;border:0;border-radius:9px;background:#2c83df;color:#fff;cursor:pointer">${communityText("Subir", "Upload")}</button></footer></form></section>`;
+          overlay.innerHTML = `<section role="dialog" aria-modal="true" style="box-sizing:border-box;width:min(520px,100%);max-height:90vh;overflow:auto;padding:20px;background:#191c1f;border:1px solid #3b4147;border-radius:16px;box-shadow:0 24px 70px #000c"><header style="display:flex;align-items:center;justify-content:space-between"><strong style="font-size:19px">${communityText("Subir secuencia a la comunidad", "Upload a sequence to the community")}</strong><button type="button" data-close style="border:0;background:transparent;color:#c8cdd2;font-size:25px;cursor:pointer">×</button></header><p style="color:#aeb4ba;line-height:1.45">${communityText("En StageTracks puedes subir directamente la secuencia activa de Mi biblioteca. También puedes elegir un archivo .rpseq o .zip. Se sube en bloques y puede pesar hasta 2 GB.", "In StageTracks, upload the active sequence from My Library directly. You can also choose a .rpseq or .zip file. Uploads are chunked and can be up to 2 GB.")}</p><form data-form><label style="display:block;margin:10px 0 5px">${communityText("Nombre de la canción", "Song title")}</label><input name="name" required maxlength="120" value="${String(current.name || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:10px 0 5px">${communityText("Artista o grupo", "Artist or band")}</label><input name="artist" required maxlength="120" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="display:block;margin:10px 0 5px">${communityText("Tonalidad", "Key")}</label><select name="key" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option value="">—</option>${"C C# Db D D# Eb E F F# Gb G G# Ab A A# Bb B Cm C#m Dbm Dm D#m Ebm Em Fm F#m Gbm Gm G#m Abm Am A#m Bbm Bm".split(" ").map(key => `<option>${key}</option>`).join("")}</select></div><div><label style="display:block;margin:10px 0 5px">BPM</label><input name="bpm" type="number" min="40" max="240" value="${current.tempoKnown ? Math.round(current.tempo) : 120}" required style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="display:block;margin:10px 0 5px">${communityText("Compás", "Time signature")}</label><select name="meter" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option>4/4</option><option>3/4</option><option>6/8</option><option>2/4</option><option>5/4</option><option>7/4</option><option>9/8</option><option>12/8</option></select></div><div><label style="display:block;margin:10px 0 5px">${communityText("Género", "Genre")}</label><select name="genre" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option>Adoración</option><option>Gospel</option><option>Contemporáneo</option><option>Acústico</option><option>Rock</option><option>Otro</option></select></div></div><label style="display:block;margin:12px 0 5px">${communityText("Paquete .rpseq o .zip", "Sequence package (.rpseq or .zip)")}</label><input name="package" type="file" accept=".rpseq,.zip,application/zip" required><label style="display:block;margin:12px 0 5px">${communityText("Carátula opcional", "Optional cover")}</label><input name="cover" type="file" accept="image/png,image/jpeg,image/webp"><small data-status aria-live="polite" style="display:block;min-height:20px;margin-top:10px;color:#aeb4ba"></small><footer style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px"><button type="button" data-cancel style="padding:9px 13px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff;cursor:pointer">${communityText("Cancelar", "Cancel")}</button><button type="submit" style="padding:9px 14px;border:0;border-radius:9px;background:#2c83df;color:#fff;cursor:pointer">${communityText("Subir", "Upload")}</button></footer></form></section>`;
           const form = overlay.querySelector("[data-form]"), status = overlay.querySelector("[data-status]"), submit = form.querySelector('[type="submit"]');
           form.elements.artist.value = current.artist || "";
           form.elements.key.value = current.key || "";
@@ -8339,7 +8339,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             const packageSize = Number(form.dataset.communityPackageSize);
             const packageFile = packageSize ? { name: `${String(data.get("name") || "StageTracks")}.rpseq`, size: packageSize, hostExport: true } : selectedPackage;
             if (!packageFile?.size) { status.textContent = communityText("Selecciona el archivo de secuencia.", "Choose a sequence file."); return; }
-            if (packageFile.size > maxCommunityPackageBytes) { status.textContent = communityText("El paquete supera el límite de 1 GB.", "The package exceeds the 1 GB limit."); return; }
+            if (packageFile.size > maxCommunityPackageBytes) { status.textContent = communityText("El paquete supera el límite de 2 GB.", "The package exceeds the 2 GB limit."); return; }
             if (coverFile?.size > 8 * 1024 * 1024) { status.textContent = communityText("La carátula debe pesar hasta 8 MB.", "The cover image must be 8 MB or smaller."); return; }
             const metadata = { name: String(data.get("name") || "").trim(), artist: String(data.get("artist") || "").trim(), key: String(data.get("key") || ""), bpm: String(Math.round(Number(data.get("bpm")) || 120)), meter: String(data.get("meter") || "4/4"), genre: String(data.get("genre") || "") };
             submit.disabled = true; uploadPending = true; status.textContent = communityText("Preparando la carga…", "Preparing upload…");
@@ -8487,7 +8487,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             }
             const info = document.createElement("span"); info.style.cssText = "min-width:0;flex:1";
             const name = document.createElement("strong"); name.style.cssText = "display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"; name.textContent = item.name || "Secuencia";
-            const meta = document.createElement("small"); meta.style.cssText = "display:block;margin-top:4px;color:#9da6af"; meta.textContent = `${item.artist || "Comunidad"} · ${item.bpm || "--"} BPM · ${item.meter || "4/4"}`;
+            const meta = document.createElement("small"); meta.style.cssText = "display:block;margin-top:4px;color:#9da6af"; meta.textContent = `${item.artist || "Comunidad"} · ${item.key ? `Tono ${item.key} · ` : ""}${item.bpm || "--"} BPM · ${item.meter || "4/4"}`;
             info.append(name, meta);
             const down = document.createElement("button"); down.type = "button";
             const installed = isCommunitySequenceInstalled(item);
@@ -8915,6 +8915,20 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           const root = normalized.replace(/m$/i, "");
           return KEY_BADGE_COLORS[root]?.[minor ? 1 : 0] || "#475569";
         }
+        async function cacheCoverData(url) {
+          if (!url) return "";
+          const response = await fetch(url, { mode: "cors", credentials: "omit" });
+          if (!response.ok) throw new Error("cover download failed");
+          const bitmap = await createImageBitmap(await response.blob());
+          const canvas = document.createElement("canvas");
+          canvas.width = 480; canvas.height = 270;
+          const ctx = canvas.getContext("2d");
+          const scale = Math.max(canvas.width / bitmap.width, canvas.height / bitmap.height);
+          const width = bitmap.width * scale, height = bitmap.height * scale;
+          ctx.drawImage(bitmap, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+          bitmap.close?.();
+          return canvas.toDataURL("image/jpeg", 0.78);
+        }
         function autoCover(s) {
           const k = coverKey(s);
           if (s.hash) {
@@ -8935,7 +8949,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             try {
               const r = await itunesSearch(songClean(s.name));
               if (s.hash) {
-                setCover(s, r[0] ? r[0].url : "");
+                setCover(s, r[0] ? await cacheCoverData(r[0].url) : "");
               } else {
                 ls.set(k + ":tried", "1");
                 if (r[0]) {
@@ -9316,7 +9330,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             keyBadge.textContent = songKey || "?";
             keyBadge.title = songKey ? "Tonalidad: " + songKey : "Tonalidad sin definir";
             keyBadge.setAttribute("aria-label", songKey ? "Tonalidad " + songKey : "Tonalidad sin definir");
-            keyBadge.style.cssText = "position:absolute;top:auto;right:8px;bottom:8px;z-index:10000;width:36px;height:36px;min-width:36px;box-sizing:border-box;padding:0;border-radius:50%;display:grid!important;place-items:center;border:2px solid #fff;color:#fff;font:800 15px/1 system-ui,sans-serif;box-shadow:0 2px 10px #000d;opacity:1!important;visibility:visible!important;pointer-events:none;text-shadow:0 1px 2px #0008;background:" + keyBadgeColor(songKey);
+            keyBadge.style.cssText = "position:absolute;top:8px;right:8px;bottom:auto;z-index:10000;width:36px;height:36px;min-width:36px;box-sizing:border-box;padding:0;border-radius:50%;display:grid!important;place-items:center;border:2px solid #fff;color:#fff;font:800 15px/1 system-ui,sans-serif;box-shadow:0 2px 10px #000d;opacity:1!important;visibility:visible!important;pointer-events:none;text-shadow:0 1px 2px #0008;background:" + keyBadgeColor(songKey);
             c.appendChild(keyBadge);
             d.appendChild(c);
             d.appendChild(pl);
@@ -9379,7 +9393,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
               o.firstChild.style.backgroundImage = 'url("' + x.thumb + '")';
               o.lastChild.textContent = x.label;
               o.addEventListener("click", () => {
-                setCover(songs.coverFor, x.url);
+                cacheCoverData(x.url).then((data) => setCover(songs.coverFor, data)).catch(() => toast("Cover could not be saved for offline use.", true));
                 closeCoverPicker();
               });
               g.appendChild(o);
