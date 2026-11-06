@@ -260,7 +260,8 @@ void WebControlServer::run()
 juce::String WebControlServer::page() const
 {
     auto html = juce::String::fromUTF8(BinaryData::studio_html, BinaryData::studio_htmlSize);
-    auto communityApi = juce::String("http://127.0.0.1:47822");
+    // Keep development and portable builds connected when no sidecar config exists.
+    auto communityApi = juce::String("https://stagetracks-community-api.stagetracks-official-site.workers.dev");
     const auto configFile = juce::File::getSpecialLocation(juce::File::currentExecutableFile)
                                 .getParentDirectory().getChildFile("community-config.json");
     if (configFile.existsAsFile()) {
