@@ -1968,10 +1968,35 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
       .tile.paused .art {
         border-color: #d8a94d !important;
       }
-      .tile-status {
+      .tile-badges {
         position: absolute;
         left: 10px;
         bottom: 9px;
+        right: 10px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        pointer-events: none;
+      }
+      .tile-key {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 9px;
+        border: 1px solid #ffffff2e;
+        border-radius: 999px;
+        background: #0b0d10e8;
+        color: #fff;
+        font: 800 9px system-ui, sans-serif;
+        letter-spacing: 0.11em;
+        box-shadow: 0 3px 12px #0008;
+        backdrop-filter: blur(6px);
+        white-space: nowrap;
+      }
+      .tile-key .tk-l { color: #9da4aa; }
+      .tile-key b { font-size: 12px; letter-spacing: 0.02em; color: #ffd166; }
+      .tile-status {
+        position: static;
         display: inline-flex;
         align-items: center;
         gap: 7px;
@@ -9029,6 +9054,19 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           if (libraryKeySignature !== previousKeySignature && songs.list.length) renderSongs(false);
           if (songLibraryMode === "local") renderSongLibrarySearch();
         }
+        /* ===== canción de ejemplo (solo vista previa) =====
+           Se muestra al abrir studio.html como archivo suelto o con ?demo=1, para ver el indicador de tonalidad
+           sin necesitar la app nativa. Cambia DEMO_SONG para probar otra canción/tonalidad. */
+        const DEMO_SONG = { name: "Quien Podra", artist: "", key: "A" };
+        if (/[?&]demo=1\b/.test(location.search) || location.protocol === "file:") {
+          setTimeout(() => {
+            if (songs.list.length) return;
+            songs.list = [{ name: DEMO_SONG.name, pathHex: "-", hash: "", state: "n", ver: "0", tempo: 92, sigNum: 4, sigDen: 4, tempoManual: false, tempoKnown: true, artist: DEMO_SONG.artist, communityId: "", key: DEMO_SONG.key }];
+            songs.sig = "demo";
+            songs.active = 0;
+            renderSongs(false);
+          }, 300);
+        }
         /* ===== exportar secuencias (zip + .rpseq para REAPER Playback) ===== */
         window.receiveExportResult = (ok, msg) => {
           if (ok === null) return;
@@ -9628,7 +9666,8 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           "Opciones": ["Options", "Opções", "Options", "Optionen"],
           "Ajustes": ["Settings", "Configurações", "Paramètres", "Einstellungen"],
           "SONANDO": ["PLAYING", "TOCANDO", "EN LECTURE", "WIEDERGABE"],
-          "EN PAUSA": ["PAUSED", "PAUSADO", "EN PAUSE", "PAUSIERT"]
+          "EN PAUSA": ["PAUSED", "PAUSADO", "EN PAUSE", "PAUSIERT"],
+          "TONO": ["KEY", "TOM", "TON", "TONART"]
         };
         const languageIndex = () => ({ en: 0, pt: 1, fr: 2, de: 3 }[localStorage.getItem("studioLanguage")] ?? -1);
         const translateValue = (value) => {
@@ -10931,6 +10970,8 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
                 ":" +
                 x.className +
                 ":" +
+                (x.dataset.songKey || "") +
+                ":" +
                 x.querySelector(".pcover")?.style.backgroundImage,
             )
             .join("|");
@@ -10988,13 +11029,27 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             };
             tools.append(menu, cover);
             art.appendChild(tools);
-            if (isNowPlaying || isPaused) {
-              const status = document.createElement("div");
-              status.className = "tile-status";
-              status.innerHTML =
-                '<span class="eq"><i></i><i></i><i></i><i></i></span>' +
-                (isNowPlaying ? "SONANDO" : "EN PAUSA");
-              art.appendChild(status);
+            const keyText = String(h.dataset.songKey || "").trim();
+            if (isNowPlaying || isPaused || keyText) {
+              const badges = document.createElement("div");
+              badges.className = "tile-badges";
+              if (isNowPlaying || isPaused) {
+                const status = document.createElement("div");
+                status.className = "tile-status";
+                status.innerHTML =
+                  '<span class="eq"><i></i><i></i><i></i><i></i></span>' +
+                  (isNowPlaying ? "SONANDO" : "EN PAUSA");
+                badges.appendChild(status);
+              }
+              if (keyText) {
+                const chip = document.createElement("div");
+                chip.className = "tile-key";
+                chip.title = "Tonalidad: " + keyText;
+                chip.innerHTML = '<span class="tk-l">TONO</span><b></b>';
+                chip.querySelector("b").textContent = keyText;
+                badges.appendChild(chip);
+              }
+              art.appendChild(badges);
             }
             const label = document.createElement("div");
             label.className = "nm";
@@ -11497,7 +11552,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           }
           if (typeof window.wwr_start === "function") wwr_start();
           req(
-            "NTRACK;TRACK;GET/EXTSTATE/WebControl/songs;GET/EXTSTATE/WebControl/playsong;GET/EXTSTATE/WebControl/metainfo;GET/EXTSTATE/WebControl/timeline",
+            "NTRACK;TRACK;GET/EXTSTATE/WebControl/songs;GET/EXTSTATE/WebControl/library;GET/EXTSTATE/WebControl/playsong;GET/EXTSTATE/WebControl/metainfo;GET/EXTSTATE/WebControl/timeline",
           );
           setTimeout(() => wwr_req("GET/EXTSTATE/WebControl/timeline"), 700);
           transport();
