@@ -1,7 +1,7 @@
 // Configura la API comunitaria y las URLs HTTPS de los binarios antes de publicar.
 window.STAGETRACKS_COMMUNITY_API = window.location.origin;
 window.STAGETRACKS_DOWNLOADS = {
-  installer: "https://github.com/Edu-space-IDC/StageTrack/releases/download/v0.5.24/StageTracks-Setup-windows-x64.exe",
-  portable: "https://github.com/Edu-space-IDC/StageTrack/releases/download/v0.5.24/StageTracks-portable-windows-x64.zip",
-  reaperStudioExe: "https://github.com/Edu-space-IDC/StageTrack/releases/download/v0.5.24/Reaper.Control.Studio.exe"
+  installer: "https://github.com/Edu-space-IDC/StageTrack/releases/download/v0.5.25/StageTracks-Setup-windows-x64.exe",
+  portable: "https://github.com/Edu-space-IDC/StageTrack/releases/download/v0.5.25/StageTracks-portable-windows-x64.zip",
+  reaperStudioExe: "https://github.com/Edu-space-IDC/StageTrack/releases/download/v0.5.25/Reaper.Control.Studio.exe"
 };

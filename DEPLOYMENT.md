@@ -1,6 +1,6 @@
 # StageTracks: publicar en Vercel y conectar la API de Comunidad
 
-La pagina se despliega en Vercel como sitio estatico. La API de Comunidad se esta migrando de Render a Cloudflare Workers. El Worker usara Google Apps Script para el indice y Google Drive para paquetes y caratulas; hasta configurar el Worker, la web y StageTracks 0.5.24 siguen apuntando a Render.
+La pagina se despliega en Vercel como sitio estatico. La API de Comunidad funciona en Cloudflare Workers y usa Google Apps Script para el indice y Google Drive para paquetes y caratulas. StageTracks 0.5.25 usa el Worker como destino de respaldo cuando no hay `community-config.json` junto al ejecutable.
 
 ## Como queda conectado
 
