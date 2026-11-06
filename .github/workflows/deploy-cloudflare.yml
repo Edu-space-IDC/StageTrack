@@ -19,11 +19,3 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --config cloudflare/wrangler.toml
-          secrets: |
-            APPS_SCRIPT_URL
-            API_TOKEN
-            COMMUNITY_ADMIN_TOKEN
-        env:
-          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
-          API_TOKEN: ${{ secrets.API_TOKEN }}
-          COMMUNITY_ADMIN_TOKEN: ${{ secrets.COMMUNITY_ADMIN_TOKEN }}
