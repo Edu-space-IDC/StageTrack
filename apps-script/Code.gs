@@ -10,6 +10,7 @@ function doPost(e) {
     switch (action) {
       case 'load-state': result = loadState_(); break;
       case 'save-sequences': saveJson_('sequences.json', data.sequences, true); result = {}; break;
+      case 'publish-sequence': result = publishSequence_(data.item); break;
       case 'save-feedback': saveJson_('feedback.json', data.feedback, true); result = {}; break;
       case 'begin-upload': result = beginUpload_(data); break;
       case 'finish-upload': result = finishUpload_(data.fileId); break;
@@ -69,9 +70,37 @@ function saveJson_(name, value, mustBeArray) {
   } finally { lock.releaseLock(); }
 }
 
+function publishSequence_(item) {
+  if (!item || !item.id || !item.packageDriveFileId || !item.name || !item.artist) throw new Error('Los datos de la secuencia están incompletos.');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const folder = communityFolder_(), files = folder.getFilesByName('sequences.json');
+    let sequences = [], stateFile = null;
+    if (files.hasNext()) {
+      stateFile = files.next();
+      try { sequences = JSON.parse(stateFile.getBlob().getDataAsString('UTF-8')); } catch (_) { throw new Error('No se pudo leer sequences.json en Google Drive.'); }
+      if (!Array.isArray(sequences)) throw new Error('sequences.json no contiene una lista válida.');
+    }
+    const normalize = function(value) { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); };
+    const name = normalize(item.name), artist = normalize(item.artist), key = normalize(item.key);
+    const duplicate = sequences.find(function(existing) {
+      return existing.status === 'approved' && normalize(existing.name) === name &&
+        (normalize(existing.artist) === artist || normalize(existing.key) === key);
+    });
+    if (duplicate) throw new Error('Ya existe una secuencia con ese nombre y autor o tonalidad.');
+    sequences.unshift(item);
+    const text = JSON.stringify(sequences);
+    if (text.length > 8 * 1024 * 1024) throw new Error('El indice de la comunidad superó el límite seguro de 8 MB.');
+    if (stateFile) stateFile.setContent(text);
+    else folder.createFile('sequences.json', text, MimeType.PLAIN_TEXT);
+    return { item: item };
+  } finally { lock.releaseLock(); }
+}
+
 function beginUpload_(data) {
-  // Apps Script solo inicia la sesión resumible; el archivo se transmite desde
-  // la API transmite a Drive en una sesión reanudable; el máximo admitido es 2 GB.
+  // Apps Script solo inicia la sesión resumible. Cloudflare transmite bloques
+  // de hasta 80 MB directamente a Drive; el archivo completo puede pesar 2 GB.
   const maxDriveUploadBytes = 2 * 1024 * 1024 * 1024;
   const size = Number(data.size);
   if (!Number.isFinite(size) || size <= 0 || size > maxDriveUploadBytes) throw new Error('El archivo supera el límite de carga configurado (2 GB).');

@@ -1,0 +1,9 @@
+﻿# Cloudflare Workers settings
+name = "stagetracks-community-api"
+main = "worker.js"
+compatibility_date = "2026-11-01"
+workers_dev = true
+
+[[kv_namespaces]]
+binding = "COMMUNITY_KV"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
