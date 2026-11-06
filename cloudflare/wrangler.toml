@@ -6,4 +6,4 @@ workers_dev = true
 
 [[kv_namespaces]]
 binding = "COMMUNITY_KV"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "392d6f03e34e414bbcb719a85163da91"

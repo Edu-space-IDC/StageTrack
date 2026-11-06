@@ -32,6 +32,7 @@ async function scriptCall(env, action, data = {}) {
   return result;
 }
 async function getState(env) {
+  if (!env.APPS_SCRIPT_URL || !env.API_TOKEN) return scriptCall(env, "load-state");
   const cache = caches.default, key = new Request(`${new URL(env.APPS_SCRIPT_URL).origin}/__stagetracks_state_cache`);
   const cached = await cache.match(key);
   if (cached) return cached.json();
@@ -279,7 +280,7 @@ async function handle(request, env) {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(origin) });
   const url = new URL(request.url), path = url.pathname;
   try {
-    if (request.method === "GET" && path === "/api/health") return json({ ok: true, service: "StageTracks Community", storage: "Google Drive" }, 200, origin);
+    if (request.method === "GET" && path === "/api/health") return json({ ok: true, service: "StageTracks Community", storage: env.APPS_SCRIPT_URL && env.API_TOKEN ? "Google Drive" : "pending configuration" }, 200, origin);
     if (request.method === "GET" && path === "/api/sequences") {
       const state = await getState(env), query = String(url.searchParams.get("q") || "").trim().toLowerCase(), limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit")) || 20));
       const all = state.sequences.filter((item) => item.status === "approved" && (!query || `${item.name} ${item.artist} ${item.key} ${item.genre}`.toLowerCase().includes(query)));

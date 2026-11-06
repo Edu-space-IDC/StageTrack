@@ -14,7 +14,7 @@ No crees un bucket R2: las secuencias actuales permanecen en Drive. El plan Work
 ## Primer despliegue
 
 1. En Cloudflare habilita Workers y crea un namespace KV llamado `COMMUNITY_KV`.
-2. Copia el ID del namespace en `cloudflare/wrangler.toml`, reemplazando `REPLACE_WITH_KV_NAMESPACE_ID`.
+2. Copia el ID del namespace en `cloudflare/wrangler.toml`.
 3. Desde el editor de Apps Script, publica el `Code.gs` actualizado como Web App y confirma que conserva el `API_TOKEN` que usaba Render. No hace falta cambiar los archivos existentes del Drive.
 4. Desde una terminal autenticada con `npx wrangler login`, ejecuta desde la raiz del repo:
 
@@ -41,4 +41,4 @@ No crees un bucket R2: las secuencias actuales permanecen en Drive. El plan Work
 La migracion no elimina ni copia los archivos de Drive. Cuando la web y una version de escritorio ya apunten al Worker, Render se puede dejar suspendido sin afectar el catalogo.
 ## Despliegue automatico desde GitHub
 
-Crea el namespace KV en Cloudflare una vez y agrega estos GitHub Actions secrets al repositorio: `CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit y Workers KV Storage: Edit), `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_KV_NAMESPACE_ID`, `APPS_SCRIPT_URL`, `API_TOKEN` y `COMMUNITY_ADMIN_TOKEN`. Cada push a `main` que modifique `cloudflare/` o `apps-script/Code.gs` desplegara el Worker.
+Crea el namespace KV en Cloudflare una vez y agrega estos GitHub Actions secrets al repositorio: `CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit y Workers KV Storage: Edit), `CLOUDFLARE_ACCOUNT_ID`, `APPS_SCRIPT_URL`, `API_TOKEN` y `COMMUNITY_ADMIN_TOKEN`. El ID del namespace no es secreto; se guarda en `cloudflare/wrangler.toml`. Cada push a `main` que modifique `cloudflare/` o `apps-script/Code.gs` desplegara el Worker.
