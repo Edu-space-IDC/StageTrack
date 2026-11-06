@@ -89,6 +89,29 @@ static juce::String safeLibraryName(juce::String name)
     return name.isEmpty() ? "Sin título" : name;
 }
 
+static juce::File communityPackageForSidecar(const juce::File& sidecar)
+{
+    auto baseName = sidecar.getFileName();
+    const juce::String suffix = ".community.json";
+    if (baseName.endsWithIgnoreCase(suffix)) baseName = baseName.dropLastCharacters(suffix.length());
+    auto package = sidecar.getParentDirectory().getChildFile(baseName + ".zip");
+    if (!package.existsAsFile()) package = sidecar.getParentDirectory().getChildFile(baseName + ".rpseq");
+    return package.existsAsFile() ? package : juce::File();
+}
+
+static juce::File communityPackageForId(const juce::File& downloads, const juce::String& id)
+{
+    if (id.isEmpty()) return {};
+    juce::Array<juce::File> sidecars;
+    downloads.findChildFiles(sidecars, juce::File::findFiles, false, "*.community.json");
+    for (const auto& sidecar : sidecars) {
+        const auto metadata = juce::JSON::parse(sidecar);
+        if (metadata.getProperty("id", {}).toString() == id)
+            return communityPackageForSidecar(sidecar);
+    }
+    return {};
+}
+
 juce::String PlayerBridge::num(double v, int decimals) { return juce::String(v, decimals); }
 
 juce::String PlayerBridge::timeStr(double sec)
@@ -481,7 +504,7 @@ void PlayerBridge::loadLibrary()
                 if (meter.size() == 2) { song.timeSigNum = juce::jlimit(1,32,meter[0].getIntValue()); song.timeSigDen = juce::jlimit(1,32,meter[1].getIntValue()); }
                 const auto cover = metadata.getProperty("cover", {}).toString();
                 if (cover.startsWith("data:image/")) saveCoverOverride(song.hash, cover);
-                song.communityPackagePath = sidecar.withFileExtension("zip").existsAsFile() ? sidecar.withFileExtension("zip").getFullPathName() : sidecar.withFileExtension("rpseq").getFullPathName();
+                song.communityPackagePath = communityPackageForSidecar(sidecar).getFullPathName();
                 communityMetadataChanged = true;
                 installed = true; break;
             }
@@ -490,16 +513,13 @@ void PlayerBridge::loadLibrary()
                 song.key = metadata.getProperty("key", {}).toString();
                 const auto cover = metadata.getProperty("cover", {}).toString();
                 if (cover.startsWith("data:image/")) saveCoverOverride(song.hash, cover);
-                song.communityPackagePath = sidecar.withFileExtension("zip").existsAsFile() ? sidecar.withFileExtension("zip").getFullPathName() : sidecar.withFileExtension("rpseq").getFullPathName();
+                song.communityPackagePath = communityPackageForSidecar(sidecar).getFullPathName();
                 communityMetadataChanged = true;
                 installed = true; break;
             }
         }
         if (installed) continue;
-        auto baseName = sidecar.getFileName();
-        baseName = baseName.dropLastCharacters(juce::String(".community.json").length());
-        auto package = communityFolder.getChildFile(baseName + ".zip");
-        if (!package.existsAsFile()) package = communityFolder.getChildFile(baseName + ".rpseq");
+        const auto package = communityPackageForSidecar(sidecar);
         if (package.existsAsFile()) recoverCommunityPackages.push_back(package);
     }
     if (communityMetadataChanged) saveLibrary();
@@ -1258,6 +1278,96 @@ void PlayerBridge::openLibraryProject(const juce::String& id)
         if (!configFile.existsAsFile()) continue;
         const auto config = juce::JSON::parse(configFile);
         if (config.getProperty("id", {}).toString() != id) continue;
+        juce::Array<juce::File> files;
+        juce::StringArray names, routings, volumes, pans, mutes, solos, colors;
+        juce::Array<juce::var> storedSources;
+        int storedTrackCount = 0;
+        if (auto* tracks = config.getProperty("tracks", {}).getArray()) {
+            storedTrackCount = tracks->size();
+            for (const auto& track : *tracks) {
+                storedSources.add(track);
+                juce::File file(track.getProperty("path", {}).toString());
+                // Older library entries can contain a mojibake directory name (for example
+                // "Â¿Cancion"), while the managed audio copy beside sequence.json is intact.
+                // Resolve by basename before attempting to recover the community extraction.
+                if (!file.existsAsFile())
+                    file = folder.getChildFile("audio").getChildFile(file.getFileName());
+                if (!file.existsAsFile()) continue;
+                files.add(file);
+                names.add(track.getProperty("name", {}).toString());
+                routings.add(track.getProperty("routing", {}).toString());
+                volumes.add(track.getProperty("volume", 1.0).toString());
+                pans.add(track.getProperty("pan", 0.0).toString());
+                mutes.add((bool)track.getProperty("mute", false) ? "1" : "0");
+                solos.add((bool)track.getProperty("solo", false) ? "1" : "0");
+                colors.add(track.getProperty("color", {}).toString());
+            }
+        }
+        bool recoveredFromExtraction = false;
+        juce::File recoveredDocument;
+        if (files.size() < storedTrackCount) {
+            const juce::File extractionRoot(config.getProperty("communityExtractionPath", {}).toString());
+            if (extractionRoot.isDirectory()) {
+                juce::Array<juce::File> documents;
+                extractionRoot.findChildFiles(documents, juce::File::findFiles, true, "*.rpseq");
+                const auto wantedName = config.getProperty("name", {}).toString().trim().removeCharacters("¿?¡!").toLowerCase();
+                for (const auto& document : documents) {
+                    const auto manifest = juce::JSON::parse(document);
+                    auto* sequenceSongs = manifest.getProperty("songs", {}).getArray();
+                    if (sequenceSongs == nullptr) continue;
+                    for (const auto& sequenceSong : *sequenceSongs) {
+                        const auto sequenceName = sequenceSong.getProperty("name", {}).toString().trim().removeCharacters("¿?¡!").toLowerCase();
+                        if (sequenceSongs->size() > 1 && sequenceName != wantedName) continue;
+                        auto* tracks = sequenceSong.getProperty("tracks", {}).getArray();
+                        if (tracks == nullptr) continue;
+                        juce::Array<juce::File> recoveredFiles;
+                        juce::StringArray recoveredNames, recoveredRoutings, recoveredVolumes, recoveredPans, recoveredMutes, recoveredSolos, recoveredColors;
+                        const auto base = document.getParentDirectory();
+                        const auto prefix = extractionRoot.getFullPathName() + juce::File::getSeparatorString();
+                        for (const auto& track : *tracks) {
+                            auto* items = track.getProperty("items", {}).getArray();
+                            if (items == nullptr) continue;
+                            for (const auto& item : *items) {
+                                auto relative = item.getProperty("file", {}).toString();
+                                if (relative.isEmpty()) relative = item.getProperty("originalFile", {}).toString();
+                                if (relative.isEmpty()) continue;
+                                juce::File candidate(relative);
+                                if (!juce::File::isAbsolutePath(relative)) candidate = base.getChildFile(relative.replaceCharacter('\\', '/'));
+                                const auto fullPath = candidate.getFullPathName();
+                                if (!fullPath.startsWithIgnoreCase(prefix) || !candidate.existsAsFile() || !isAudioPath(candidate)) continue;
+                                recoveredFiles.add(candidate);
+                                recoveredNames.add(track.getProperty("name", {}).toString());
+                                recoveredRoutings.add(juce::String());
+                                recoveredVolumes.add(track.getProperty("volume", 1.0).toString());
+                                recoveredPans.add(track.getProperty("pan", 0.0).toString());
+                                recoveredMutes.add((bool)track.getProperty("mute", false) ? "1" : "0");
+                                recoveredSolos.add((bool)track.getProperty("solo", false) ? "1" : "0");
+                                recoveredColors.add(track.getProperty("color", {}).toString());
+                                break;
+                            }
+                        }
+                        if (!recoveredFiles.isEmpty()) {
+                            files = std::move(recoveredFiles);
+                            names = std::move(recoveredNames);
+                            routings = std::move(recoveredRoutings);
+                            volumes = std::move(recoveredVolumes);
+                            pans = std::move(recoveredPans);
+                            mutes = std::move(recoveredMutes);
+                            solos = std::move(recoveredSolos);
+                            colors = std::move(recoveredColors);
+                            recoveredFromExtraction = true;
+                            recoveredDocument = document;
+                            break;
+                        }
+                    }
+                    if (recoveredFromExtraction) break;
+                }
+            }
+        }
+        if (files.isEmpty()) {
+            toast("No se encontraron los audios guardados. Descarga esta secuencia de nuevo desde Comunidad.", true);
+            return;
+        }
         if (freeSlot() < 0) { toast("Se alcanzó el límite de 32 proyectos abiertos.", true); return; }
         auto* song = addSong(config.getProperty("name", juce::String("Sin título")).toString(), true);
         if (!song) return;
@@ -1274,24 +1384,31 @@ void PlayerBridge::openLibraryProject(const juce::String& id)
         song->masterVolume = juce::jlimit(0.0, 4.0, (double)config.getProperty("masterVolume", 0.82));
         song->communityId = config.getProperty("communityId", {}).toString();
         song->communityPackagePath = config.getProperty("communityPackagePath", {}).toString();
-        song->communityExtractionPath = config.getProperty("communityExtractionPath", {}).toString();
+        if (!juce::File(song->communityPackagePath).existsAsFile())
+            song->communityPackagePath = communityPackageForId(appDir().getChildFile("CommunityDownloads"), song->communityId).getFullPathName();
+        song->communityExtractionPath = recoveredFromExtraction ? recoveredDocument.getParentDirectory().getFullPathName()
+                                                               : config.getProperty("communityExtractionPath", {}).toString();
         song->positionSeconds = juce::jmax(0.0, (double)config.getProperty("positionSeconds", 0.0));
         const auto sectionData = config.getProperty("sections", {}).toString();
         if (sectionData.isNotEmpty()) ext["sections_" + juce::String(song->slot)] = sectionData;
         const auto slot = song->slot;
         const auto coverFile = folder.getChildFile(config.getProperty("coverFile", "cover.txt").toString());
         if (coverFile.existsAsFile()) { const auto cover = coverFile.loadFileAsString().trim(); if (cover.startsWith("data:image/")) saveCoverOverride(song->hash, cover); }
-        juce::Array<juce::File> files;
-        juce::StringArray names, routings, volumes, pans, mutes, solos, colors;
-        if (auto* tracks = config.getProperty("tracks", {}).getArray()) for (const auto& track : *tracks) {
-            const juce::File file(track.getProperty("path", {}).toString());
-            SrcTrack src { file.getFullPathName(), track.getProperty("name", {}).toString(), track.getProperty("routing", {}).toString(), track.getProperty("color", {}).toString(), (double)track.getProperty("volume", 1.0), (double)track.getProperty("pan", 0.0), (bool)track.getProperty("mute", false), (bool)track.getProperty("solo", false) };
-            song->sources.push_back(src);
-            if (file.existsAsFile()) { files.add(file); names.add(src.name); routings.add(src.routing); volumes.add(juce::String(src.volume)); pans.add(juce::String(src.pan)); mutes.add(src.mute ? "1" : "0"); solos.add(src.solo ? "1" : "0"); colors.add(src.color); }
-        }
+        if (!recoveredFromExtraction)
+            for (const auto& track : storedSources) {
+                juce::File file(track.getProperty("path", {}).toString());
+                if (!file.existsAsFile())
+                    file = folder.getChildFile("audio").getChildFile(file.getFileName());
+                if (!file.existsAsFile()) continue;
+                song->sources.push_back({ file.getFullPathName(), track.getProperty("name", {}).toString(), track.getProperty("routing", {}).toString(), track.getProperty("color", {}).toString(), (double)track.getProperty("volume", 1.0), (double)track.getProperty("pan", 0.0), (bool)track.getProperty("mute", false), (bool)track.getProperty("solo", false) });
+            }
+        else
+            for (int i = 0; i < files.size(); ++i)
+                song->sources.push_back({ files[i].getFullPathName(), names[i], routings[i], colors[i], volumes[i].getDoubleValue(), pans[i].getDoubleValue(), mutes[i] == "1", solos[i] == "1" });
         engine.setMaster((float)song->masterVolume);
-        saveLibrary();
-        if (!files.isEmpty()) startImport(slot, std::move(files), std::move(names), std::move(routings), std::move(volumes), std::move(pans), std::move(mutes), std::move(solos), std::move(colors), false, true);
+        if (recoveredFromExtraction) toast("Recuperando los audios desde la copia local de la secuencia...", false);
+        else saveLibrary();
+        startImport(slot, std::move(files), std::move(names), std::move(routings), std::move(volumes), std::move(pans), std::move(mutes), std::move(solos), std::move(colors), false, true);
         ++structRev;
         return;
     }

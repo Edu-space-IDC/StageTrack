@@ -113,7 +113,7 @@ MainComponent::MainComponent()
                  .withWinWebView2Options(Opt::WinWebView2{}.withUserDataFolder(userData)
                                                          .withBackgroundColour(juce::Colour(kBg))));
         addAndMakeVisible(*browser);
-        browser->goToURL(server->getUrl());
+        browser->goToURL(server->getUrl() + "?launch=" + juce::String((int64_t)juce::Time::getCurrentTime().toMilliseconds()));
     }
     if (!hadDevice) bridge->toast("No hay salida de audio. Usa el botón «Audio» para elegir una.", true);
     startTimer(1000);

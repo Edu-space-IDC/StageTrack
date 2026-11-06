@@ -2062,8 +2062,6 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           border-color 0.15s,
           transform 0.15s;
       }
-      .psongkey{position:absolute;top:86px;right:8px;z-index:100;width:30px;height:30px;min-width:30px;box-sizing:border-box;padding:0;border-radius:50%;display:grid;place-items:center;border:1px solid #ffffffd9;color:#fff;font:700 13px/1 system-ui,sans-serif;box-shadow:0 2px 8px #000b;opacity:1;pointer-events:none;text-shadow:0 1px 2px #0008}
-      .pcover .psongkey{top:auto;right:8px;bottom:8px;z-index:10000;width:36px;height:36px;min-width:36px;border:2px solid #fff;font-size:15px;opacity:1!important;visibility:visible!important;display:grid!important}
       .psong:active .pcover {
         transform: scale(0.97);
       }
@@ -2464,6 +2462,8 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
       .psong.paused .pplay {
         opacity: 1;
       }
+      .psong.has-key .pplay{opacity:1}
+      .psong.has-key:not(.playing):not(.paused) .pplay .eq{display:none}
       .pplay .eq {
         display: flex;
         align-items: flex-end;
@@ -2488,6 +2488,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
       .pplay .eq i:nth-child(4) {
         animation-delay: -0.15s;
       }
+      .pplay .tx{ text-transform:none; letter-spacing:.04em }
       @keyframes peq {
         0%,
         100% {
@@ -7882,6 +7883,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           pstate: 0,
         };
         let librarySongs = [];
+        let libraryKeySignature = "";
         const coverKey = (s) =>
           "wcCover:" + (s.pathHex !== "-" ? s.pathHex : "name:" + s.name);
         const ls = {
@@ -8749,7 +8751,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             name.textContent = song.name;
             const meta = document.createElement("small");
             meta.style.cssText = "display:block;margin-top:4px;color:#9da6af";
-            meta.textContent = `${song.artist ? song.artist + " · " : ""}${song.tempoKnown ? Math.round(song.tempo) : "--"} BPM · ${song.sigNum || 4}/${song.sigDen || 4}`;
+            meta.textContent = `${song.artist ? song.artist + " · " : ""}${song.key ? "Tono " + song.key + " · " : ""}${song.tempoKnown ? Math.round(song.tempo) : "--"} BPM · ${song.sigNum || 4}/${song.sigDen || 4}`;
             info.append(name, meta); select.append(art, info);
             select.onclick = () => {
               if (song.open && Number.isInteger(i) && i >= 0) {
@@ -8981,7 +8983,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
               tempoKnown: a[9] === "1",
               artist: hexToStr(a[10] || ""),
               communityId: hexToStr(a[11] || ""),
-              key: hexToStr(a[12] || ""),
+              key: hexToStr(a[12] || "") || librarySongs.find((entry) => entry.id === hexToStr(a[1] || "").replace(/^stagetracks:/, ""))?.key || "",
             };
           });
           const sig = active + "|" + parts.join("|");
@@ -8993,6 +8995,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           lookupCurrentSongBpm();
         }
         function updateLibrary(raw) {
+          const previousKeySignature = libraryKeySignature;
           librarySongs = String(raw || "").split("|").filter(Boolean).map((row) => {
             const a = row.split("~");
             const id = hexToStr(a[0] || "");
@@ -9017,6 +9020,13 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
               communityId: openSong?.communityId || "",
             };
           });
+          songs.list.forEach((song) => {
+            const id = hexToStr(song.pathHex || "").replace(/^stagetracks:/, "");
+            const saved = librarySongs.find((entry) => entry.id === id);
+            if (!song.key && saved?.key) song.key = saved.key;
+          });
+          libraryKeySignature = librarySongs.map((song) => `${song.id}:${song.key || ""}`).join("|");
+          if (libraryKeySignature !== previousKeySignature && songs.list.length) renderSongs(false);
           if (songLibraryMode === "local") renderSongLibrarySearch();
         }
         /* ===== exportar secuencias (zip + .rpseq para REAPER Playback) ===== */
@@ -9269,7 +9279,15 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             d.classList.toggle("playing", on);
             d.classList.toggle("paused", pa);
             const t = d.querySelector(".pplay .tx");
-            if (t) t.textContent = on ? "Sonando" : pa ? "En pausa" : "";
+            if (t) {
+              const song = songs.list[i] || {};
+              const projectId = hexToStr(song.pathHex || d.dataset.projectKey || "").replace(/^stagetracks:/, "");
+              const saved = librarySongs.find((entry) => entry.id === projectId) || librarySongs.find((entry) => entry.name === song.name && entry.artist === song.artist);
+              const key = String(d.dataset.songKey || song.key || saved?.key || "").trim();
+              const state = on ? "Sonando" : pa ? "En pausa" : "";
+              t.textContent = state + (key ? (state ? "  ·  " : "Tono ") + key : "");
+              if (key) t.title = "Tonalidad: " + key;
+            }
           });
         }
         function renderSongs(scroll) {
@@ -9316,22 +9334,20 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
                 openCoverPicker(s),
               ),
             );
+            const projectId = hexToStr(String(s.pathHex || "")).replace(/^stagetracks:/, "");
+            const storedKey = librarySongs.find((entry) => entry.id === projectId)?.key || "";
+            const songKey = String(s.key || storedKey).trim();
+            d.dataset.songKey = songKey;
+            d.classList.toggle("has-key", !!songKey);
             const n = document.createElement("div");
             n.className = "psongname";
-            n.textContent = s.artist ? `${s.name} - ${s.artist}` : s.name;
+            const displayName = s.artist ? `${s.name} - ${s.artist}` : s.name;
+            n.textContent = displayName;
             n.title = n.textContent;
             const pl = document.createElement("div");
             pl.className = "pplay";
             pl.innerHTML =
               '<span class="eq"><i></i><i></i><i></i><i></i></span><span class="tx"></span>';
-            const songKey = String(s.key || "").trim();
-            const keyBadge = document.createElement("span");
-            keyBadge.className = "psongkey";
-            keyBadge.textContent = songKey || "?";
-            keyBadge.title = songKey ? "Tonalidad: " + songKey : "Tonalidad sin definir";
-            keyBadge.setAttribute("aria-label", songKey ? "Tonalidad " + songKey : "Tonalidad sin definir");
-            keyBadge.style.cssText = "position:absolute;top:8px;right:8px;bottom:auto;z-index:10000;width:36px;height:36px;min-width:36px;box-sizing:border-box;padding:0;border-radius:50%;display:grid!important;place-items:center;border:2px solid #fff;color:#fff;font:800 15px/1 system-ui,sans-serif;box-shadow:0 2px 10px #000d;opacity:1!important;visibility:visible!important;pointer-events:none;text-shadow:0 1px 2px #0008;background:" + keyBadgeColor(songKey);
-            c.appendChild(keyBadge);
             d.appendChild(c);
             d.appendChild(pl);
             d.appendChild(n);
