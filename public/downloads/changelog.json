@@ -1,14 +1,15 @@
 {
-  "version": "0.5.26",
+  "version": "0.5.27",
   "intro": "Mejoras en la biblioteca y en la comunidad de secuencias.",
   "implementations": [
     "Los proyectos permanecen cargados al cambiar entre ellos para evitar recargas durante una presentacion.",
     "Las caratulas se guardan localmente para que sigan visibles sin conexion.",
     "La biblioteca comunitaria muestra la tonalidad de cada secuencia.",
+    "Las caratulas muestran la tonalidad en un circulo cromatico sobre la esquina inferior derecha.",
     "Las publicaciones de secuencias admiten paquetes de hasta 2 GB."
   ],
   "fixes": [
-    "Se corrigio el indicador de tonalidad en las caratulas.",
+    "Se corrigio el indicador de tonalidad en las caratulas y se asigna un color estable segun la nota raiz.",
     "Se conserva la carga de audio de proyectos abiertos al cambiar de proyecto."
   ],
   "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"

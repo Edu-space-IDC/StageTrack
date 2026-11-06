@@ -1972,29 +1972,31 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         position: absolute;
         left: 10px;
         bottom: 9px;
-        right: 10px;
         display: flex;
         align-items: center;
-        gap: 6px;
         pointer-events: none;
       }
       .tile-key {
-        display: inline-flex;
+        position: absolute;
+        right: 10px;
+        bottom: 9px;
+        width: 28px;
+        height: 28px;
+        box-sizing: border-box;
+        display: flex;
         align-items: center;
-        gap: 6px;
-        padding: 5px 9px;
-        border: 1px solid #ffffff2e;
-        border-radius: 999px;
+        justify-content: center;
+        border: 2px solid var(--kc, #ffffff80);
+        border-radius: 50%;
         background: #0b0d10e8;
-        color: #fff;
-        font: 800 9px system-ui, sans-serif;
-        letter-spacing: 0.11em;
+        color: var(--kc, #fff);
+        font: 800 13px system-ui, sans-serif;
+        letter-spacing: 0;
         box-shadow: 0 3px 12px #0008;
         backdrop-filter: blur(6px);
-        white-space: nowrap;
+        pointer-events: none;
       }
-      .tile-key .tk-l { color: #9da4aa; }
-      .tile-key b { font-size: 12px; letter-spacing: 0.02em; color: #ffd166; }
+      .tile-key.long { font-size: 10px; }
       .tile-status {
         position: static;
         display: inline-flex;
@@ -9666,8 +9668,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           "Opciones": ["Options", "Opções", "Options", "Optionen"],
           "Ajustes": ["Settings", "Configurações", "Paramètres", "Einstellungen"],
           "SONANDO": ["PLAYING", "TOCANDO", "EN LECTURE", "WIEDERGABE"],
-          "EN PAUSA": ["PAUSED", "PAUSADO", "EN PAUSE", "PAUSIERT"],
-          "TONO": ["KEY", "TOM", "TON", "TONART"]
+          "EN PAUSA": ["PAUSED", "PAUSADO", "EN PAUSE", "PAUSIERT"]
         };
         const languageIndex = () => ({ en: 0, pt: 1, fr: 2, de: 3 }[localStorage.getItem("studioLanguage")] ?? -1);
         const translateValue = (value) => {
@@ -10939,6 +10940,14 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
               entries.forEach((entry) => updateSongNameMarquee(entry.target)),
             )
           : null;
+        /* color del borde según la nota raíz: 12 notas repartidas en el círculo cromático */
+        function keyColor(k) {
+          const m = String(k).trim().match(/^([A-Ga-g])([#♯b♭]?)/);
+          if (!m) return "#ffffff80";
+          const base = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[m[1].toUpperCase()];
+          const acc = /[#♯]/.test(m[2]) ? 1 : /[b♭]/.test(m[2]) ? -1 : 0;
+          return "hsl(" + ((base + acc + 12) % 12) * 30 + " 85% 62%)";
+        }
         function setlist() {
           const src = hiddenSongs(),
             active = src.findIndex((x) => x.classList.contains("active")),
@@ -11041,15 +11050,15 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
                   (isNowPlaying ? "SONANDO" : "EN PAUSA");
                 badges.appendChild(status);
               }
+              if (badges.childNodes.length) art.appendChild(badges);
               if (keyText) {
                 const chip = document.createElement("div");
-                chip.className = "tile-key";
+                chip.className = "tile-key" + (keyText.length > 2 ? " long" : "");
                 chip.title = "Tonalidad: " + keyText;
-                chip.innerHTML = '<span class="tk-l">TONO</span><b></b>';
-                chip.querySelector("b").textContent = keyText;
-                badges.appendChild(chip);
+                chip.textContent = keyText;
+                chip.style.setProperty("--kc", keyColor(keyText));
+                art.appendChild(chip);
               }
-              art.appendChild(badges);
             }
             const label = document.createElement("div");
             label.className = "nm";
