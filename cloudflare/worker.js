@@ -31,9 +31,13 @@ async function scriptCall(env, action, data = {}) {
   if (!response.ok || result.ok !== true) throw new Error(result.error || `Apps Script respondió ${response.status}.`);
   return result;
 }
+function stateCacheKey(env) {
+  const endpoint = new URL(env.APPS_SCRIPT_URL);
+  return new Request(`${endpoint.origin}/__stagetracks_state_cache?script=${encodeURIComponent(endpoint.pathname)}`);
+}
 async function getState(env) {
   if (!env.APPS_SCRIPT_URL || !env.API_TOKEN) return scriptCall(env, "load-state");
-  const cache = caches.default, key = new Request(`${new URL(env.APPS_SCRIPT_URL).origin}/__stagetracks_state_cache`);
+  const cache = caches.default, key = stateCacheKey(env);
   const cached = await cache.match(key);
   if (cached) return cached.json();
   const state = await scriptCall(env, "load-state");
@@ -42,7 +46,7 @@ async function getState(env) {
 }
 async function saveState(env, state) {
   await scriptCall(env, "save-sequences", { sequences: state.sequences });
-  await caches.default.delete(new Request(`${new URL(env.APPS_SCRIPT_URL).origin}/__stagetracks_state_cache`));
+  await caches.default.delete(stateCacheKey(env));
 }
 function normalized(value) { return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
 function duplicate(entries, name, artist, key, ignore = "") {
@@ -227,7 +231,7 @@ async function completeUpload(env, id, origin) {
     await Promise.all([pkg.fileId, coverDriveFileId].filter(Boolean).map((fileId) => scriptCall(env, "delete-file", { fileId }).catch(() => {})));
     throw error;
   }
-  await caches.default.delete(new Request(`${new URL(env.APPS_SCRIPT_URL).origin}/__stagetracks_state_cache`));
+  await caches.default.delete(stateCacheKey(env));
   await env.COMMUNITY_KV.delete(key);
   return json({ id: item.id, status: item.status, message: "Secuencia publicada." }, 201, origin);
 }
@@ -328,7 +332,7 @@ async function handle(request, env) {
       const state = await getState(env), feedback = { id: body.id || crypto.randomUUID(), message, createdAt: body.createdAt || new Date().toISOString() };
       state.feedback = Array.isArray(state.feedback) ? state.feedback : []; state.feedback.unshift(feedback);
       await scriptCall(env, "save-feedback", { feedback: state.feedback });
-      await caches.default.delete(new Request(`${new URL(env.APPS_SCRIPT_URL).origin}/__stagetracks_state_cache`));
+      await caches.default.delete(stateCacheKey(env));
       const result = await scriptCall(env, "email-feedback", { id: feedback.id, message, createdAt: feedback.createdAt });
       return json({ ok: true, emailed: result.emailed === true, message: "Gracias. Recibimos tu sugerencia." }, 201, origin);
     }
@@ -341,7 +345,7 @@ async function handle(request, env) {
       if (request.method === "DELETE" && feedbackDelete) {
         const index = (state.feedback || []).findIndex((item) => item.id === decodeURIComponent(feedbackDelete[1]));
         if (index < 0) return json({ error: "No encontramos esa sugerencia." }, 404, origin);
-        state.feedback.splice(index, 1); await scriptCall(env, "save-feedback", { feedback: state.feedback }); await caches.default.delete(new Request(`${new URL(env.APPS_SCRIPT_URL).origin}/__stagetracks_state_cache`)); return json({ ok: true }, 200, origin);
+        state.feedback.splice(index, 1); await scriptCall(env, "save-feedback", { feedback: state.feedback }); await caches.default.delete(stateCacheKey(env)); return json({ ok: true }, 200, origin);
       }
       if (request.method === "POST" && path.endsWith("/approve")) {
         const id = path.split("/").at(-2), item = state.sequences.find((row) => row.id === id);
