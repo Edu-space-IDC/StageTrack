@@ -21,7 +21,7 @@ public:
     int getPort() const noexcept { return port; }
     juce::String getUrl() const { return "http://127.0.0.1:" + juce::String(port) + "/"; }
     std::function<void(const juce::String&)> onHostMessage;   // se llama desde un hilo del servidor
-    std::function<void(const juce::File&)> onCommunityDownload;
+    std::function<void(const juce::File&, const juce::var&)> onCommunityDownload;
     std::function<juce::File()> onCommunityExportFile;
     std::function<void()> onCommunityExportCleanup;
 private:
@@ -32,6 +32,7 @@ private:
         juce::File file;
         std::unique_ptr<juce::FileOutputStream> stream;
         juce::String name;
+        juce::var metadata;
         int64_t expected = 0, written = 0;
     };
     PlayerBridge& bridge;

@@ -16,7 +16,7 @@ public:
     struct Track {
         std::unique_ptr<juce::AudioBuffer<float>> audio;
         juce::String name;
-        int songIndex = 0;
+        int songIndex = -1;
         double sourceRate = 44100.0;
         uint64_t decodedBytes = 0;
         std::array<float, peakCount> peaks {};
@@ -111,8 +111,12 @@ public:
     void stopAndRewind() noexcept;
     void stopSongAndRewind(int song) noexcept;
     void setPositionSeconds(double seconds) noexcept;
+    double getSongPositionSeconds(int slot) const noexcept;
+    void setSongPositionSeconds(int slot, double seconds) noexcept;
+    bool getSongRepeat(int slot) const noexcept;
+    void setSongRepeat(int slot, bool enabled) noexcept;
     void removeTrack(int indexInActiveSong) noexcept;  // hides the track and silences it
-    void releaseSong(int slot) noexcept;                // hides every track of the slot
+    void releaseSong(int slot, bool resetTransport = true) noexcept; // unloads media; optionally keeps its play position
     double getTrackSeconds(const Track&) const noexcept;
     float getMasterPeak() const noexcept { return masterPeak.load(std::memory_order_relaxed); }
     float getPadPeak() const noexcept { return padPeak.load(std::memory_order_relaxed); }
@@ -165,6 +169,8 @@ private:
     std::array<std::atomic<double>, maxSongs> durations {};
     std::atomic<int> activeSong { 0 };
     std::atomic<uint64_t> decodedBytes { 0 };
+    std::atomic<int> callbackReaders { 0 };
+    std::atomic<bool> trackMaintenance { false };
     std::atomic<float> masterPeak { 0.0f };
     std::atomic<float> padPeak { 0.0f };
     void routeTo(const Track::HwOut&, const float* l, const float* r, float* const* out, int outputs, int off, int n, float extra) const noexcept;

@@ -4000,8 +4000,8 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             class="tb picon"
             id="pImportMedia"
             type="button"
-            title="Importar archivos"
-            aria-label="Importar archivos"
+            title="Importar audio a StageTracks"
+            aria-label="Importar audio a StageTracks"
           >
             ⇧
           </button>
@@ -5969,7 +5969,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         }, 1500);
         function toast(msg, err) {
           const el = $("pToast");
-          el.textContent = msg;
+          el.textContent = repairLegacyText(String(msg ?? ""));
           el.className = err ? "err" : "";
           el.style.display = "block";
           clearTimeout(toastTimer);
@@ -8023,13 +8023,74 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             .replace(/\s*[\(\[][A-G][#b]?m?[\)\]]\s*$/, "")
             .replace(/\s+/g, " ")
             .trim();
+        function repairLegacyText(value) {
+          const corrupted = /[ÃÂ][\u0080-\u00ff]|Ãƒ|â[€¦‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ]/;
+          let repaired = String(value ?? "");
+          const cp1252 = new Map([[0x20ac,0x80],[0x201a,0x82],[0x192,0x83],[0x201e,0x84],[0x2026,0x85],[0x2020,0x86],[0x2021,0x87],[0x2c6,0x88],[0x2030,0x89],[0x160,0x8a],[0x2039,0x8b],[0x152,0x8c],[0x17d,0x8e],[0x2018,0x91],[0x2019,0x92],[0x201c,0x93],[0x201d,0x94],[0x2022,0x95],[0x2013,0x96],[0x2014,0x97],[0x2dc,0x98],[0x2122,0x99],[0x161,0x9a],[0x203a,0x9b],[0x153,0x9c],[0x17e,0x9e],[0x178,0x9f]]);
+          for (let pass = 0; pass < 3 && corrupted.test(repaired); pass++) {
+            const bytes = [];
+            for (const char of repaired) {
+              const code = char.codePointAt(0);
+              if (code <= 255) bytes.push(code);
+              else if (cp1252.has(code)) bytes.push(cp1252.get(code));
+              else return repaired;
+            }
+            try {
+              const decoded = new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(bytes));
+              if (decoded === repaired) break;
+              repaired = decoded;
+            } catch (_) { break; }
+          }
+          return repaired;
+        }
+        function repairVisibleText(root) {
+          if (root.nodeType === Node.TEXT_NODE) {
+            const next = repairLegacyText(root.nodeValue);
+            if (next !== root.nodeValue) root.nodeValue = next;
+            return;
+          }
+          const elements = root.nodeType === Node.ELEMENT_NODE ? [root, ...root.querySelectorAll("*")] : [];
+          for (const element of elements) {
+            if (["SCRIPT", "STYLE"].includes(element.tagName)) continue;
+            for (const attribute of ["title", "aria-label", "placeholder", "alt", "value"]) {
+              if (element.hasAttribute(attribute)) {
+                const next = repairLegacyText(element.getAttribute(attribute));
+                if (next !== element.getAttribute(attribute)) element.setAttribute(attribute, next);
+              }
+            }
+            if ((element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) && element.value) {
+              const next = repairLegacyText(element.value);
+              if (next !== element.value) element.value = next;
+            }
+          }
+          const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+          while (walker.nextNode()) {
+            const node = walker.currentNode;
+            if (node.parentElement?.closest("script,style")) continue;
+            const next = repairLegacyText(node.nodeValue);
+            if (next !== node.nodeValue) node.nodeValue = next;
+          }
+        }
+        repairVisibleText(document.documentElement);
+        const visibleTextObserver = new MutationObserver((records) => {
+          for (const record of records) {
+            if (record.type === "characterData") repairVisibleText(record.target.parentElement || document.documentElement);
+            else if (record.type === "attributes") repairVisibleText(record.target);
+            else for (const node of record.addedNodes) if (node.nodeType === Node.ELEMENT_NODE || node.nodeType === Node.TEXT_NODE) repairVisibleText(node);
+          }
+        });
+        visibleTextObserver.observe(document.documentElement, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["title", "aria-label", "placeholder", "alt", "value"] });
+        document.addEventListener("input", (event) => {
+          const field = event.target;
+          if (field && "value" in field) field.value = repairLegacyText(field.value);
+        }, true);
         function hexToStr(h) {
           try {
-            return new TextDecoder().decode(
+            return repairLegacyText(new TextDecoder().decode(
               new Uint8Array(
                 (h.match(/.{1,2}/g) || []).map((x) => parseInt(x, 16)),
               ),
-            );
+            ));
           } catch (_) {
             return "";
           }
@@ -8239,7 +8300,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           const status = form.querySelector("[data-status]");
           if (!ok) { status.textContent = value || "No se pudo preparar la secuencia activa."; toast(status.textContent, true); return; }
           const size = Number(value);
-          if (!size || size > maxCommunityPackageBytes) { status.textContent = "El paquete debe pesar hasta 1 GB."; toast(status.textContent, true); return; }
+          if (!size || size > maxCommunityPackageBytes) { status.textContent = "El paquete debe pesar hasta 2 GB."; toast(status.textContent, true); return; }
           form.dataset.communityPackageSize = String(size);
           form.querySelector('[name="package"]').required = false;
           form.querySelector("[data-current-sequence]").textContent = `Secuencia activa lista · ${(size / 1024 / 1024).toFixed(1)} MB`;
@@ -8250,7 +8311,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           return String(window.STAGETRACKS_COMMUNITY_API || "").trim().replace(/\/+$/, "").replace(/\/api$/i, "");
         }
         function communityText(es, en) { const lang = localStorage.getItem("studioLanguage") || "es", translated = window.uiTranslateText?.(es); return translated && translated !== es ? translated : lang === "en" ? en : es; }
-        const maxCommunityPackageBytes = 1024 * 1024 * 1024;
+        const maxCommunityPackageBytes = 2 * 1024 * 1024 * 1024;
         async function readCommunityExportChunk(from, to, totalBytes) {
           let lastError = null;
           for (let attempt = 0; attempt < 3; attempt++) {
@@ -8348,8 +8409,11 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           if (!communityApiBase()) { toast(communityText("La comunidad no está disponible por ahora.", "The community is unavailable right now."), true); return; }
           const current = songs.list[songs.active] || {}, overlay = document.createElement("div");
           overlay.style.cssText = "position:fixed;inset:0;z-index:12002;display:grid;place-items:center;padding:18px;background:#000b;backdrop-filter:blur(5px);font:14px system-ui,sans-serif;color:#eef1f3";
-          overlay.innerHTML = `<section role="dialog" aria-modal="true" style="box-sizing:border-box;width:min(520px,100%);max-height:90vh;overflow:auto;padding:20px;background:#191c1f;border:1px solid #3b4147;border-radius:16px;box-shadow:0 24px 70px #000c"><header style="display:flex;align-items:center;justify-content:space-between"><strong style="font-size:19px">${communityText("Subir secuencia a la comunidad", "Upload a sequence to the community")}</strong><button type="button" data-close style="border:0;background:transparent;color:#c8cdd2;font-size:25px;cursor:pointer">×</button></header><p style="color:#aeb4ba;line-height:1.45">${communityText("En StageTracks puedes subir directamente la secuencia activa de Mi biblioteca. También puedes elegir un archivo .rpseq o .zip. Se sube en bloques y puede pesar hasta 1 GB.", "In StageTracks, upload the active sequence from My Library directly. You can also choose a .rpseq or .zip file. Uploads are chunked and can be up to 1 GB.")}</p><form data-form><label style="display:block;margin:10px 0 5px">${communityText("Nombre de la canción", "Song title")}</label><input name="name" required maxlength="120" value="${String(current.name || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:10px 0 5px">${communityText("Artista o grupo", "Artist or band")}</label><input name="artist" required maxlength="120" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="display:block;margin:10px 0 5px">${communityText("Tonalidad", "Key")}</label><select name="key" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option value="">—</option>${"C C# Db D D# Eb E F F# Gb G G# Ab A A# Bb B Cm C#m Dbm Dm D#m Ebm Em Fm F#m Gbm Gm G#m Abm Am A#m Bbm Bm".split(" ").map(key => `<option>${key}</option>`).join("")}</select></div><div><label style="display:block;margin:10px 0 5px">BPM</label><input name="bpm" type="number" min="40" max="240" value="${current.tempoKnown ? Math.round(current.tempo) : 120}" required style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="display:block;margin:10px 0 5px">${communityText("Compás", "Time signature")}</label><select name="meter" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option>4/4</option><option>3/4</option><option>6/8</option><option>2/4</option><option>5/4</option><option>7/4</option><option>9/8</option><option>12/8</option></select></div><div><label style="display:block;margin:10px 0 5px">${communityText("Género", "Genre")}</label><select name="genre" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option>Adoración</option><option>Gospel</option><option>Contemporáneo</option><option>Acústico</option><option>Rock</option><option>Otro</option></select></div></div><label style="display:block;margin:12px 0 5px">${communityText("Paquete .rpseq o .zip", "Sequence package (.rpseq or .zip)")}</label><input name="package" type="file" accept=".rpseq,.zip,application/zip" required><label style="display:block;margin:12px 0 5px">${communityText("Carátula opcional", "Optional cover")}</label><input name="cover" type="file" accept="image/png,image/jpeg,image/webp"><small data-status aria-live="polite" style="display:block;min-height:20px;margin-top:10px;color:#aeb4ba"></small><footer style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px"><button type="button" data-cancel style="padding:9px 13px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff;cursor:pointer">${communityText("Cancelar", "Cancel")}</button><button type="submit" style="padding:9px 14px;border:0;border-radius:9px;background:#2c83df;color:#fff;cursor:pointer">${communityText("Subir", "Upload")}</button></footer></form></section>`;
+          overlay.innerHTML = `<section role="dialog" aria-modal="true" style="box-sizing:border-box;width:min(520px,100%);max-height:90vh;overflow:auto;padding:20px;background:#191c1f;border:1px solid #3b4147;border-radius:16px;box-shadow:0 24px 70px #000c"><header style="display:flex;align-items:center;justify-content:space-between"><strong style="font-size:19px">${communityText("Subir secuencia a la comunidad", "Upload a sequence to the community")}</strong><button type="button" data-close style="border:0;background:transparent;color:#c8cdd2;font-size:25px;cursor:pointer">×</button></header><p style="color:#aeb4ba;line-height:1.45">${communityText("En StageTracks puedes subir directamente la secuencia activa de Mi biblioteca. También puedes elegir un archivo .rpseq o .zip. Se sube en bloques y puede pesar hasta 2 GB.", "In StageTracks, upload the active sequence from My Library directly. You can also choose a .rpseq or .zip file. Uploads are chunked and can be up to 2 GB.")}</p><form data-form><label style="display:block;margin:10px 0 5px">${communityText("Nombre de la canción", "Song title")}</label><input name="name" required maxlength="120" value="${String(current.name || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:10px 0 5px">${communityText("Artista o grupo", "Artist or band")}</label><input name="artist" required maxlength="120" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="display:block;margin:10px 0 5px">${communityText("Tonalidad", "Key")}</label><select name="key" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option value="">—</option>${"C C# Db D D# Eb E F F# Gb G G# Ab A A# Bb B Cm C#m Dbm Dm D#m Ebm Em Fm F#m Gbm Gm G#m Abm Am A#m Bbm Bm".split(" ").map(key => `<option>${key}</option>`).join("")}</select></div><div><label style="display:block;margin:10px 0 5px">BPM</label><input name="bpm" type="number" min="40" max="240" value="${current.tempoKnown ? Math.round(current.tempo) : 120}" required style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label style="display:block;margin:10px 0 5px">${communityText("Compás", "Time signature")}</label><select name="meter" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option>4/4</option><option>3/4</option><option>6/8</option><option>2/4</option><option>5/4</option><option>7/4</option><option>9/8</option><option>12/8</option></select></div><div><label style="display:block;margin:10px 0 5px">${communityText("Género", "Genre")}</label><select name="genre" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><option>Adoración</option><option>Gospel</option><option>Contemporáneo</option><option>Acústico</option><option>Rock</option><option>Otro</option></select></div></div><label style="display:block;margin:12px 0 5px">${communityText("Paquete .rpseq o .zip", "Sequence package (.rpseq or .zip)")}</label><input name="package" type="file" accept=".rpseq,.zip,application/zip" required><label style="display:block;margin:12px 0 5px">${communityText("Carátula opcional", "Optional cover")}</label><input name="cover" type="file" accept="image/png,image/jpeg,image/webp"><small data-status aria-live="polite" style="display:block;min-height:20px;margin-top:10px;color:#aeb4ba"></small><footer style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px"><button type="button" data-cancel style="padding:9px 13px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff;cursor:pointer">${communityText("Cancelar", "Cancel")}</button><button type="submit" style="padding:9px 14px;border:0;border-radius:9px;background:#2c83df;color:#fff;cursor:pointer">${communityText("Subir", "Upload")}</button></footer></form></section>`;
           const form = overlay.querySelector("[data-form]"), status = overlay.querySelector("[data-status]"), submit = form.querySelector('[type="submit"]');
+          form.querySelector('[name="artist"]').value = current.artist || "";
+          form.querySelector('[name="key"]').value = current.key || "";
+          form.querySelector('[name="meter"]').value = `${current.sigNum || 4}/${current.sigDen || 4}`;
           let uploadInBackground = false, uploadPending = false, uploadFinished = false, uploadPercent = 0, uploadState = "upload";
           const close = () => {
             if (uploadPending && !uploadFinished) { uploadInBackground = true; showCommunityUploadProgress(uploadPercent, status.textContent || "La subida continúa en segundo plano…", uploadState); }
@@ -8378,7 +8442,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             const packageSize = Number(form.dataset.communityPackageSize);
             const packageFile = packageSize ? { name: `${String(data.get("name") || "StageTracks")}.rpseq`, size: packageSize, hostExport: true } : selectedPackage;
             if (!packageFile?.size) { status.textContent = communityText("Selecciona el archivo de secuencia.", "Choose a sequence file."); return; }
-            if (packageFile.size > maxCommunityPackageBytes) { status.textContent = communityText("El paquete supera el límite de 1 GB.", "The package exceeds the 1 GB limit."); return; }
+            if (packageFile.size > maxCommunityPackageBytes) { status.textContent = communityText("El paquete supera el límite de 2 GB.", "The package exceeds the 2 GB limit."); return; }
             if (coverFile?.size > 8 * 1024 * 1024) { status.textContent = communityText("La carátula debe pesar hasta 8 MB.", "The cover image must be 8 MB or smaller."); return; }
             const metadata = { name: String(data.get("name") || "").trim(), artist: String(data.get("artist") || "").trim(), key: String(data.get("key") || ""), bpm: String(Math.round(Number(data.get("bpm")) || 120)), meter: String(data.get("meter") || "4/4"), genre: String(data.get("genre") || "") };
             submit.disabled = true; uploadPending = true; status.textContent = communityText("Preparando la carga…", "Preparing upload…");
@@ -8463,18 +8527,34 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             row.style.cssText = "width:100%;display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:9px;border:1px solid #353a40;border-radius:12px;background:#191c1f;color:#f3f5f6;text-align:left";
             const art = document.createElement("div");
             art.style.cssText = "width:48px;height:48px;flex:0 0 48px;border-radius:7px;background:#292d31 center/cover no-repeat;display:grid;place-items:center;color:#9da6af;font-size:20px";
-            if (item.cover) {
+            const coverCacheKey = "stageTracksCommunityCover:" + item.id;
+            let cachedCover = "";
+            try { cachedCover = localStorage.getItem(coverCacheKey) || ""; } catch (_) {}
+            if (cachedCover) {
+              art.style.backgroundImage = `url("${cachedCover}")`;
+              item.coverData = cachedCover;
+            } else if (item.cover) {
               const coverUrl = /^https?:/i.test(item.cover) ? item.cover : communityApiBase() + item.cover;
-              art.style.backgroundImage = `url("${coverUrl.replace(/["\\]/g, "")}")`;
+              cacheCoverData(coverUrl).then((coverData) => {
+                if (!art.isConnected) return;
+                art.style.backgroundImage = `url("${coverData}")`;
+                item.coverData = coverData;
+                try { localStorage.setItem(coverCacheKey, coverData); } catch (_) {}
+              }).catch(() => {});
             } else {
               art.textContent = "♫";
-              itunesSearch(`${item.name || ""} ${item.artist || ""}`).then((covers) => {
-                if (art.isConnected && covers[0]) { art.textContent = ""; art.style.backgroundImage = `url("${covers[0].url}")`; }
+              itunesSearch(`${item.name || ""} ${item.artist || ""}`).then(async (covers) => {
+                if (art.isConnected && covers[0]) {
+                  const coverData = await cacheCoverData(covers[0].url);
+                  art.textContent = ""; art.style.backgroundImage = `url("${coverData}")`;
+                  item.coverData = coverData;
+                  try { localStorage.setItem(coverCacheKey, coverData); } catch (_) {}
+                }
               }).catch(() => {});
             }
             const info = document.createElement("span"); info.style.cssText = "min-width:0;flex:1";
             const name = document.createElement("strong"); name.style.cssText = "display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"; name.textContent = item.name || "Secuencia";
-            const meta = document.createElement("small"); meta.style.cssText = "display:block;margin-top:4px;color:#9da6af"; meta.textContent = `${item.artist || "Comunidad"} · ${item.bpm || "--"} BPM · ${item.meter || "4/4"}`;
+            const meta = document.createElement("small"); meta.style.cssText = "display:block;margin-top:4px;color:#9da6af"; meta.textContent = `${item.artist || "Comunidad"} · Tono ${item.key || "—"} · ${item.bpm || "--"} BPM · ${item.meter || "4/4"}`;
             info.append(name, meta);
             const down = document.createElement("button"); down.type = "button";
             const installed = isCommunitySequenceInstalled(item) && !findCommunityNameConflict(item);
@@ -8596,7 +8676,17 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           const downloadUrl = base + "/api/sequences/" + encodeURIComponent(item.id) + "/download";
           try {
             if (native && !job.token) {
-              const started = await fetch("/host/community/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: (item.name || "StageTracks") + ".zip", bytes: job.total }) });
+              const metadata = { name: String(item.name || ""), artist: String(item.artist || ""), key: String(item.key || ""), bpm: Number(item.bpm) || 0, meter: String(item.meter || ""), coverData: item.coverData || "" };
+              if (item.cover) {
+                if (/^data:image\//i.test(item.cover)) metadata.coverData = item.cover;
+                else {
+                  const coverUrl = /^https?:/i.test(item.cover) ? item.cover : base + item.cover;
+                  const coverResponse = await fetch(coverUrl, { cache: "no-store" });
+                  if (!coverResponse.ok) throw new Error("No se pudo descargar la carátula original de la comunidad.");
+                  metadata.coverData = await cacheCoverData(coverUrl);
+                }
+              }
+              const started = await fetch("/host/community/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: (item.name || "StageTracks") + ".zip", bytes: job.total, metadata }) });
               if (!started.ok) throw new Error("No se pudo preparar la descarga en StageTracks.");
               job.token = (await started.json()).token;
             }
@@ -8803,9 +8893,9 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             const s = autoQ.shift(),
               k = coverKey(s);
             try {
-              const r = await itunesSearch(songClean(s.name));
+              const r = await itunesSearch(`${songClean(s.name)} ${s.artist || ""}`);
               if (s.hash) {
-                setCover(s, r[0] ? r[0].url : "");
+                setCover(s, r[0] ? await cacheCoverData(r[0].url) : "");
               } else {
                 ls.set(k + ":tried", "1");
                 if (r[0]) {
@@ -8824,8 +8914,11 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             active = parseInt(parts.shift(), 10) || 0;
           const list = parts.filter(Boolean).map((r) => {
             const a = r.split("~");
+            const name = hexToStr(a[0] || "") || "Sin título";
+            let artist = hexToStr(a[10] || "");
+            if (!artist) try { artist = JSON.parse(localStorage.getItem(communityArtistStorageKey) || "{}")[normalizeTrackText(name)] || ""; } catch (_) {}
             return {
-              name: hexToStr(a[0] || "") || "Sin título",
+              name,
               pathHex: a[1] || "-",
               hash: a[2] || "",
               state: a[3] || "n",
@@ -8835,6 +8928,8 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
               sigDen: Number(a[7]) || 4,
               tempoManual: a[8] === "1",
               tempoKnown: a[9] === "1",
+              artist,
+              key: hexToStr(a[11] || ""),
             };
           });
           const sig = active + "|" + parts.join("|");
@@ -8860,6 +8955,8 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             ? [cur]
                 .map((s) => ({
                   name: s.name,
+                  artist: s.artist || "",
+                  key: s.key || "",
                   path:
                     s.pathHex && s.pathHex !== "-" ? hexToStr(s.pathHex) : "",
                   cover: coverOf(s) || "",
@@ -8985,6 +9082,33 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             });
           });
         }
+        // Reemplaza el antiguo renombrado por edición de título, artista y tonalidad.
+        function renameSong(i) {
+          const s = songs.list[i];
+          if (!s) return;
+          onSong(i, () => {
+            const overlay = document.createElement("div");
+            overlay.style.cssText = "position:fixed;inset:0;z-index:12020;display:grid;place-items:center;padding:18px;background:#000b;backdrop-filter:blur(5px);font:14px system-ui,sans-serif;color:#eef1f3";
+            const keys = "|C|C#|Db|D|D#|Eb|E|F|F#|Gb|G|G#|Ab|A|A#|Bb|B|Cm|C#m|Dbm|Dm|D#m|Ebm|Em|Fm|F#m|Gbm|Gm|G#m|Abm|Am|A#m|Bbm|Bm".split("|");
+            overlay.innerHTML = `<section role="dialog" aria-modal="true" style="box-sizing:border-box;width:min(420px,100%);padding:20px;background:#191c1f;border:1px solid #3b4147;border-radius:16px"><strong style="font-size:19px">Editar canci\u00f3n</strong><label style="display:block;margin:14px 0 5px;color:#aeb4ba">Nombre de la canci\u00f3n</label><input data-name maxlength="120" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:12px 0 5px;color:#aeb4ba">Artista</label><input data-artist maxlength="120" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff"><label style="display:block;margin:12px 0 5px;color:#aeb4ba">Tonalidad</label><select data-key style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #3a4046;border-radius:9px;background:#101214;color:#fff">${keys.map(k => `<option value="${k}">${k || "Sin definir"}</option>`).join("")}</select><small data-status style="display:block;min-height:18px;margin-top:8px;color:#ffb0b0"></small><footer style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><button type="button" data-cancel style="padding:9px 12px;border:1px solid #3a4046;border-radius:9px;background:#22272b;color:#fff">Cancelar</button><button type="button" data-save style="padding:9px 14px;border:0;border-radius:9px;background:#2c83df;color:#fff">Guardar</button></footer></section>`;
+            overlay.querySelector("[data-name]").value = String(s.name || "").replace(/\.rpp$/i, "");
+            overlay.querySelector("[data-artist]").value = s.artist || "";
+            overlay.querySelector("[data-key]").value = s.key || "";
+            const close = () => overlay.remove();
+            overlay.querySelector("[data-cancel]").onclick = close;
+            overlay.querySelector("[data-save]").onclick = () => {
+              const name = overlay.querySelector("[data-name]").value.trim();
+              const artist = overlay.querySelector("[data-artist]").value.trim();
+              const key = overlay.querySelector("[data-key]").value;
+              if (!name) { overlay.querySelector("[data-status]").textContent = "Escribe el nombre de la canci\u00f3n."; return; }
+              sendCmd("songinfo_" + hex(name) + "_" + (artist ? hex(artist) : "-") + "_" + (key ? hex(key) : "-"), false, () => {
+                close(); songs.sig = ""; wwr_req("GET/EXTSTATE/WebControl/songs;GET/EXTSTATE/WebControl/project;GET/EXTSTATE/WebControl/projectpath");
+              });
+            };
+            overlay.onclick = e => { if (e.target === overlay) close(); };
+            document.body.appendChild(overlay); overlay.querySelector("[data-name]").focus();
+          });
+        }
         function closeSong(i) {
           const s = songs.list[i];
           if (!s) return;
@@ -9033,7 +9157,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           [
             ["save", "Guardar proyecto", saveSong],
             ["saveas", "Guardar como…", saveAsSong],
-            ["rename", "Renombrar…", renameSong],
+            ["rename", "Editar…", renameSong],
             ["x", "Cerrar proyecto", closeSong],
           ].forEach(([ic, label, fn]) => {
             const b = document.createElement("button");
@@ -9142,10 +9266,17 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
                 openCoverPicker(s),
               ),
             );
+            if (s.key) {
+              const keyBadge = document.createElement("span");
+              keyBadge.textContent = s.key;
+              keyBadge.title = "Tonalidad " + s.key;
+              keyBadge.style.cssText = "position:absolute;right:8px;bottom:8px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:#111d;color:#fff;border:1px solid #ffffff90;font:700 12px system-ui,sans-serif;text-shadow:0 1px 3px #000";
+              c.appendChild(keyBadge);
+            }
             const n = document.createElement("div");
             n.className = "psongname";
-            n.textContent = s.name;
-            n.title = s.name;
+            n.textContent = s.artist ? `${s.name} - ${s.artist}` : s.name;
+            n.title = n.textContent;
             const pl = document.createElement("div");
             pl.className = "pplay";
             pl.innerHTML =
@@ -9174,6 +9305,19 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         /* selector de carátula */
         function closeCoverPicker() {
           $("pCoverPick").style.display = "none";
+        }
+        async function cacheCoverData(url) {
+          const response = await fetch(url, { mode: "cors", cache: "force-cache" });
+          if (!response.ok) throw new Error("No se pudo descargar la carátula.");
+          const blob = await response.blob();
+          if (!/^image\/(jpeg|png|webp)$/i.test(blob.type) || blob.size > 8 * 1024 * 1024) throw new Error("The downloaded cover is invalid or larger than 8 MB.");
+          const bitmap = await createImageBitmap(blob), canvas = document.createElement("canvas");
+          canvas.width = 480; canvas.height = 270;
+          const ctx = canvas.getContext("2d"), scale = Math.max(canvas.width / bitmap.width, canvas.height / bitmap.height);
+          const width = bitmap.width * scale, height = bitmap.height * scale;
+          ctx.drawImage(bitmap, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+          bitmap.close?.();
+          return canvas.toDataURL("image/jpeg", 0.84);
         }
         function setCover(s, val) {
           const k = coverKey(s);
@@ -9210,9 +9354,10 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
               o.innerHTML = "<i></i><span></span>";
               o.firstChild.style.backgroundImage = 'url("' + x.thumb + '")';
               o.lastChild.textContent = x.label;
-              o.addEventListener("click", () => {
-                setCover(songs.coverFor, x.url);
-                closeCoverPicker();
+              o.addEventListener("click", async () => {
+                o.style.opacity = "0.5";
+                try { setCover(songs.coverFor, await cacheCoverData(x.url)); closeCoverPicker(); }
+                catch (_) { toast("No se pudo descargar la car�tula para guardarla sin conexi�n.", true); o.style.opacity = "1"; }
               });
               g.appendChild(o);
             });
@@ -9408,8 +9553,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           "Cerrar proyecto": ["Close project", "Fechar projeto", "Fermer le projet", "Projekt schließen"],
           "Renombrar…": ["Rename…", "Renomear…", "Renommer…", "Umbenennen…"],
           "Cambiar carátula": ["Change artwork", "Alterar capa", "Changer la pochette", "Cover ändern"],
-          "CanciÃ³n anterior": ["Previous song", "Faixa anterior", "Morceau précédent", "Vorheriger Titel"],
-          "Canción anterior": ["Previous song", "Faixa anterior", "Morceau précédent", "Vorheriger Titel"],
+            "Canción anterior": ["Previous song", "Faixa anterior", "Morceau précédent", "Vorheriger Titel"],
           "Canción siguiente": ["Next song", "Próxima faixa", "Morceau suivant", "Nächster Titel"],
           "Reproducir": ["Play", "Reproduzir", "Lire", "Wiedergabe"],
           "Pausar": ["Pause", "Pausar", "Pause", "Pause"],
@@ -9789,21 +9933,22 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             document.body.appendChild(panel);
           }
           const label = panel.querySelector("[data-update-progress-label]"), fill = panel.querySelector("[data-update-progress-fill]");
-          if (label) label.textContent = message || "Descargando actualización…";
+          const safeMessage = repairLegacyText(String(message || "Descargando actualización..."));
+          if (label) label.textContent = safeMessage;
           const failed = Number(percent) <= -2, unknown = Number(percent) === -1;
           if (fill) { fill.style.width = unknown ? "35%" : `${Math.max(0, Math.min(100, Number(percent) || 0))}%`; fill.style.background = failed ? "#d15b5b" : unknown ? "#438bd2" : "#36b878"; }
           const settingsProgress = document.getElementById("stagetracksUpdateProgressSettings");
           if (settingsProgress) {
             settingsProgress.hidden = false;
             const settingsLabel = settingsProgress.querySelector("[data-update-progress-label]"), settingsFill = settingsProgress.querySelector("[data-update-progress-fill]");
-            if (settingsLabel) settingsLabel.textContent = message || "Descargando actualización…";
+            if (settingsLabel) settingsLabel.textContent = safeMessage;
             if (settingsFill) { settingsFill.style.width = unknown ? "35%" : `${Math.max(0, Math.min(100, Number(percent) || 0))}%`; settingsFill.style.background = failed ? "#d15b5b" : unknown ? "#438bd2" : "#36b878"; }
           }
           if (Number(percent) === 100) setTimeout(() => panel?.remove(), 8000);
         };
         function downloadStageTracksUpdate(autoInstall = false) {
           const url = stageTracksInstallerUrl();
-          if (!url.startsWith("https://github.com/Edu-space-IDC/StageTrack/releases/")) {
+          if (url !== "https://stagetrack-project.vercel.app/downloads/StageTracks-Setup-windows-x64.exe") {
             toast("No se pudo abrir el instalador: enlace no reconocido.", true); return;
           }
           window.chrome?.webview?.postMessage("downloadUpdate|" + url + "|" + (autoInstall ? "1" : "0"));
@@ -9822,7 +9967,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             close.style.cssText = "border:0;background:transparent;color:#c8d0d8;font-size:20px;cursor:pointer"; close.onclick = () => banner.remove();
             banner.append(label, download, close); document.body.appendChild(banner);
           }
-          banner.querySelector("[data-update-label]").textContent = `Nueva actualización ${stageTracksUpdateInfo.version} ¿Descargar?`;
+          banner.querySelector("[data-update-label]").textContent = repairLegacyText(`Nueva actualización ${stageTracksUpdateInfo.version} ¿Descargar?`);
         }
         let stageTracksReleaseNotesLoading = false;
         async function showStageTracksReleaseNotesIfNeeded(releaseInfo) {
@@ -10831,7 +10976,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             };
             const cover = document.createElement("button");
             cover.type = "button";
-            cover.title = "Cambiar car?tula";
+            cover.title = "Cambiar carátula";
             cover.innerHTML = I.img;
             cover.onclick = (e) => {
               e.stopPropagation();
@@ -10850,7 +10995,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             const label = document.createElement("div");
             label.className = "nm";
             const songName =
-                h.querySelector(".psongname")?.textContent || "Sin t?tulo",
+                h.querySelector(".psongname")?.textContent || "Sin título",
               track = document.createElement("span"),
               run = document.createElement("span"),
               nameText = document.createElement("span"),

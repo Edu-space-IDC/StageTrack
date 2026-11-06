@@ -1,16 +1,23 @@
 ﻿{
-  "version": "0.5.10",
-  "intro": "La versión 0.5.10 ya está disponible. Incluye correcciones de errores y mejoras para el servicio de StageTracks y la comunidad.",
+  "version": "0.5.12",
+  "intro": "La versión 0.5.12 conserva los metadatos de comunidad y libera audio de proyectos inactivos.",
   "implementations": [
     "El progreso de descarga e instalación de actualizaciones se muestra en una barra inferior.",
     "El aviso de novedades aparece una vez al abrir una versión nueva e incluye un changelog.",
     "El enlace «¿Encontraste errores?» abre directamente el formulario de comentarios.",
-    "Las subidas a la comunidad muestran su progreso aunque continúes en segundo plano."
+    "Las subidas a la comunidad muestran su progreso aunque continúes en segundo plano.",
+    "Control web muestra el botón «Desconectarse» para volver a la sesión local.",
+    "El botón de importación indica que añade audio a la secuencia activa de StageTracks.",
+    "Las secuencias guardan el artista y la tonalidad junto con su BPM y su carátula original."
   ],
   "fixes": [
     "Se restauró el botón «Comprobar actualización» en Configuración.",
     "El botón de comprobación informa si hay una versión nueva o si ya tienes la última.",
-    "El progreso de subida ya no desaparece al cerrar el diálogo."
+    "El progreso de subida ya no desaparece al cerrar el diálogo.",
+    "La exportación de secuencias vuelve a mostrarse dentro de la aplicación StageTracks.",
+    "La descarga de Reaper Control Studio se prepara desde el mismo artefacto compilado que el instalador.",
+    "Al cerrar o cambiar de proyecto se liberan los buffers de audio que ya no se necesitan.",
+    "Cerrar una secuencia durante la importación ya no permite que la carga atrasada reaparezca en otra sesión."
   ],
   "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"
 }

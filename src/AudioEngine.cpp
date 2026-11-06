@@ -1,6 +1,7 @@
 #include "AudioEngine.h"
 #include <algorithm>
 #include <limits>
+#include <thread>
 #include <vector>
 
 AudioEngine::AudioEngine()
@@ -348,12 +349,20 @@ bool AudioEngine::commitPrepared(Prepared&& p, int songIndex, juce::String& erro
     if (!p.ok || p.data == nullptr) { error = p.error.isNotEmpty() ? p.error : juce::String("Import failed."); return false; }
     if (songIndex < 0 || songIndex >= maxSongs) { error = "Reached the 32-song limit."; return false; }
     const juce::ScopedLock sl(commitLock);
-    const int slot = trackCount.load(std::memory_order_acquire);
-    if (slot >= maxTracks) { error = "Reached the 64-track limit."; return false; }
-    for (int i = 0; i < slot; ++i)
-        if (tracks[(size_t)i]->songIndex == songIndex && tracks[(size_t)i]->name == p.fileBase) {
+    const int highWater = trackCount.load(std::memory_order_acquire);
+    int slot = -1;
+    for (int i = 0; i < highWater; ++i)
+        if (tracks[(size_t)i]->songIndex < 0) { slot = i; break; }
+    if (slot < 0) {
+        if (highWater >= maxTracks) { error = "Reached the 64-track limit."; return false; }
+        slot = highWater;
+    }
+    for (int i = 0; i < highWater; ++i)
+        if (i != slot && tracks[(size_t)i]->songIndex == songIndex && tracks[(size_t)i]->name == p.fileBase) {
             error = "A track with this filename is already in this song."; return false;
         }
+    trackMaintenance.store(true, std::memory_order_seq_cst);
+    while (callbackReaders.load(std::memory_order_seq_cst) != 0) std::this_thread::yield();
     auto& t = *tracks[(size_t)slot];
     t.name = p.name;
     t.songIndex = songIndex;
@@ -362,12 +371,14 @@ bool AudioEngine::commitPrepared(Prepared&& p, int songIndex, juce::String& erro
     t.audio = std::move(p.data);
     t.decodedBytes = p.bytes;
     p.bytes = 0;   // la reserva de RAM pasa a ser de la pista
-    t.gain.store(1.0f); t.mute.store(false); t.solo.store(false); resetRouting(t);
+    t.gain.store(1.0f); t.pan.store(0.0f); t.mute.store(false); t.solo.store(false); t.color.store(0); t.peak.store(0.0f);
+    t.masterSend.store(true); resetRouting(t);
     const double sec = (double)t.audio->getNumSamples() / p.sourceRate;
     double old = durations[(size_t)songIndex].load();
     while (sec > old && !durations[(size_t)songIndex].compare_exchange_weak(old, sec)) {}
     t.ready.store(true, std::memory_order_release);
-    trackCount.store(slot + 1, std::memory_order_release);
+    if (slot == highWater) trackCount.store(highWater + 1, std::memory_order_release);
+    trackMaintenance.store(false, std::memory_order_seq_cst);
     return true;
 }
 
@@ -463,11 +474,19 @@ double AudioEngine::getTrackSeconds(const Track& t) const noexcept
 
 void AudioEngine::removeTrack(int index) noexcept
 {
+    const juce::ScopedLock commitGuard(commitLock);
+    trackMaintenance.store(true, std::memory_order_seq_cst);
+    while (callbackReaders.load(std::memory_order_seq_cst) != 0) std::this_thread::yield();
     const int song = activeSong.load(std::memory_order_acquire), total = trackCount.load(std::memory_order_acquire);
     for (int i = 0; i < total; ++i)
         if (tracks[(size_t)i]->songIndex == song && index-- == 0) {
-            tracks[(size_t)i]->ready.store(false, std::memory_order_release);
-            tracks[(size_t)i]->songIndex = -1;
+            auto& track = *tracks[(size_t)i];
+            track.ready.store(false, std::memory_order_release);
+            track.audio.reset();
+            if (track.decodedBytes) decodedBytes.fetch_sub(track.decodedBytes, std::memory_order_relaxed);
+            track.decodedBytes = 0;
+            track.peaks.fill(0.0f);
+            track.songIndex = -1;
             break;
         }
     // duration = longest remaining track of the song
@@ -475,27 +494,56 @@ void AudioEngine::removeTrack(int index) noexcept
     for (int i = 0; i < total; ++i)
         if (tracks[(size_t)i]->songIndex == song) longest = juce::jmax(longest, getTrackSeconds(*tracks[(size_t)i]));
     durations[(size_t)song].store(longest);
+    trackMaintenance.store(false, std::memory_order_seq_cst);
 }
 
-void AudioEngine::releaseSong(int slot) noexcept
+void AudioEngine::releaseSong(int slot, bool resetTransport) noexcept
 {
+    const juce::ScopedLock commitGuard(commitLock);
+    trackMaintenance.store(true, std::memory_order_seq_cst);
+    while (callbackReaders.load(std::memory_order_seq_cst) != 0) std::this_thread::yield();
     if (slot >= 0 && slot < maxSongs) {
         auto& t = transports[(size_t)slot];
         t.playing.store(false, std::memory_order_release);
         t.generation.fetch_add(1, std::memory_order_acq_rel);
-        t.position.store(0, std::memory_order_release);
-        t.sectionPlayback.store(false, std::memory_order_release);
-        t.queuedJump.store(false, std::memory_order_release);
+        if (resetTransport) {
+            t.position.store(0, std::memory_order_release);
+            t.sectionPlayback.store(false, std::memory_order_release);
+            t.queuedJump.store(false, std::memory_order_release);
+        }
     }
     const int total = trackCount.load(std::memory_order_acquire);
     for (int i = 0; i < total; ++i)
         if (tracks[(size_t)i]->songIndex == slot) {
-            tracks[(size_t)i]->ready.store(false, std::memory_order_release);
-            tracks[(size_t)i]->songIndex = -1;
+            auto& track = *tracks[(size_t)i];
+            track.ready.store(false, std::memory_order_release);
+            track.audio.reset();
+            if (track.decodedBytes) decodedBytes.fetch_sub(track.decodedBytes, std::memory_order_relaxed);
+            track.decodedBytes = 0;
+            track.peaks.fill(0.0f);
+            track.songIndex = -1;
         }
     clearSongDuration(slot);
+    trackMaintenance.store(false, std::memory_order_seq_cst);
 }
 double AudioEngine::getPositionSeconds() const noexcept { return (double)transports[(size_t)activeSong.load(std::memory_order_acquire)].position.load(std::memory_order_acquire) / sampleRate.load(); }
+double AudioEngine::getSongPositionSeconds(int slot) const noexcept
+{
+    return slot >= 0 && slot < maxSongs ? (double)transports[(size_t)slot].position.load(std::memory_order_acquire) / sampleRate.load() : 0.0;
+}
+void AudioEngine::setSongPositionSeconds(int slot, double seconds) noexcept
+{
+    if (slot >= 0 && slot < maxSongs)
+        transports[(size_t)slot].position.store((int64_t)(juce::jmax(0.0, seconds) * sampleRate.load()), std::memory_order_release);
+}
+bool AudioEngine::getSongRepeat(int slot) const noexcept
+{
+    return slot >= 0 && slot < maxSongs && transports[(size_t)slot].repeat.load(std::memory_order_acquire);
+}
+void AudioEngine::setSongRepeat(int slot, bool enabled) noexcept
+{
+    if (slot >= 0 && slot < maxSongs) transports[(size_t)slot].repeat.store(enabled, std::memory_order_release);
+}
 double AudioEngine::getDurationSeconds() const noexcept
 {
     const int song = activeSong.load(std::memory_order_acquire);
@@ -579,7 +627,13 @@ void AudioEngine::audioDeviceIOCallbackWithContext(const float* const*, int, flo
                                                     int outputs, int frames,
                                                     const juce::AudioIODeviceCallbackContext&)
 {
+    struct ReaderGuard {
+        std::atomic<int>& readers;
+        explicit ReaderGuard(std::atomic<int>& value) : readers(value) { readers.fetch_add(1, std::memory_order_seq_cst); }
+        ~ReaderGuard() { readers.fetch_sub(1, std::memory_order_seq_cst); }
+    } reader(callbackReaders);
     for (int c = 0; c < outputs; ++c) if (out[c] != nullptr) juce::FloatVectorOperations::clear(out[c], frames);
+    if (trackMaintenance.load(std::memory_order_seq_cst)) return;
     if (outputs == 0) {
         masterPeak.store(0.0f, std::memory_order_relaxed);
         padPeak.store(0.0f, std::memory_order_relaxed);

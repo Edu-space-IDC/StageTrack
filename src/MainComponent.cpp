@@ -61,10 +61,10 @@ MainComponent::MainComponent()
         server->onHostMessage = [safe = juce::Component::SafePointer<MainComponent>(this)](const juce::String& msg) {
             juce::MessageManager::callAsync([safe, msg] { if (safe != nullptr) safe->onHostMessage(msg); });
         };
-        server->onCommunityDownload = [safe = juce::Component::SafePointer<MainComponent>(this)](const juce::File& file) {
-            juce::MessageManager::callAsync([safe, file] {
+        server->onCommunityDownload = [safe = juce::Component::SafePointer<MainComponent>(this)](const juce::File& file, const juce::var& metadata) {
+            juce::MessageManager::callAsync([safe, file, metadata] {
                 if (safe != nullptr && safe->bridge != nullptr) {
-                    safe->bridge->openPaths({ file });
+                    safe->bridge->openPaths({ file }, metadata);
                     safe->bridge->toast("Secuencia descargada. Preparando el setlist…", false);
                 }
             });
@@ -246,12 +246,12 @@ void MainComponent::onHostMessage(const juce::String& msg)
 void MainComponent::downloadUpdateInstaller(const juce::String& url, bool autoInstall)
 {
     if (updateDownloadInProgress) { if (bridge) bridge->toast("La descarga de la actualización ya está en curso.", false); return; }
-    if (!url.startsWithIgnoreCase("https://github.com/Edu-space-IDC/StageTrack/releases/")) {
+    if (url != "https://stagetrack-project.vercel.app/downloads/StageTracks-Setup-windows-x64.exe") {
         if (bridge) bridge->toast("No se pudo descargar la actualización: enlace no reconocido.", true);
         return;
     }
     updateDownloadInProgress = true;
-    if (bridge) bridge->queueScript("window.receiveStageTracksUpdateProgress?.(0, 'Conectando con GitHub…')");
+    if (bridge) bridge->queueScript("window.receiveStageTracksUpdateProgress?.(0, 'Conectando con StageTracks…')");
     const auto folder = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
                             .getChildFile("StageTracks").getChildFile("Updates");
     folder.createDirectory();
@@ -272,7 +272,7 @@ void MainComponent::downloadUpdateInstaller(const juce::String& url, bool autoIn
                                  .withConnectionTimeoutMs(30000).withStatusCode(&responseCode).withNumRedirectsToFollow(10);
         auto input = juce::URL(url).createInputStream(options);
         if (input == nullptr || responseCode < 200 || responseCode >= 300) {
-            error = "No se pudo conectar con GitHub para descargar el instalador.";
+            error = "No se pudo conectar con el sitio de StageTracks para descargar el instalador.";
             reportProgress(-2, error);
         } else {
             auto output = std::make_unique<juce::FileOutputStream>(temporary);
@@ -280,15 +280,15 @@ void MainComponent::downloadUpdateInstaller(const juce::String& url, bool autoIn
             else {
                 char buffer[256 * 1024];
                 int bytes = 0; int64_t downloaded = 0; const int64_t totalBytes = input->getTotalLength(); int lastPercent = -1;
-                reportProgress(0, "Descargando instalador… 0%");
+                reportProgress(0, "Descargando instalador... 0%");
                 while ((bytes = input->read(buffer, (int) sizeof(buffer))) > 0) {
                     if (!output->write(buffer, (size_t) bytes)) { error = "La descarga del instalador se interrumpió al guardar el archivo."; break; }
                     downloaded += bytes;
                     if (totalBytes > 0) {
                         const int percent = (int) juce::jlimit<int64_t>(0, 99, downloaded * 100 / totalBytes);
-                        if (percent != lastPercent) { lastPercent = percent; reportProgress(percent, "Descargando instalador… " + juce::String(percent) + "%"); }
+                        if (percent != lastPercent) { lastPercent = percent; reportProgress(percent, "Descargando instalador... " + juce::String(percent) + "%"); }
                     } else if (downloaded % (5 * 1024 * 1024) < bytes) {
-                        reportProgress(-1, "Descargando instalador… " + juce::String(downloaded / (1024 * 1024)) + " MB");
+                        reportProgress(-1, "Descargando instalador... " + juce::String(downloaded / (1024 * 1024)) + " MB");
                     }
                 }
                 output->flush();

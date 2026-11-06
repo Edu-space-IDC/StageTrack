@@ -1,8 +1,10 @@
 #pragma once
 #include <JuceHeader.h>
 #include <atomic>
+#include <array>
 #include <functional>
 #include <map>
+#include <thread>
 #include <vector>
 #include "AudioEngine.h"
 
@@ -20,7 +22,7 @@ public:
     juce::String handle(const juce::String& body);
 
     // acciones del anfitrion (ventana nativa)
-    void openPaths(const juce::Array<juce::File>& files);
+    void openPaths(const juce::Array<juce::File>& files, const juce::var& communityMetadata = {});
     void importAudio(const juce::Array<juce::File>& files);   // a la cancion activa
     void saveLibrary();
     juce::String takeHostScript();                             // JS pendiente para la pagina (avisos, rutas elegidas)
@@ -38,8 +40,10 @@ private:
     struct Song
     {
         int slot = 0;                 // indice dentro del motor
+        uint64_t generation = 0;      // evita que una importacion antigua invada un slot reutilizado
         juce::String id;              // identificador estable
         juce::String name;
+        juce::String artist, key;
         juce::String hash;            // 16 hex, nombre del archivo de caratula
         double tempo = 92.0;
         double masterVolume = 0.82;
@@ -104,13 +108,14 @@ private:
     void startImport(int slot, juce::Array<juce::File> files, juce::StringArray names, juce::StringArray routings = {},
                      juce::StringArray volumes = {}, juce::StringArray pans = {}, juce::StringArray mutes = {},
                      juce::StringArray solos = {}, juce::StringArray colors = {}, bool rememberSources = true);
-    void loadSequence(const juce::File&);
-    void appendSequenceSong(const juce::var& model, const juce::File& baseDirectory, bool activateIt);
+    void loadSequence(const juce::File&, const juce::var& communityMetadata = {});
+    void appendSequenceSong(const juce::var& model, const juce::File& baseDirectory, bool activateIt, const juce::var& communityMetadata = {});
     void runBackground(std::function<void()> fn);
 
     AudioEngine& engine;
     juce::CriticalSection lock;
     std::vector<Song> songs;
+    std::array<std::atomic<uint64_t>, AudioEngine::maxSongs> slotGenerations {};
     int active = 0;
     std::map<juce::String, juce::String> ext;        // claves escritas por la web (WebControl/*)
     std::map<juce::String, juce::String> coverByVer;
@@ -123,6 +128,7 @@ private:
     juce::CriticalSection outLock;
     juce::StringArray outbox;
     juce::ThreadPool pool { 1 };
+    std::thread autosaveThread;
     std::atomic<bool> closing { false };
     std::atomic<bool> projectDirty { false };
 

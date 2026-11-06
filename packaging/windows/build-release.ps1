@@ -4,11 +4,9 @@ $root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $build = Join-Path $root 'build'
 $stage = Join-Path $build 'StageTracks_release_stage'
 $downloads = Join-Path $root 'release-artifacts'
-$site = if (Test-Path -LiteralPath (Join-Path $root 'Pagina oficial/site/package.json')) {
-    Join-Path $root 'Pagina oficial/site'
-} else {
-    $root
-}
+$siteCandidates = @((Join-Path $root 'Pagina oficial/StageTrack-community-fix'), (Join-Path $root 'Pagina oficial/site'), $root)
+$site = $siteCandidates | Where-Object { Test-Path -LiteralPath (Join-Path $_ 'package.json') } | Select-Object -First 1
+if (-not $site) { throw 'No se encontró el sitio oficial (package.json).'; }
 $publicDownloads = Join-Path $site 'public/downloads'
 $reaperSource = Join-Path $root 'Reaper-Control-Studio-Reaper-files'
 $studioHtml = Join-Path $root 'web/studio.html'
@@ -55,6 +53,10 @@ $studioExe = Join-Path $downloads 'Reaper Control Studio.exe'
 $studioBuilt = Join-Path $studioPublish 'Reaper Control Studio.exe'
 if (-not (Test-Path -LiteralPath $studioBuilt)) { throw 'No se encontró el ejecutable compilado de Reaper Control Studio.' }
 Copy-Item -LiteralPath $studioBuilt -Destination $studioExe -Force
+$studioZip = Join-Path $publicDownloads 'Reaper-Control-Studio-windows-x64.zip'
+Compress-Archive -LiteralPath $studioBuilt -DestinationPath $studioZip -CompressionLevel Optimal -Force
+$oldStudioExe = Join-Path $publicDownloads 'Reaper.Control.Studio.exe'
+if (Test-Path -LiteralPath $oldStudioExe) { Remove-Item -LiteralPath $oldStudioExe -Force }
 $compilerArgs = @('/nologo','/target:winexe','/codepage:65001',('/out:' + $targetName),('/win32icon:' + $installerIcon),'/reference:System.Windows.Forms.dll','/reference:System.Drawing.dll','/reference:System.dll','/reference:System.IO.Compression.dll','/reference:System.IO.Compression.FileSystem.dll',('/resource:' + $installerIcon + ',StageTracks.app-icon.ico'),('/resource:' + (Join-Path $root 'assets/app-icon.png') + ',StageTracks.app-icon.png'),('/resource:' + (Join-Path $installerStage 'StageTracks-portable-windows-x64.zip') + ',StageTracks.StageTracks-portable-windows-x64.zip'),('/resource:' + (Join-Path $installerStage 'uninstall.ps1') + ',StageTracks.uninstall.ps1'),(Join-Path $PSScriptRoot 'InstallerBootstrap.cs'))
 $compilerOutput = & $csc @compilerArgs 2>&1
 $compilerExitCode = $LASTEXITCODE
@@ -62,7 +64,9 @@ if ($compilerExitCode -ne 0 -or -not (Test-Path $targetName)) {
     $compilerDiagnostic = ($compilerOutput | Out-String).Trim()
     throw "No se pudo compilar el instalador de StageTracks (csc exit code $compilerExitCode). $compilerDiagnostic"
 }
-[ordered]@{version='0.5.10';portable='/downloads/StageTracks-portable-windows-x64.zip';installer='/downloads/StageTracks-Setup-windows-x64.exe';installerUrl='https://github.com/Edu-space-IDC/StageTrack/releases/download/v0.5.10/StageTracks-Setup-windows-x64.exe';reaperStudioExe='https://github.com/Edu-space-IDC/StageTrack/releases/download/v0.5.10/Reaper.Control.Studio.exe';updated=(Get-Date).ToUniversalTime().ToString('o')} | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $publicDownloads 'release.json')
+Copy-Item -LiteralPath $portable -Destination (Join-Path $publicDownloads 'StageTracks-portable-windows-x64.zip') -Force
+Copy-Item -LiteralPath $targetName -Destination (Join-Path $publicDownloads 'StageTracks-Setup-windows-x64.exe') -Force
+[ordered]@{version='0.5.12';portable='/downloads/StageTracks-portable-windows-x64.zip';installer='/downloads/StageTracks-Setup-windows-x64.exe';installerUrl='https://stagetrack-project.vercel.app/downloads/StageTracks-Setup-windows-x64.exe';reaperStudioExe='/downloads/Reaper-Control-Studio-windows-x64.zip';updated=(Get-Date).ToUniversalTime().ToString('o')} | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $publicDownloads 'release.json')
 $publicAssets = Join-Path $site 'public/assets'
 Copy-Item -LiteralPath (Join-Path $root 'assets/app-icon.png') -Destination (Join-Path $publicAssets 'app-icon.png') -Force
 Copy-Item -LiteralPath (Join-Path $root 'assets/app-icon.png') -Destination (Join-Path $reaperSource 'app-icon.png') -Force

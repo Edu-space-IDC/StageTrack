@@ -22,8 +22,8 @@ const googleDriveAppsScriptToken = String(process.env.GOOGLE_DRIVE_APPS_SCRIPT_T
 const driveStorageEnabled = Boolean(googleDriveAppsScriptUrl && googleDriveAppsScriptToken);
 const port = Number(process.env.PORT || 47822);
 const host = process.env.HOST || '0.0.0.0';
-const maxUploadBytes = Number(process.env.MAX_UPLOAD_MB || 1024) * 1024 * 1024;
-const maxChunkedUploadBytes = Number(process.env.MAX_CHUNKED_UPLOAD_MB || 1024) * 1024 * 1024;
+const maxUploadBytes = Math.max(2048, Number(process.env.MAX_UPLOAD_MB || 2048)) * 1024 * 1024;
+const maxChunkedUploadBytes = Math.max(2048, Number(process.env.MAX_CHUNKED_UPLOAD_MB || 2048)) * 1024 * 1024;
 const uploadChunkBytes = 8 * 1024 * 1024;
 const sequenceUploadSessions = new Map();
 const sequenceUploadJobs = new Map();
@@ -594,7 +594,7 @@ app.delete('/api/admin/sequences/:id', adminAuth, async (req, res) => {
 
 app.use('/api', (req, res) => res.status(404).json({ error: `Ruta API desconocida: ${req.path}` }));
 app.use((error, _req, res, _next) => {
-  if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: `El paquete supera el límite de ${process.env.MAX_UPLOAD_MB || 1024} MB.` });
+  if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: `El paquete supera el límite de ${2048} MB.` });
   res.status(400).json({ error: error.message || 'No se pudo procesar la solicitud.' });
 });
 if (await import('node:fs/promises').then(({ access }) => access(path.join(root, 'dist')).then(() => true).catch(() => false))) {

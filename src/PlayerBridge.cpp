@@ -3,6 +3,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <algorithm>
+#include <chrono>
 #include <future>
 #include <stdexcept>
 #include <thread>
@@ -66,18 +67,12 @@ juce::String PlayerBridge::coverHash(const juce::String& s)
 
 juce::String PlayerBridge::imageToDataUri(const juce::File& f)
 {
-    auto img = juce::ImageFileFormat::loadFrom(f);
-    if (img.isNull()) return {};
-    const int maxSide = 512;
-    const double scale = juce::jmin(1.0, maxSide / (double) juce::jmax(img.getWidth(), img.getHeight()));
-    if (scale < 1.0)
-        img = img.rescaled(juce::jmax(1, juce::roundToInt(img.getWidth() * scale)),
-                           juce::jmax(1, juce::roundToInt(img.getHeight() * scale)), juce::Graphics::highResamplingQuality);
-    juce::MemoryOutputStream ms;
-    juce::JPEGImageFormat jpg;
-    jpg.setQuality(0.86f);
-    if (!jpg.writeImageToStream(img, ms)) return {};
-    return "data:image/jpeg;base64," + juce::Base64::toBase64(ms.getData(), ms.getDataSize());
+    juce::MemoryBlock data;
+    if (!f.loadFileAsData(data) || data.isEmpty() || juce::ImageFileFormat::loadFrom(f).isNull()) return {};
+    const auto mime = f.hasFileExtension("png") ? juce::String("image/png")
+                    : f.hasFileExtension("webp") ? juce::String("image/webp")
+                    : juce::String("image/jpeg");
+    return "data:" + mime + ";base64," + juce::Base64::toBase64(data.getData(), data.getSize());
 }
 
 juce::File PlayerBridge::appDir()
@@ -95,13 +90,28 @@ juce::String PlayerBridge::timeStr(double sec)
 }
 
 // ------------------------------------------------------------------ ciclo de vida
-PlayerBridge::PlayerBridge(AudioEngine& e) : engine(e) { loadLibrary(); }
+PlayerBridge::PlayerBridge(AudioEngine& e) : engine(e)
+{
+    for (auto& generation : slotGenerations) generation.store(0, std::memory_order_relaxed);
+    loadLibrary();
+    autosaveThread = std::thread([this] {
+        int playbackAutosaveTicks = 0;
+        while (!closing.load(std::memory_order_acquire)) {
+            std::this_thread::sleep_for(std::chrono::seconds(5));
+            if (closing.load(std::memory_order_acquire)) break;
+            const bool playbackCheckpoint = engine.isPlaying() && ++playbackAutosaveTicks >= 6;
+            if (playbackCheckpoint) playbackAutosaveTicks = 0;
+            if (projectDirty.load(std::memory_order_relaxed) || playbackCheckpoint) saveLibrary();
+        }
+    });
+}
 
 PlayerBridge::~PlayerBridge() { shutdown(); }
 
 void PlayerBridge::shutdown(bool savePending)
 {
     if (closing.exchange(true)) return;
+    if (autosaveThread.joinable()) autosaveThread.join();
     pool.removeAllJobs(true, 8000);
     if (savePending) saveLibrary();
 }
@@ -155,6 +165,7 @@ PlayerBridge::Song* PlayerBridge::addSong(const juce::String& name, bool activat
     if (slot < 0) return nullptr;
     Song s;
     s.slot = slot;
+    s.generation = slotGenerations[(size_t) slot].fetch_add(1, std::memory_order_acq_rel) + 1;
     // Los slots del motor se reutilizan cuando se cierra una canción. No
     // heredar secciones de la canción anterior que ocupaba ese slot.
     ext.erase("sections_" + juce::String(slot));
@@ -173,6 +184,8 @@ void PlayerBridge::activate(int index)
 {
     const juce::ScopedLock sl(lock);
     if (index < 0 || index >= (int) songs.size()) return;
+    // Keep loaded projects resident when switching tabs so their tracks do not
+    // have to be decoded again when returning to a project.
     active = index;
     engine.setActiveSong(songs[(size_t) index].slot);
     engine.bpm.store(songs[(size_t) index].tempo);
@@ -201,6 +214,7 @@ void PlayerBridge::closeActive()
     auto* s = activeSongPtr();
     if (s == nullptr) return;
     engine.setPlaying(false);
+    slotGenerations[(size_t) s->slot].fetch_add(1, std::memory_order_acq_rel);
     engine.releaseSong(s->slot);
     songs.erase(songs.begin() + active);
     active = juce::jlimit(0, juce::jmax(0, (int) songs.size() - 1), active);
@@ -248,6 +262,8 @@ void PlayerBridge::saveLibrary()
         auto* o = new juce::DynamicObject();
         o->setProperty("id", s.id);
         o->setProperty("name", s.name);
+        o->setProperty("artist", s.artist);
+        o->setProperty("key", s.key);
         o->setProperty("hash", s.hash);
         o->setProperty("tempo", s.tempo);
         o->setProperty("masterVolume", s.masterVolume);
@@ -255,6 +271,8 @@ void PlayerBridge::saveLibrary()
         o->setProperty("timeSigDen", s.timeSigDen);
         o->setProperty("tempoManual", s.tempoManual);
         o->setProperty("tempoKnown", s.tempoKnown);
+        o->setProperty("position", engine.getSongPositionSeconds(s.slot));
+        o->setProperty("repeat", engine.getSongRepeat(s.slot));
         const auto sectionData = ext.find("sections_" + juce::String(s.slot));
         if (sectionData != ext.end()) o->setProperty("sections", sectionData->second);
         juce::Array<juce::var> files;
@@ -303,14 +321,19 @@ void PlayerBridge::loadLibrary()
             if ((int) songs.size() >= AudioEngine::maxSongs) break;
             Song s;
             s.slot = (int) songs.size();
+            s.generation = slotGenerations[(size_t) s.slot].fetch_add(1, std::memory_order_acq_rel) + 1;
             s.id = v.getProperty("id", juce::Uuid().toString()).toString();
             s.name = v.getProperty("name", juce::String("Canción")).toString();
+            s.artist = v.getProperty("artist", {}).toString();
+            s.key = v.getProperty("key", {}).toString();
             s.hash = v.getProperty("hash", {}).toString();
             const auto storedTempo = v.getProperty("tempo", {});
             s.tempo = juce::jlimit(1.0, 999.0, std::round(storedTempo.isVoid() ? 92.0 : (double) storedTempo));
             s.masterVolume = juce::jlimit(0.0, 4.0, (double) v.getProperty("masterVolume", 0.82));
             s.timeSigNum = juce::jlimit(1, 32, (int) v.getProperty("timeSigNum", 4));
             s.timeSigDen = juce::jlimit(1, 32, (int) v.getProperty("timeSigDen", 4));
+            engine.setSongPositionSeconds(s.slot, (double) v.getProperty("position", 0.0));
+            engine.setSongRepeat(s.slot, (bool) v.getProperty("repeat", false));
             s.tempoManual = (bool) v.getProperty("tempoManual", false);
             s.tempoKnown = (bool) v.getProperty("tempoKnown", false) || !storedTempo.isVoid();
             if (s.hash.length() != 16) s.hash = coverHash("st:" + s.id);
@@ -362,11 +385,13 @@ void PlayerBridge::startImport(int slot, juce::Array<juce::File> files, juce::St
                                juce::StringArray volumes, juce::StringArray pans, juce::StringArray mutes,
                                juce::StringArray solos, juce::StringArray colors, bool rememberSources)
 {
+    uint64_t generation = 0;
     {
         const juce::ScopedLock sl(lock);
-        for (auto& song : songs) if (song.slot == slot) { song.loading = true; break; }
+        for (auto& song : songs) if (song.slot == slot) { song.loading = true; generation = song.generation; break; }
     }
-    runBackground([this, slot, files = std::move(files), names = std::move(names), routings = std::move(routings),
+    if (generation == 0) return;
+    runBackground([this, slot, generation, files = std::move(files), names = std::move(names), routings = std::move(routings),
                    volumes = std::move(volumes), pans = std::move(pans), mutes = std::move(mutes),
                    solos = std::move(solos), colors = std::move(colors), rememberSources] {
         const int total = files.size();
@@ -385,16 +410,18 @@ void PlayerBridge::startImport(int slot, juce::Array<juce::File> files, juce::St
         juce::String errors;
         for (int i = 0; i < total; ++i) {
             if (!futures[(size_t) i].valid()) break;   // cierre del programa
-            toast("Cargando audio… " + juce::String(i + 1) + "/" + juce::String(total), false);
+            toast("Cargando audios... " + juce::String(i + 1) + "/" + juce::String(total), false);
             auto prepared = futures[(size_t) i].get();
+            if (closing.load(std::memory_order_acquire) || slotGenerations[(size_t) slot].load(std::memory_order_acquire) != generation) break;
             if (next < total && !closing) launch(next++);
             const bool cached = prepared.fromCache;
             juce::String err;
+            const juce::ScopedLock sl(lock);
+            if (slotGenerations[(size_t) slot].load(std::memory_order_acquire) != generation) break;
             if (engine.commitPrepared(std::move(prepared), slot, err)) {
                 ++ok;
                 if (cached) ++fromCache;
                 const auto name = i < names.size() ? names[i] : juce::String();
-                const juce::ScopedLock sl(lock);
                 const auto routing = i < routings.size() ? routings[i] : juce::String();
                 for (auto& s : songs)
                     if (s.slot == slot) {
@@ -425,10 +452,12 @@ void PlayerBridge::startImport(int slot, juce::Array<juce::File> files, juce::St
                 ++structRev;
             } else errors << files[i].getFileName() << ": " << err << "\n";
         }
+        bool stillOpen = false;
         {
             const juce::ScopedLock sl(lock);
-            for (auto& song : songs) if (song.slot == slot) { song.loading = false; break; }
+            for (auto& song : songs) if (song.slot == slot && song.generation == generation) { song.loading = false; stillOpen = true; break; }
         }
+        if (!stillOpen) return;
         saveLibrary();
         if (errors.isNotEmpty()) toast(errors.trim(), true);
         else {
@@ -454,12 +483,12 @@ void PlayerBridge::importAudio(const juce::Array<juce::File>& files)
     startImport(slot, files, {});
 }
 
-void PlayerBridge::openPaths(const juce::Array<juce::File>& files)
+void PlayerBridge::openPaths(const juce::Array<juce::File>& files, const juce::var& communityMetadata)
 {
-    runBackground([this, files] {
+    runBackground([this, files, communityMetadata] {
         juce::Array<juce::File> audio;
         for (const auto& f : files) {
-            if (f.hasFileExtension("rpseq") || f.hasFileExtension("zip")) { loadSequence(f); addRecent(f); }
+            if (f.hasFileExtension("rpseq") || f.hasFileExtension("zip")) { loadSequence(f, communityMetadata); addRecent(f); }
             else if (f.hasFileExtension("rpp")) toast("Los proyectos .rpp todavía no se pueden abrir en StageTracks. Usa .rpseq o .zip.", true);
             else if (isAudioPath(f)) audio.add(f);
             else toast("Formato no soportado: " + f.getFileName(), true);
@@ -469,7 +498,7 @@ void PlayerBridge::openPaths(const juce::Array<juce::File>& files)
     });
 }
 
-void PlayerBridge::loadSequence(const juce::File& source)
+void PlayerBridge::loadSequence(const juce::File& source, const juce::var& communityMetadata)
 {
     try {
         juce::File base = source.getParentDirectory();
@@ -515,7 +544,7 @@ void PlayerBridge::loadSequence(const juce::File& source)
         if (arr == nullptr || arr->isEmpty()) throw std::runtime_error("No es una secuencia válida o no tiene canciones.");
         bool first = true;
         for (const auto& song : *arr) {
-            appendSequenceSong(song, base, first);
+            appendSequenceSong(song, base, first, communityMetadata);
             first = false;
         }
         toast(arr->size() == 1 ? "Abierto: " + arr->getReference(0).getProperty("name", {}).toString()
@@ -533,6 +562,8 @@ bool PlayerBridge::saveSequenceFile(const juce::File& destination, juce::String&
 
     auto* songObject = new juce::DynamicObject();
     songObject->setProperty("name", song->name);
+    songObject->setProperty("artist", song->artist);
+    songObject->setProperty("key", song->key);
     songObject->setProperty("tempo", song->tempo);
     songObject->setProperty("timeSigNum", song->timeSigNum);
     songObject->setProperty("timeSigDen", song->timeSigDen);
@@ -610,7 +641,7 @@ bool PlayerBridge::saveSequenceFile(const juce::File& destination, juce::String&
     return true;
 }
 
-void PlayerBridge::appendSequenceSong(const juce::var& model, const juce::File& baseDirectory, bool activateIt)
+void PlayerBridge::appendSequenceSong(const juce::var& model, const juce::File& baseDirectory, bool activateIt, const juce::var& communityMetadata)
 {
     Song* s;
     int slot;
@@ -623,18 +654,40 @@ void PlayerBridge::appendSequenceSong(const juce::var& model, const juce::File& 
         hash = s->hash;
         s->tempo = juce::jlimit(1.0, 999.0, std::round((double) model.getProperty("tempo", 92.0)));
         s->tempoKnown = !model.getProperty("tempo", {}).isVoid();
+        s->artist = communityMetadata.getProperty("artist", model.getProperty("artist", {})).toString().trim();
+        s->key = communityMetadata.getProperty("key", model.getProperty("key", {})).toString().trim();
+        if (s->artist.isEmpty()) s->artist = model.getProperty("artist", {}).toString().trim();
+        if (s->key.isEmpty()) s->key = model.getProperty("key", {}).toString().trim();
+        const auto communityName = communityMetadata.getProperty("name", {}).toString().trim();
+        if (communityName.isNotEmpty()) s->name = communityName;
+        const auto communityBpm = communityMetadata.getProperty("bpm", {});
+        if (!communityBpm.isVoid() && (double) communityBpm >= 1.0) { s->tempo = juce::jlimit(1.0, 999.0, std::round((double) communityBpm)); s->tempoKnown = true; }
         s->timeSigNum = juce::jlimit(1, 32, (int) model.getProperty("timeSigNum", 4));
         s->timeSigDen = juce::jlimit(1, 32, (int) model.getProperty("timeSigDen", 4));
+        const auto meter = communityMetadata.getProperty("meter", {}).toString();
+        const auto meterParts = juce::StringArray::fromTokens(meter, "/", "");
+        if (meterParts.size() == 2) {
+            const int numerator = meterParts[0].getIntValue(), denominator = meterParts[1].getIntValue();
+            if (numerator >= 1 && numerator <= 32 && (denominator == 1 || denominator == 2 || denominator == 4 || denominator == 8 || denominator == 16 || denominator == 32)) {
+                s->timeSigNum = numerator;
+                s->timeSigDen = denominator;
+            }
+        }
         if (activateIt) engine.bpm.store(s->tempo);
     }
     // caratula empaquetada: se guarda como la elegida por el usuario (si no hay una ya)
+    const auto coverData = communityMetadata.getProperty("coverData", {}).toString();
+    if (coverData.startsWith("data:image/")) {
+        const juce::ScopedLock sl(lock);
+        saveCoverOverride(hash, coverData);
+    }
     const auto coverRel = model.getProperty("cover", {}).toString();
     if (coverRel.isNotEmpty()) {
         const auto coverPath = baseDirectory.getChildFile(coverRel.replaceCharacter('\\', '/'));
         const auto full = coverPath.getFullPathName(), prefix = baseDirectory.getFullPathName() + juce::File::getSeparatorString();
         if (full.startsWithIgnoreCase(prefix) && coverPath.existsAsFile()) {
             const auto uri = imageToDataUri(coverPath);
-            if (uri.isNotEmpty()) {
+            if (uri.isNotEmpty() && coverData.isEmpty()) {
                 const juce::ScopedLock sl(lock);
                 saveCoverOverride(hash, uri);
             }
@@ -919,7 +972,7 @@ juce::String PlayerBridge::songsString()
 {
     juce::StringArray rows;
     for (const auto& s : songs)
-        rows.add(hex(s.name) + "~" + hex("stagetracks:" + s.id) + "~" + s.hash + "~" + s.coverState + "~" + s.coverVer + "~" + num(s.tempo, 2) + "~" + juce::String(s.timeSigNum) + "~" + juce::String(s.timeSigDen) + "~" + (s.tempoManual ? "1" : "0") + "~" + (s.tempoKnown ? "1" : "0"));
+        rows.add(hex(s.name) + "~" + hex("stagetracks:" + s.id) + "~" + s.hash + "~" + s.coverState + "~" + s.coverVer + "~" + num(s.tempo, 2) + "~" + juce::String(s.timeSigNum) + "~" + juce::String(s.timeSigDen) + "~" + (s.tempoManual ? "1" : "0") + "~" + (s.tempoKnown ? "1" : "0") + "~" + hex(s.artist) + "~" + hex(s.key));
     return juce::String(songs.empty() ? 0 : active) + "|" + rows.joinIntoString("|");
 }
 
@@ -1245,6 +1298,17 @@ void PlayerBridge::execCommand(const juce::String& cmd)
         ++structRev;
         saveLibrary();
         result(nonce, true, "Renombrada: " + name);
+    } else if (kind == "songinfo") {
+        if (!s) { result(nonce, false, "No hay canción abierta."); return; }
+        auto name = unhex(P(1)).replaceCharacters("\\/:*?\"<>|", "         ").trim();
+        auto artist = P(2) == "-" ? juce::String() : unhex(P(2)).trim();
+        auto key = P(3) == "-" ? juce::String() : unhex(P(3)).trim();
+        if (name.isEmpty()) { result(nonce, false, "El nombre no puede quedar vacio."); return; }
+        static const juce::StringArray validKeys { "", "C", "C#", "Db", "D", "D#", "Eb", "E", "F", "F#", "Gb", "G", "G#", "Ab", "A", "A#", "Bb", "B", "Cm", "C#m", "Dbm", "Dm", "D#m", "Ebm", "Em", "Fm", "F#m", "Gbm", "Gm", "G#m", "Abm", "Am", "A#m", "Bbm", "Bm" };
+        if (!validKeys.contains(key)) { result(nonce, false, "Selecciona una tonalidad valida."); return; }
+        s->name = name; s->artist = artist; s->key = key;
+        ++structRev; saveLibrary();
+        result(nonce, true, "Datos de la cancion guardados.");
     } else if (kind == "import") {
         if (!s) { result(nonce, false, none); return; }
         const juce::File f(unhex(P(1)));

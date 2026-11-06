@@ -2,7 +2,7 @@ const $ = (selector) => document.querySelector(selector);
 const PAD_KEYS = "C Db D Eb E F Gb G Ab A Bb B".split(" ");
 const KEYS = "C C# Db D D# Eb E F F# Gb G G# Ab A A# Bb B Cm C#m Dbm Dm D#m Ebm Em Fm F#m Gbm Gm G#m Abm Am A#m Bbm Bm".split(" ");
 const API = String(window.STAGETRACKS_COMMUNITY_API || window.location.origin).replace(/\/+$/, "");
-const MAX_COMMUNITY_UPLOAD_BYTES = 1024 * 1024 * 1024;
+const MAX_COMMUNITY_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024;
 let sequences = [];
 let searchTimer = 0;
 let selectedCoverUrl = "";
@@ -344,7 +344,7 @@ async function publishSelectedSequence({ background = false } = {}) {
   const file = $("#sq").files[0], publish = form.querySelector('button[type="submit"]');
   const progressStatus = background ? $("#backgroundUploadStatus") : status;
   if (!file) { status.textContent = "Adjunta un paquete de secuencia .rpseq o .zip."; return; }
-  if (file.size > MAX_COMMUNITY_UPLOAD_BYTES) { status.textContent = "El paquete supera el límite de 1 GB."; return; }
+  if (file.size > MAX_COMMUNITY_UPLOAD_BYTES) { status.textContent = "El paquete supera el límite de 2 GB."; return; }
   const coverFile = coverInput.files[0] || null;
   if (coverFile?.size > 8 * 1024 * 1024) { status.textContent = "La carátula debe pesar hasta 8 MB."; return; }
   const metadata = { name: $("#n").value.trim(), artist: $("#a").value.trim(), key: $("#fk").value, bpm: String(Math.round(Number($("#b").value))), meter: $("#meter").value, genre: $("#fg").value };
