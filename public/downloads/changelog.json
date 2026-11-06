@@ -1,17 +1,15 @@
 {
-    "version":  "0.5.23",
-    "intro":  "La biblioteca conserva los proyectos guardados aunque los cierres, y ahora puedes reabrirlos desde el buscador.",
-    "implementations":  [
-                            "Cada proyecto guardado crea y mantiene su carpeta en %APPDATA%\\StageTracks\\Multitracks con secuencia.json, audios, carátula y secciones.",
-                            "Las carátulas guardadas se conservan en el proyecto y se incluyen al subir su secuencia a la comunidad.",
-                            "El formulario de publicación toma automáticamente la tonalidad y la carátula del proyecto activo.",
-                            "El indicador de tonalidad se dibuja dentro de cada portada con colores propios para cada tonalidad."
-                        ],
-    "fixes":  [
-                  "Mi biblioteca ahora lista también los proyectos cerrados y permite abrirlos o eliminarlos.",
-                  "Las confirmaciones al cancelar o eliminar secciones aparecen dentro de StageTracks.",
-                  "Ctrl+Z deshace los cambios de secciones; Ctrl+X, Ctrl+Y y Ctrl+Shift+Z los rehacen mientras EDIT está activo.",
-                  "Se corrigió el texto de importación de audio."
-              ],
-    "feedbackUrl":  "https://stagetrack-project.vercel.app/?feedback=1#feedback"
+  "version": "0.5.24",
+  "intro": "Mejoras en la biblioteca y en la comunidad de secuencias.",
+  "implementations": [
+    "Los proyectos permanecen cargados al cambiar entre ellos para evitar recargas durante una presentacion.",
+    "Las caratulas se guardan localmente para que sigan visibles sin conexion.",
+    "La biblioteca comunitaria muestra la tonalidad de cada secuencia.",
+    "Las publicaciones de secuencias admiten paquetes de hasta 2 GB."
+  ],
+  "fixes": [
+    "Se corrigio el indicador de tonalidad en las caratulas.",
+    "Se conserva la carga de audio de proyectos abiertos al cambiar de proyecto."
+  ],
+  "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"
 }

@@ -3,7 +3,7 @@ name: Build and publish Windows release
 on:
   push:
     tags:
-      - 'v0.5.23'
+      - 'v0.5.24'
 
 permissions:
   contents: write
@@ -102,5 +102,5 @@ jobs:
             'release-artifacts/Reaper Control Studio.exe' `
             'public/downloads/Reaper-Control-Studio-Reaper-files.zip' `
             --repo $env:GITHUB_REPOSITORY `
-            --title 'StageTracks 0.5.23' `
-            --notes 'Show saved closed projects in the library, preserve covers and key metadata, and add section confirmation and undo/redo.'
+            --title 'StageTracks 0.5.24' `
+            --notes 'Keep projects loaded when switching, support 2 GB community uploads, cache covers for offline use, and show key metadata.'
