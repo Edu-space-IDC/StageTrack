@@ -302,7 +302,7 @@ async function handle(request, env) {
       return new Response(upstream.body, { status: upstream.status, headers });
     }
     const editMatch = path.match(/^\/api\/sequences\/([^/]+)$/);
-    if (request.method === "PUT" && editMatch) return updateSequence(request, env, decodeURIComponent(editMatch[1]), origin);
+    if (request.method === "PUT" && editMatch) return await updateSequence(request, env, decodeURIComponent(editMatch[1]), origin);
     if (request.method === "GET" && path.startsWith("/media/")) {
       const fileId = decodeURIComponent(path.slice("/media/".length)), state = await getState(env);
       if (!state.sequences.some((item) => item.status === "approved" && item.coverDriveFileId === fileId)) return json({ error: "No encontramos esa carátula." }, 404, origin);
@@ -312,12 +312,12 @@ async function handle(request, env) {
     }
     if (request.method === "POST" && path === "/api/sequences/uploads") {
       if (!await rateAllowed(request, env, "uploads", 8, 60)) return json({ error: "Límite de publicaciones alcanzado. Intenta en un minuto." }, 429, origin);
-      return beginUpload(request, env, origin);
+      return await beginUpload(request, env, origin);
     }
     const chunkMatch = path.match(/^\/api\/sequences\/uploads\/([^/]+)\/(package|cover)\/(\d+)$/);
-    if (request.method === "PUT" && chunkMatch) return uploadChunk(request, env, decodeURIComponent(chunkMatch[1]), chunkMatch[2], chunkMatch[3], origin);
+    if (request.method === "PUT" && chunkMatch) return await uploadChunk(request, env, decodeURIComponent(chunkMatch[1]), chunkMatch[2], chunkMatch[3], origin);
     const completeMatch = path.match(/^\/api\/sequences\/uploads\/([^/]+)\/complete$/);
-    if (request.method === "POST" && completeMatch) return completeUpload(env, decodeURIComponent(completeMatch[1]), origin);
+    if (request.method === "POST" && completeMatch) return await completeUpload(env, decodeURIComponent(completeMatch[1]), origin);
     const statusMatch = path.match(/^\/api\/sequences\/uploads\/([^/]+)\/status$/);
     if (request.method === "GET" && statusMatch) {
       const session = await env.COMMUNITY_KV.get(`upload:${decodeURIComponent(statusMatch[1])}`, "json");
