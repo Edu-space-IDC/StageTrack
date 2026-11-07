@@ -61,9 +61,15 @@ async function drivePublicFetch(request, fileId) {
   return fetch(`https://drive.usercontent.google.com/download?id=${encodeURIComponent(fileId)}&export=download&confirm=t`, { headers, redirect: "follow" });
 }
 async function driveRange(fileId, start, end) {
-  const response = await fetch(`https://drive.usercontent.google.com/download?id=${encodeURIComponent(fileId)}&export=download&confirm=t`, { headers: { Range: `bytes=${start}-${end}` }, redirect: "follow" });
-  if (response.status !== 206) throw new Error("Google Drive no permitió validar el paquete por rangos.");
-  return new Uint8Array(await response.arrayBuffer());
+  let response;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    response = await fetch(`https://drive.usercontent.google.com/download?id=${encodeURIComponent(fileId)}&export=download&confirm=t`, { headers: { Accept: "application/octet-stream,*/*", Range: `bytes=${start}-${end}` }, redirect: "follow" });
+    if (response.status === 206) return new Uint8Array(await response.arrayBuffer());
+    try { await response.body?.cancel(); } catch {}
+    if (![401, 403, 404].includes(response.status) || attempt === 5) break;
+    await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+  }
+  throw new Error(`Google Drive no permitió validar el paquete por rangos (${response?.status || "sin respuesta"}).`);
 }
 function u16(view, offset) { return view.getUint16(offset, true); }
 function u32(view, offset) { return view.getUint32(offset, true); }
@@ -203,36 +209,40 @@ async function completeUpload(env, id, origin) {
   const pkg = session.files.package, cover = session.files.cover;
   if (!pkg.fileId || pkg.received !== pkg.size || (cover && (!cover.fileId || cover.received !== cover.size))) return json({ error: "La carga no terminó de llegar a Google Drive." }, 400, origin);
   const meta = session.metadata;
-  let info;
-  try { info = await inspectDriveZip(pkg.fileId, pkg.size); }
-  catch (error) {
-    await Promise.all([pkg.fileId, cover?.fileId].filter(Boolean).map((fileId) => scriptCall(env, "delete-file", { fileId }).catch(() => {})));
-    await env.COMMUNITY_KV.delete(key);
+  const ownedFileIds = new Set([pkg.fileId, cover?.fileId].filter(Boolean));
+  let item;
+  try {
+    // Drive's anonymous range endpoint only serves link-shared files. The file ID
+    // stays in Worker KV; invalid uploads are trashed immediately in the catch.
+    await scriptCall(env, "publish-files", { fileIds: [pkg.fileId] });
+    const info = await inspectDriveZip(pkg.fileId, pkg.size);
+    const name = String(meta.name || "").trim(), artist = String(meta.artist || "").trim(), keyValue = String(meta.key || "").slice(0, 8);
+    if (name.length < 2 || name.length > 120 || artist.length > 120) throw new Error("Escribe el nombre de la canción y un artista de máximo 120 caracteres.");
+    const bpm = info.bpm || Math.round(Number(meta.bpm));
+    const meter = info.bpm ? info.meter : String(meta.meter || "4/4");
+    if (!Number.isFinite(bpm) || bpm < 40 || bpm > 240 || !/^\d{1,2}\/(1|2|4|8|16|32)$/.test(meter)) throw new Error("Revisa el BPM y el compás.");
+    const ext = /\.zip$/i.test(pkg.name) ? ".zip" : ".rpseq";
+    let coverDriveFileId = cover?.fileId || "";
+    if (!coverDriveFileId && info.embeddedCover) {
+      const embedded = info.embeddedCover, coverExt = embedded.mime === "image/jpeg" ? ".jpg" : embedded.mime === "image/png" ? ".png" : ".webp";
+      const upload = await beginDriveUpload(env, `${crypto.randomUUID()}${coverExt}`, embedded.mime, embedded.bytes.byteLength);
+      const response = await fetch(upload.uploadUrl, { method: "PUT", headers: { "Content-Length": String(embedded.bytes.byteLength), "Content-Range": `bytes 0-${embedded.bytes.byteLength - 1}/${embedded.bytes.byteLength}`, "Content-Type": embedded.mime }, body: new Blob([embedded.bytes]).stream(), redirect: "manual" });
+      if (response.status < 200 || response.status >= 300) throw new Error(`Google Drive no pudo guardar la carátula del paquete (${response.status}).`);
+      const uploaded = await response.json();
+      if (!uploaded.id) throw new Error("Google Drive no devolvió el ID de la carátula.");
+      coverDriveFileId = uploaded.id; ownedFileIds.add(uploaded.id);
+      await scriptCall(env, "finish-upload", { fileId: uploaded.id });
+    }
+    item = { id: crypto.randomUUID(), name, artist, bpm, meter, key: keyValue, genre: String(meta.genre || "").slice(0, 40), cover: "", packageFile: "", packageDriveFileId: pkg.fileId, coverDriveFileId, downloadName: `${name.replace(/[\\/:*?"<>|]/g, "-")}${ext}`, fileSize: pkg.size, songCount: info.songCount, downloads: 0, status: "approved", createdAt: new Date().toISOString() };
+    await scriptCall(env, "publish-files", { fileIds: [pkg.fileId, coverDriveFileId].filter(Boolean) });
+    await scriptCall(env, "publish-sequence", { item });
+  } catch (error) {
+    await Promise.all([...ownedFileIds].map((fileId) => scriptCall(env, "delete-file", { fileId }).catch(() => {})));
+    await env.COMMUNITY_KV.delete(key).catch(() => {});
     throw error;
   }
-  const name = String(meta.name || "").trim(), artist = String(meta.artist || "").trim(), keyValue = String(meta.key || "").slice(0, 8);
-  if (name.length < 2 || name.length > 120 || artist.length > 120) return json({ error: "Escribe el nombre de la canción y un artista de máximo 120 caracteres." }, 400, origin);
-  const bpm = info.bpm || Math.round(Number(meta.bpm));
-  const meter = info.bpm ? info.meter : String(meta.meter || "4/4");
-  if (!Number.isFinite(bpm) || bpm < 40 || bpm > 240 || !/^\d{1,2}\/(1|2|4|8|16|32)$/.test(meter)) return json({ error: "Revisa el BPM y el compás." }, 400, origin);
-  const ext = /\.zip$/i.test(pkg.name) ? ".zip" : ".rpseq";
-  let coverDriveFileId = cover?.fileId || "";
-  if (!coverDriveFileId && info.embeddedCover) {
-    const embedded = info.embeddedCover, coverExt = embedded.mime === "image/jpeg" ? ".jpg" : embedded.mime === "image/png" ? ".png" : ".webp";
-    const upload = await beginDriveUpload(env, `${crypto.randomUUID()}${coverExt}`, embedded.mime, embedded.bytes.byteLength);
-    const response = await fetch(upload.uploadUrl, { method: "PUT", headers: { "Content-Length": String(embedded.bytes.byteLength), "Content-Range": `bytes 0-${embedded.bytes.byteLength - 1}/${embedded.bytes.byteLength}`, "Content-Type": embedded.mime }, body: new Blob([embedded.bytes]).stream(), redirect: "manual" });
-    if (response.status < 200 || response.status >= 300) throw new Error(`Google Drive no pudo guardar la carátula del paquete (${response.status}).`);
-    const uploaded = await response.json(); await scriptCall(env, "finish-upload", { fileId: uploaded.id }); coverDriveFileId = uploaded.id;
-  }
-  const item = { id: crypto.randomUUID(), name, artist, bpm, meter, key: keyValue, genre: String(meta.genre || "").slice(0, 40), cover: "", packageFile: "", packageDriveFileId: pkg.fileId, coverDriveFileId, downloadName: `${name.replace(/[\\/:*?"<>|]/g, "-")}${ext}`, fileSize: pkg.size, songCount: info.songCount, downloads: 0, status: "approved", createdAt: new Date().toISOString() };
-  await scriptCall(env, "publish-files", { fileIds: [pkg.fileId, coverDriveFileId].filter(Boolean) });
-  try { await scriptCall(env, "publish-sequence", { item }); }
-  catch (error) {
-    await Promise.all([pkg.fileId, coverDriveFileId].filter(Boolean).map((fileId) => scriptCall(env, "delete-file", { fileId }).catch(() => {})));
-    throw error;
-  }
-  await caches.default.delete(stateCacheKey(env));
-  await env.COMMUNITY_KV.delete(key);
+  await caches.default.delete(stateCacheKey(env)).catch(() => {});
+  await env.COMMUNITY_KV.delete(key).catch(() => {});
   return json({ id: item.id, status: item.status, message: "Secuencia publicada." }, 201, origin);
 }
 async function updateSequence(request, env, id, origin) {
