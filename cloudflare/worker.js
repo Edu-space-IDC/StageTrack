@@ -1,4 +1,4 @@
-﻿const CHUNK_BYTES = 80 * 1024 * 1024;
+﻿const CHUNK_BYTES = 4 * 1024 * 1024;
 const MAX_PACKAGE_BYTES = 2 * 1024 * 1024 * 1024;
 const MAX_COVER_BYTES = 8 * 1024 * 1024;
 const SESSION_TTL = 7200;
