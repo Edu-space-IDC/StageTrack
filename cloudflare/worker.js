@@ -172,7 +172,7 @@ async function uploadChunk(request, env, id, field, part, origin) {
   const offset = partNumber * CHUNK_BYTES;
   if (offset !== file.received) return json({ error: "El bloque no llegó en el orden esperado." }, 409, origin);
   const length = Number(request.headers.get("Content-Length"));
-  if (!Number.isSafeInteger(length) || length < 1 || length > CHUNK_BYTES || offset + length > file.size) return json({ error: "El bloque debe pesar hasta 80 MB y caber en el archivo." }, 400, origin);
+  if (!Number.isSafeInteger(length) || length < 1 || length > CHUNK_BYTES || offset + length > file.size) return json({ error: "El bloque debe pesar hasta 4 MB y caber en el archivo." }, 400, origin);
   const end = offset + length - 1;
   const upstream = await fetch(file.uploadUrl, {
     method: "PUT", headers: { "Content-Length": String(length), "Content-Range": `bytes ${offset}-${end}/${file.size}`, "Content-Type": file.mimeType },
