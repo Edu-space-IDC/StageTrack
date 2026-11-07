@@ -1,16 +1,18 @@
 {
-  "version": "0.5.27",
-  "intro": "Mejoras en la biblioteca y en la comunidad de secuencias.",
+  "version": "0.5.28",
+  "intro": "La caratula mostrada en la comunidad ahora se conserva al descargar una secuencia.",
   "implementations": [
     "Los proyectos permanecen cargados al cambiar entre ellos para evitar recargas durante una presentacion.",
     "Las caratulas se guardan localmente para que sigan visibles sin conexion.",
     "La biblioteca comunitaria muestra la tonalidad de cada secuencia.",
     "Las caratulas muestran la tonalidad en un circulo cromatico sobre la esquina inferior derecha.",
-    "Las publicaciones de secuencias admiten paquetes de hasta 2 GB."
+    "Las publicaciones de secuencias admiten paquetes de hasta 2 GB.",
+    "La caratula que ves en la comunidad se guarda en la biblioteca local para seguir disponible sin conexion."
   ],
   "fixes": [
     "Se corrigio el indicador de tonalidad en las caratulas y se asigna un color estable segun la nota raiz.",
-    "Se conserva la carga de audio de proyectos abiertos al cambiar de proyecto."
+    "Se conserva la carga de audio de proyectos abiertos al cambiar de proyecto.",
+    "StageTracks conserva al instalar la misma imagen que mostraba la comunidad, sin buscar otra automaticamente."
   ],
   "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"
 }

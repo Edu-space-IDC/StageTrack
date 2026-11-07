@@ -8511,7 +8511,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             } else {
               art.textContent = "♫";
               itunesSearch(`${item.name || ""} ${item.artist || ""}`).then((covers) => {
-                if (art.isConnected && covers[0]) { art.textContent = ""; art.style.backgroundImage = `url("${covers[0].url}")`; }
+                if (art.isConnected && covers[0]) { item.previewCoverUrl = covers[0].url; art.textContent = ""; art.style.backgroundImage = `url("${covers[0].url}")`; }
               }).catch(() => {});
             }
             const info = document.createElement("span"); info.style.cssText = "min-width:0;flex:1";
@@ -8704,9 +8704,10 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
               job.writingHost = true;
               let finished;
               let cover = "";
-              if (item.cover) {
+              const imageUrl = String(item.cover || item.previewCoverUrl || "").trim();
+              if (imageUrl) {
                 try {
-                  const coverUrl = /^https?:/i.test(item.cover) ? item.cover : base + item.cover;
+                  const coverUrl = /^https?:/i.test(imageUrl) ? imageUrl : base + imageUrl;
                   const response = await fetch(coverUrl, { cache: "force-cache" });
                   const blob = await response.blob();
                   if (response.ok && blob.size > 0 && blob.size <= 4 * 1024 * 1024 && /^image\//i.test(blob.type)) {

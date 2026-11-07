@@ -3,7 +3,7 @@ name: Build and publish Windows release
 on:
   push:
     tags:
-      - 'v0.5.27'
+      - 'v0.5.28'
 
 permissions:
   contents: write
@@ -102,5 +102,5 @@ jobs:
             'release-artifacts/Reaper Control Studio.exe' `
             'public/downloads/Reaper-Control-Studio-Reaper-files.zip' `
             --repo $env:GITHUB_REPOSITORY `
-            --title 'StageTracks 0.5.27' `
-            --notes 'Show song key as a color-coded circle on visible cover tiles; keep projects loaded when switching, support 2 GB community uploads, and cache covers for offline use.'
+            --title 'StageTracks 0.5.28' `
+            --notes 'Keep the community cover shown during download and store it in the local library for offline use.'
