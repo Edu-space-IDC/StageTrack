@@ -6257,50 +6257,28 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         }
         function deleteTrack(id) {
           const el = document.querySelector('.pstrip[data-track="' + id + '"]'),
-            isFolder =
-              el &&
-              el.querySelector('[data-kind="del"]')?.dataset.folder === "1";
-          if (isFolder) {
-            if (
-              ![
-                "studio-v6",
-                "studio-v7",
-                "studio-v8",
-                "studio-v9",
-                "studio-v10",
-                "studio-v11",
-                "studio-v12",
-                "studio-v18",
-                "studio-v19",
-                "studio-v22",
-              ].includes(state.helperVer)
-            ) {
-              toast(
-                "Actualiza y ejecuta el helper studio-v7 en REAPER para editar carpetas.",
-                true,
-              );
-              return;
-            }
-            if (
-              !confirm(
-                "¿Eliminar la carpeta «" +
-                  trackLabel(id) +
-                  "» y todas las pistas que contiene?\n(Se puede deshacer en REAPER con Ctrl+Z)",
-              )
-            )
-              return;
-            sendCmd("folderdel_" + id);
+            isFolder = el && el.querySelector('[data-kind="del"]')?.dataset.folder === "1";
+          if (isFolder && !["studio-v6", "studio-v7", "studio-v8", "studio-v9", "studio-v10", "studio-v11", "studio-v12", "studio-v18", "studio-v19", "studio-v22"].includes(state.helperVer)) {
+            toast("Actualiza y ejecuta el helper studio-v7 en REAPER para editar carpetas.", true);
             return;
           }
-          if (
-            !confirm(
-              '¿Eliminar la pista "' +
-                trackLabel(id) +
-                '"?\n(Se puede deshacer en REAPER con Ctrl+Z)',
-            )
-          )
-            return;
-          sendCmd("del_" + id);
+          if (isFolder) showAppConfirm("Eliminar carpeta", "\u00bfEliminar la carpeta \u00ab" + trackLabel(id) + "\u00bb y todas las pistas que contiene? (Se puede deshacer en REAPER con Ctrl+Z)", () => sendCmd("folderdel_" + id));
+          else showAppConfirm("Eliminar pista", '\u00bfEliminar la pista "' + trackLabel(id) + '"? (Se puede deshacer en REAPER con Ctrl+Z)', () => sendCmd("del_" + id));
+        }
+        function showAppConfirm(title, message, onConfirm) {
+          document.getElementById("appConfirmDialog")?.remove();
+          const overlay = document.createElement("div");
+          overlay.id = "appConfirmDialog";
+          overlay.style.cssText = "position:fixed;inset:0;z-index:2147482000;display:grid;place-items:center;padding:20px;background:#050607bb;backdrop-filter:blur(5px);font:14px system-ui,sans-serif;color:#eef1f3";
+          overlay.innerHTML = `<section role="alertdialog" aria-modal="true" style="box-sizing:border-box;width:min(440px,100%);padding:22px;background:linear-gradient(160deg,#202326,#151719);border:1px solid #42474c;border-radius:16px;box-shadow:0 24px 70px #000c"><strong style="font-size:19px"></strong><p style="margin:10px 0 20px;color:#aeb4ba;line-height:1.5"></p><div style="display:flex;justify-content:flex-end;gap:8px"><button type="button" data-cancel style="padding:9px 12px;border:1px solid #484e54;border-radius:9px;background:#25292d;color:#fff;cursor:pointer">Cancelar</button><button type="button" data-confirm style="padding:9px 12px;border:1px solid #8d4545;border-radius:9px;background:#482527;color:#fff;cursor:pointer">Eliminar</button></div></section>`;
+          overlay.querySelector("strong").textContent = title;
+          overlay.querySelector("p").textContent = message;
+          const close = () => overlay.remove();
+          overlay.querySelector("[data-cancel]").onclick = close;
+          overlay.querySelector("[data-confirm]").onclick = () => { close(); onConfirm(); };
+          overlay.addEventListener("click", event => { if (event.target === overlay) close(); });
+          document.body.appendChild(overlay);
+          overlay.querySelector("[data-cancel]").focus();
         }
         document.addEventListener("keydown", (e) => {
           if (e.key === "Escape") {
@@ -9220,10 +9198,21 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             );
             return;
           }
-          showCloseSongDialog(s.name, (saveChanges) => onSong(i, () => {
-            if (saveChanges) sendCmd("save", false, () => sendCmd("close"));
-            else sendCmd("close");
-          }));
+          onSong(i, async () => {
+            const sectionDirty = !!window.hasUnsavedSectionEdits?.();
+            let dirty = sectionDirty;
+            try {
+              const response = await fetch("/_/GET/EXTSTATE/WebControl/projectdirty", { cache: "no-store" });
+              const fields = (await response.text()).trim().split("\t");
+              dirty = sectionDirty || fields[fields.length - 1] === "1";
+            } catch (_) { dirty = sectionDirty || window.projectDirtyForHost === true; }
+            const close = (saveChanges) => {
+              if (saveChanges) sendCmd("save", false, () => sendCmd("close"));
+              else sendCmd("close");
+            };
+            if (!dirty) { close(false); return; }
+            showCloseSongDialog(s.name, close);
+          });
         }
         function showCloseSongDialog(songName, onConfirm) {
           document.getElementById("closeSongConfirm")?.remove();

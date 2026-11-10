@@ -1,6 +1,6 @@
 {
-  "version": "0.5.28",
-  "intro": "La caratula mostrada en la comunidad ahora se conserva al descargar una secuencia.",
+  "version": "0.5.29",
+  "intro": "Los nombres originales de audio se conservan y los proyectos guardados se cierran sin confirmaciones innecesarias.",
   "implementations": [
     "Los proyectos permanecen cargados al cambiar entre ellos para evitar recargas durante una presentacion.",
     "Las caratulas se guardan localmente para que sigan visibles sin conexion.",
@@ -10,6 +10,9 @@
     "La caratula que ves en la comunidad se guarda en la biblioteca local para seguir disponible sin conexion."
   ],
   "fixes": [
+    "Los archivos de audio conservan sus nombres al copiarse y exportarse.",
+    "Eliminar pistas usa un diálogo integrado en el programa en lugar de una alerta del navegador.",
+    "Los proyectos guardados se cierran directamente sin mostrar el aviso de cambios sin guardar.",
     "Se corrigio el indicador de tonalidad en las caratulas y se asigna un color estable segun la nota raiz.",
     "Se conserva la carga de audio de proyectos abiertos al cambiar de proyecto.",
     "StageTracks conserva al instalar la misma imagen que mostraba la comunidad, sin buscar otra automaticamente."

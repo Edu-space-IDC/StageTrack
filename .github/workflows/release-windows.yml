@@ -3,7 +3,7 @@ name: Build and publish Windows release
 on:
   push:
     tags:
-      - 'v0.5.28'
+      - 'v0.5.29'
 
 permissions:
   contents: write
@@ -102,5 +102,5 @@ jobs:
             'release-artifacts/Reaper Control Studio.exe' `
             'public/downloads/Reaper-Control-Studio-Reaper-files.zip' `
             --repo $env:GITHUB_REPOSITORY `
-            --title 'StageTracks 0.5.28' `
-            --notes 'Keep the community cover shown during download and store it in the local library for offline use.'
+            --title 'StageTracks 0.5.29' `
+            --notes 'Preserves original audio file names, replaces the browser delete prompt with an in-app dialog, and closes saved projects without an unnecessary confirmation.'

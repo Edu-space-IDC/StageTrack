@@ -568,9 +568,7 @@ void PlayerBridge::migrateLegacyLibrary()
             const juce::ScopedLock sl(lock);
             for (const auto& song : songs) if (song.id == migration.id) { sources = song.sources; break; }
         }
-        int index = 0;
         for (const auto& source : sources) {
-            ++index;
             const juce::File original(source.path);
             if (!original.existsAsFile()) continue;
             const auto audioPath = audioFolder.getFullPathName() + juce::File::getSeparatorString();
@@ -578,14 +576,14 @@ void PlayerBridge::migrateLegacyLibrary()
                 migration.paths.emplace_back(original.getFullPathName(), original.getFullPathName());
                 continue;
             }
-            const auto baseName = juce::String::formatted("%02d-", index) + safeLibraryName(original.getFileName());
+            const auto baseName = safeLibraryName(original.getFileName());
             auto destination = audioFolder.getChildFile(baseName);
             if (destination.existsAsFile() && (uint64_t) destination.getSize() == (uint64_t) original.getSize()) {
                 migration.paths.emplace_back(original.getFullPathName(), destination.getFullPathName());
                 continue;
             }
             for (int suffix = 2; destination.existsAsFile(); ++suffix) {
-                auto alternate = audioFolder.getChildFile(juce::String::formatted("%02d-%02d-", index, suffix) + safeLibraryName(original.getFileName()));
+                auto alternate = audioFolder.getChildFile(safeLibraryName(original.getFileNameWithoutExtension()) + "-" + juce::String(suffix) + original.getFileExtension());
                 if (!alternate.existsAsFile() || (uint64_t) alternate.getSize() == (uint64_t) original.getSize()) { destination = alternate; break; }
             }
             if (original.copyFileTo(destination))
@@ -633,10 +631,10 @@ void PlayerBridge::startImport(int slot, juce::Array<juce::File> files, juce::St
             juce::Array<juce::File> managed;
             for (int i = 0; i < files.size(); ++i) {
                 const auto source = files[i];
-                const auto baseName = juce::String::formatted("%02d-", i + 1) + safeLibraryName(source.getFileName());
+                const auto baseName = safeLibraryName(source.getFileName());
                 auto destination = audioFolder.getChildFile(baseName);
                 for (int suffix = 2; destination.existsAsFile() && destination.getFullPathName() != source.getFullPathName(); ++suffix)
-                    destination = audioFolder.getChildFile(juce::String::formatted("%02d-%02d-", i + 1, suffix) + safeLibraryName(source.getFileName()));
+                    destination = audioFolder.getChildFile(safeLibraryName(source.getFileNameWithoutExtension()) + "-" + juce::String(suffix) + source.getFileExtension());
                 if (source.getFullPathName() != destination.getFullPathName() && !destination.existsAsFile()) source.copyFileTo(destination);
                 managed.add(destination.existsAsFile() ? destination : source);
             }
@@ -835,12 +833,10 @@ bool PlayerBridge::saveSequenceFile(const juce::File& destination, juce::String&
     songObject->setProperty("timeSigDen", song->timeSigDen);
     songObject->setProperty("masterVolume", song->masterVolume);
     juce::Array<juce::var> tracks;
-    int index = 0;
     for (const auto& source : song->sources) {
         const juce::File media(source.path);
         if (!media.existsAsFile()) continue;
-        ++index;
-        auto relative = "audio/" + juce::String::formatted("%02d-", index) + media.getFileName();
+        auto relative = "audio/" + media.getFileName();
         auto* track = new juce::DynamicObject();
         track->setProperty("name", source.name.isNotEmpty() ? source.name : media.getFileNameWithoutExtension());
         track->setProperty("volume", source.volume);
@@ -891,11 +887,10 @@ bool PlayerBridge::saveSequenceFile(const juce::File& destination, juce::String&
     }
     const auto manifest = juce::JSON::toString(juce::var(root), true);
     archive.addEntry(std::make_unique<juce::MemoryInputStream>(manifest.toRawUTF8(), manifest.getNumBytesAsUTF8(), true), 6, "setlist.rpseq", juce::Time::getCurrentTime());
-    index = 0;
     for (const auto& source : song->sources) {
         const juce::File media(source.path);
         if (!media.existsAsFile()) continue;
-        const auto relative = "audio/" + juce::String::formatted("%02d-", ++index) + media.getFileName();
+        const auto relative = "audio/" + media.getFileName();
         archive.addFile(media, 0, relative);
     }
     if (coverPath.isNotEmpty()) archive.addEntry(std::make_unique<juce::MemoryInputStream>(std::move(coverImage)), 0, coverPath, juce::Time::getCurrentTime());
