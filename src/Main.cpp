@@ -65,26 +65,26 @@ public:
             }
             if (auto* player = dynamic_cast<MainComponent*>(getContentComponent())) player->importFiles(std::move(files));
         }
-    };
 #if JUCE_WINDOWS
-    void applyNativeTitleBarTheme()
-    {
-        using DwmSetWindowAttributeFn = HRESULT(WINAPI*)(HWND, DWORD, LPCVOID, DWORD);
-        const auto module = LoadLibraryW(L"dwmapi.dll");
-        if (module == nullptr) return;
-        const auto setAttribute = reinterpret_cast<DwmSetWindowAttributeFn>(GetProcAddress(module, "DwmSetWindowAttribute"));
-        const auto hwnd = static_cast<HWND>(getWindowHandle());
-        if (setAttribute != nullptr && hwnd != nullptr) {
-            const BOOL dark = TRUE;
-            setAttribute(hwnd, 20, &dark, sizeof(dark));       // DWMWA_USE_IMMERSIVE_DARK_MODE
-            const DWORD caption = RGB(38, 41, 45);
-            const DWORD text = RGB(242, 244, 246);
-            setAttribute(hwnd, 35, &caption, sizeof(caption));  // DWMWA_CAPTION_COLOR
-            setAttribute(hwnd, 36, &text, sizeof(text));        // DWMWA_TEXT_COLOR
+        void applyNativeTitleBarTheme()
+        {
+            using DwmSetWindowAttributeFn = HRESULT(WINAPI*)(HWND, DWORD, LPCVOID, DWORD);
+            const auto module = LoadLibraryW(L"dwmapi.dll");
+            if (module == nullptr) return;
+            const auto setAttribute = reinterpret_cast<DwmSetWindowAttributeFn>(GetProcAddress(module, "DwmSetWindowAttribute"));
+            const auto hwnd = static_cast<HWND>(getWindowHandle());
+            if (setAttribute != nullptr && hwnd != nullptr) {
+                const BOOL dark = TRUE;
+                setAttribute(hwnd, 20, &dark, sizeof(dark));       // DWMWA_USE_IMMERSIVE_DARK_MODE
+                const DWORD caption = RGB(38, 41, 45);
+                const DWORD text = RGB(242, 244, 246);
+                setAttribute(hwnd, 35, &caption, sizeof(caption));  // DWMWA_CAPTION_COLOR
+                setAttribute(hwnd, 36, &text, sizeof(text));        // DWMWA_TEXT_COLOR
+            }
+            FreeLibrary(module);
         }
-        FreeLibrary(module);
-    }
 #endif
+    };
 private:
     std::unique_ptr<Window> window;
 };
