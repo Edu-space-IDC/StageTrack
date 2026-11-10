@@ -5589,7 +5589,6 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           timelineLoop();
         }
         var tlRaf = 0,
-          tlLast = 0,
           tlDrawRaf = 0;
         function scheduleTimelineDraw() {
           if (tlDrawRaf) return;
@@ -5600,11 +5599,10 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
         }
         function timelineLoop() {
           if (tlRaf || !timeline.open || !timeline.playing) return;
-          const step = (t) => {
+          const step = () => {
             tlRaf = 0;
             if (!timeline.open || !timeline.playing) return;
-            if (!timeline.drag && t - tlLast >= 50) {
-              tlLast = t;
+            if (!timeline.drag) {
               scheduleTimelineDraw();
             }
             tlRaf = requestAnimationFrame(step);

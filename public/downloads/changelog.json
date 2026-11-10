@@ -1,21 +1,14 @@
 {
-  "version": "0.5.29",
-  "intro": "Los nombres originales de audio se conservan y los proyectos guardados se cierran sin confirmaciones innecesarias.",
+  "version": "0.5.30",
+  "intro": "Instalación más clara, importación por arrastre y mejoras de fluidez.",
   "implementations": [
-    "Los proyectos permanecen cargados al cambiar entre ellos para evitar recargas durante una presentacion.",
-    "Las caratulas se guardan localmente para que sigan visibles sin conexion.",
-    "La biblioteca comunitaria muestra la tonalidad de cada secuencia.",
-    "Las caratulas muestran la tonalidad en un circulo cromatico sobre la esquina inferior derecha.",
-    "Las publicaciones de secuencias admiten paquetes de hasta 2 GB.",
-    "La caratula que ves en la comunidad se guarda en la biblioteca local para seguir disponible sin conexion."
+    "Arrastra secuencias .rpseq o .zip para abrirlas y archivos de audio para importarlos.",
+    "La animación de la línea de tiempo sigue la frecuencia de actualización de la pantalla.",
+    "El instalador ahora tiene mayor contraste, una ruta de instalación clara y una pantalla final más legible."
   ],
   "fixes": [
-    "Los archivos de audio conservan sus nombres al copiarse y exportarse.",
-    "Eliminar pistas usa un diálogo integrado en el programa en lugar de una alerta del navegador.",
-    "Los proyectos guardados se cierran directamente sin mostrar el aviso de cambios sin guardar.",
-    "Se corrigio el indicador de tonalidad en las caratulas y se asigna un color estable segun la nota raiz.",
-    "Se conserva la carga de audio de proyectos abiertos al cambiar de proyecto.",
-    "StageTracks conserva al instalar la misma imagen que mostraba la comunidad, sin buscar otra automaticamente."
+    "Al eliminar una secuencia comunitaria también se elimina su paquete local, evitando que vuelva a aparecer al reiniciar.",
+    "La barra de título de StageTracks usa un color oscuro a juego con la ventana."
   ],
   "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"
 }

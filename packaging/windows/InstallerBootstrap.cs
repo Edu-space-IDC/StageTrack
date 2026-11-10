@@ -12,8 +12,8 @@ using Microsoft.Win32;
 [assembly: AssemblyTitle("StageTracks Setup")]
 [assembly: AssemblyProduct("StageTracks")]
 [assembly: AssemblyCompany("StageTracks")]
-[assembly: AssemblyVersion("0.5.29.0")]
-[assembly: AssemblyFileVersion("0.5.29.0")]
+[assembly: AssemblyVersion("0.5.30.0")]
+[assembly: AssemblyFileVersion("0.5.30.0")]
 
 internal static class InstallerBootstrap
 {
@@ -66,8 +66,9 @@ internal sealed class SetupForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = true;
-        BackColor = Color.FromArgb(25, 27, 30);
-        ForeColor = Color.FromArgb(239, 242, 245);
+        DoubleBuffered = true;
+        BackColor = Color.FromArgb(244, 246, 248);
+        ForeColor = Color.FromArgb(31, 39, 46);
         Font = new Font("Segoe UI", 9F);
         Icon = GetSetupIcon();
         BuildInterface();
@@ -94,8 +95,28 @@ internal sealed class SetupForm : Form
         Panel header = new Panel();
         header.Dock = DockStyle.Top;
         header.Height = 124;
-        header.BackColor = Color.FromArgb(20, 22, 24);
+        header.BackColor = Color.FromArgb(31, 39, 46);
+        header.ForeColor = Color.White;
         Controls.Add(header);
+
+        Panel accent = new Panel();
+        accent.Location = new Point(0, 0);
+        accent.Size = new Size(760, 4);
+        accent.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        accent.BackColor = Color.FromArgb(53, 190, 126);
+        header.Controls.Add(accent);
+
+        Panel setupCard = new Panel();
+        setupCard.Location = new Point(20, 140);
+        setupCard.Size = new Size(720, 180);
+        setupCard.BackColor = Color.White;
+        Controls.Add(setupCard);
+
+        Panel cardAccent = new Panel();
+        cardAccent.Location = new Point(0, 0);
+        cardAccent.Size = new Size(4, 180);
+        cardAccent.BackColor = Color.FromArgb(53, 190, 126);
+        setupCard.Controls.Add(cardAccent);
 
         PictureBox logo = new PictureBox();
         logo.Size = new Size(56, 56);
@@ -113,60 +134,71 @@ internal sealed class SetupForm : Form
         Label title = new Label();
         title.Text = "Instalar StageTracks";
         title.Font = new Font("Segoe UI Semibold", 21F, FontStyle.Bold);
+        title.ForeColor = Color.White;
         title.AutoSize = true;
         title.Location = new Point(105, 26);
         header.Controls.Add(title);
 
         Label subtitle = new Label();
         subtitle.Text = "Secuencias y pads listos para tocar en vivo.";
-        subtitle.ForeColor = Color.FromArgb(168, 177, 186);
+        subtitle.ForeColor = Color.FromArgb(222, 229, 234);
         subtitle.AutoSize = true;
         subtitle.Location = new Point(108, 68);
         header.Controls.Add(subtitle);
 
         Label version = new Label();
-        version.Text = "Windows x64 · versión 0.5.29";
-        version.ForeColor = Color.FromArgb(123, 137, 149);
+        version.Text = "Windows x64 · versión 0.5.30";
+        version.ForeColor = Color.FromArgb(190, 202, 211);
         version.AutoSize = true;
         version.Location = new Point(108, 91);
         header.Controls.Add(version);
 
-        locationLabel.Text = "Ubicación de instalación";
+        Label setupHeading = new Label();
+        setupHeading.Text = "Elige dónde instalar StageTracks";
+        setupHeading.Font = new Font("Segoe UI Semibold", 12F, FontStyle.Bold);
+        setupHeading.ForeColor = Color.FromArgb(31, 39, 46);
+        setupHeading.AutoSize = true;
+        setupHeading.Location = new Point(32, 151);
+        Controls.Add(setupHeading);
+
+        locationLabel.Text = "Carpeta de destino";
         locationLabel.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
+        locationLabel.ForeColor = Color.FromArgb(31, 39, 46);
         locationLabel.AutoSize = true;
-        locationLabel.Location = new Point(32, 158);
+        locationLabel.Location = new Point(32, 181);
         Controls.Add(locationLabel);
 
         pathBox.Text = defaultPath;
-        pathBox.Location = new Point(32, 188);
+        pathBox.Location = new Point(32, 208);
         pathBox.Size = new Size(570, 32);
-        pathBox.BackColor = Color.FromArgb(17, 19, 21);
-        pathBox.ForeColor = Color.White;
+        pathBox.BackColor = Color.White;
+        pathBox.ForeColor = Color.FromArgb(31, 39, 46);
+        pathBox.Font = new Font("Segoe UI", 10F);
         pathBox.BorderStyle = BorderStyle.FixedSingle;
         Controls.Add(pathBox);
 
         browseButton.Text = "Examinar…";
-        browseButton.Location = new Point(615, 187);
+        browseButton.Location = new Point(615, 207);
         browseButton.Size = new Size(112, 35);
         StyleButton(browseButton, false);
         browseButton.Click += Browse;
         Controls.Add(browseButton);
 
         explanation.Text = "El instalador copiará StageTracks, los pads y los archivos necesarios a esta carpeta.";
-        explanation.ForeColor = Color.FromArgb(155, 164, 173);
+        explanation.ForeColor = Color.FromArgb(74, 88, 100);
         explanation.AutoSize = true;
-        explanation.Location = new Point(32, 232);
+        explanation.Location = new Point(32, 250);
         Controls.Add(explanation);
 
         desktopShortcut.Text = "Crear un acceso directo en el escritorio";
         desktopShortcut.Checked = true;
         desktopShortcut.AutoSize = true;
-        desktopShortcut.Location = new Point(32, 278);
-        desktopShortcut.ForeColor = Color.FromArgb(225, 230, 235);
+        desktopShortcut.Location = new Point(32, 284);
+        desktopShortcut.ForeColor = Color.FromArgb(43, 54, 63);
         Controls.Add(desktopShortcut);
 
         status.Text = "Elige dónde instalar StageTracks y pulsa Instalar.";
-        status.ForeColor = Color.FromArgb(182, 190, 198);
+        status.ForeColor = Color.FromArgb(57, 72, 84);
         status.AutoSize = false;
         status.Location = new Point(32, 329);
         status.Size = new Size(690, 24);
@@ -182,7 +214,7 @@ internal sealed class SetupForm : Form
         percent.TextAlign = ContentAlignment.MiddleRight;
         percent.Location = new Point(670, 357);
         percent.Size = new Size(57, 24);
-        percent.ForeColor = Color.FromArgb(190, 200, 208);
+        percent.ForeColor = Color.FromArgb(57, 72, 84);
         percent.Visible = false;
         Controls.Add(percent);
 
@@ -194,7 +226,7 @@ internal sealed class SetupForm : Form
 
         successPanel.Location = new Point(32, 150);
         successPanel.Size = new Size(695, 275);
-        successPanel.BackColor = Color.FromArgb(29, 33, 36);
+        successPanel.BackColor = Color.FromArgb(231, 244, 236);
         successPanel.Visible = false;
         Controls.Add(successPanel);
         Label successIcon = new Label();
@@ -207,17 +239,18 @@ internal sealed class SetupForm : Form
         Label successTitle = new Label();
         successTitle.Text = "StageTracks está instalado";
         successTitle.Font = new Font("Segoe UI Semibold", 17F, FontStyle.Bold);
+        successTitle.ForeColor = Color.FromArgb(28, 52, 39);
         successTitle.AutoSize = true;
         successTitle.Location = new Point(96, 31);
         successPanel.Controls.Add(successTitle);
         Label successCopy = new Label();
         successCopy.Text = "La instalación terminó correctamente. Ya puedes abrir el programa.";
-        successCopy.ForeColor = Color.FromArgb(168, 177, 186);
+        successCopy.ForeColor = Color.FromArgb(55, 75, 63);
         successCopy.AutoSize = true;
         successCopy.Location = new Point(98, 69);
         successPanel.Controls.Add(successCopy);
         successPath.Text = "Ubicación: " + defaultPath;
-        successPath.ForeColor = Color.FromArgb(139, 151, 161);
+        successPath.ForeColor = Color.FromArgb(68, 87, 76);
         successPath.AutoEllipsis = true;
         successPath.Location = new Point(98, 98);
         successPath.Size = new Size(550, 22);
@@ -227,7 +260,7 @@ internal sealed class SetupForm : Form
         Panel footer = new Panel();
         footer.Dock = DockStyle.Bottom;
         footer.Height = 62;
-        footer.BackColor = Color.FromArgb(20, 22, 24);
+        footer.BackColor = Color.FromArgb(232, 237, 241);
         Controls.Add(footer);
 
         cancelButton.Text = "Cancelar";
@@ -257,9 +290,9 @@ internal sealed class SetupForm : Form
     {
         button.FlatStyle = FlatStyle.Flat;
         button.FlatAppearance.BorderSize = primary ? 0 : 1;
-        button.FlatAppearance.BorderColor = Color.FromArgb(70, 77, 84);
-        button.BackColor = primary ? Color.FromArgb(50, 162, 105) : Color.FromArgb(39, 43, 47);
-        button.ForeColor = Color.White;
+        button.FlatAppearance.BorderColor = Color.FromArgb(187, 198, 207);
+        button.BackColor = primary ? Color.FromArgb(32, 137, 84) : Color.FromArgb(225, 231, 236);
+        button.ForeColor = primary ? Color.White : Color.FromArgb(35, 48, 58);
         button.UseVisualStyleBackColor = false;
         button.Cursor = Cursors.Hand;
         button.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold);
@@ -427,7 +460,7 @@ internal sealed class SetupForm : Form
             string executable = Path.Combine(installPath, "StageTracks.exe");
             string uninstall = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"" + Path.Combine(installPath, "uninstall.ps1") + "\"";
             key.SetValue("DisplayName", "StageTracks");
-            key.SetValue("DisplayVersion", "0.5.29");
+            key.SetValue("DisplayVersion", "0.5.30");
             key.SetValue("Publisher", "StageTracks");
             key.SetValue("InstallLocation", installPath);
             key.SetValue("DisplayIcon", Path.Combine(installPath, "app-icon.ico"));
@@ -488,7 +521,7 @@ internal sealed class SetupForm : Form
     {
         installing = false;
         status.Text = "No se pudo completar la instalación.";
-        status.ForeColor = Color.FromArgb(255, 140, 140);
+        status.ForeColor = Color.FromArgb(164, 43, 43);
         pathBox.Enabled = true; browseButton.Enabled = true; desktopShortcut.Enabled = true;
         cancelButton.Enabled = true;
         installButton.Enabled = true; installButton.Text = "Reintentar";

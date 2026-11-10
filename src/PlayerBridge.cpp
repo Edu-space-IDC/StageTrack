@@ -112,6 +112,39 @@ static juce::File communityPackageForId(const juce::File& downloads, const juce:
     return {};
 }
 
+static bool removeCommunityDownload(const juce::File& downloads, const juce::String& id, const juce::String& storedPackagePath,
+                                    const juce::String& name, const juce::String& artist)
+{
+    juce::Array<juce::File> packages;
+    if (storedPackagePath.isNotEmpty()) packages.add(juce::File(storedPackagePath));
+    if (id.isNotEmpty() || (storedPackagePath.isEmpty() && name.isNotEmpty())) {
+        juce::Array<juce::File> sidecars;
+        downloads.findChildFiles(sidecars, juce::File::findFiles, false, "*.community.json");
+        for (const auto& sidecar : sidecars) {
+            const auto metadata = juce::JSON::parse(sidecar);
+            const auto metadataName = metadata.getProperty("name", {}).toString();
+            const auto metadataArtist = metadata.getProperty("artist", {}).toString();
+            const bool idMatches = id.isNotEmpty() && metadata.getProperty("id", {}).toString() == id;
+            const bool nameMatches = id.isEmpty() && storedPackagePath.isEmpty() && name.isNotEmpty()
+                                     && metadataName.compareIgnoreCase(name) == 0
+                                     && metadataArtist.compareIgnoreCase(artist) == 0;
+            if (idMatches || nameMatches) {
+                const auto package = communityPackageForSidecar(sidecar);
+                if (package.existsAsFile()) packages.add(package);
+                if (sidecar.existsAsFile() && !sidecar.deleteFile()) return false;
+            }
+        }
+    }
+    const auto rootPath = downloads.getFullPathName() + juce::File::getSeparatorString();
+    for (const auto& package : packages) {
+        if (!package.getFullPathName().startsWithIgnoreCase(rootPath)) continue;
+        if (package.existsAsFile() && !package.deleteFile()) return false;
+        const auto sidecar = package.withFileExtension("community.json");
+        if (sidecar.existsAsFile() && !sidecar.deleteFile()) return false;
+    }
+    return true;
+}
+
 juce::String PlayerBridge::num(double v, int decimals) { return juce::String(v, decimals); }
 
 juce::String PlayerBridge::timeStr(double sec)
@@ -271,14 +304,10 @@ bool PlayerBridge::deleteSongFromLibrary(int index, juce::String& error)
     if (!removeManagedFolder(song.communityExtractionPath, appDir().getChildFile("Sequences"))) {
         error = "No se pudo quitar la copia extraída de esta secuencia."; return false;
     }
-    if (song.communityPackagePath.isNotEmpty()) {
-        const juce::File package(song.communityPackagePath);
-        const auto downloads = appDir().getChildFile("CommunityDownloads");
-        if (isInside(downloads, package)) {
-            if (package.existsAsFile() && !package.deleteFile()) { error = "No se pudo quitar el paquete descargado."; return false; }
-            const auto sidecar = package.withFileExtension("community.json");
-            if (isInside(downloads, sidecar) && sidecar.existsAsFile() && !sidecar.deleteFile()) { error = "No se pudo quitar la información de la descarga."; return false; }
-        }
+    if ((song.communityId.isNotEmpty() || song.communityPackagePath.isNotEmpty())
+        && !removeCommunityDownload(appDir().getChildFile("CommunityDownloads"), song.communityId,
+                                    song.communityPackagePath, song.name, song.artist)) {
+        error = "No se pudo quitar el paquete descargado."; return false;
     }
 
     slotGenerations[(size_t)song.slot].fetch_add(1, std::memory_order_acq_rel);
@@ -1710,11 +1739,32 @@ void PlayerBridge::execCommand(const juce::String& cmd)
             if (!deleteSongFromLibrary(openIndex, error)) { result(nonce, false, error); return; }
         } else {
             juce::Array<juce::File> folders;
+            const auto downloads = appDir().getChildFile("CommunityDownloads");
+            const auto sequences = appDir().getChildFile("Sequences");
             multitrackDir().findChildFiles(folders, juce::File::findDirectories, false);
             bool removed = false;
             for (const auto& folder : folders) {
-                const auto config = juce::JSON::parse(folder.getChildFile("sequence.json"));
-                if (config.getProperty("id", {}).toString() == id) { removed = folder.deleteRecursively(); break; }
+                const auto configFile = folder.getChildFile("sequence.json");
+                const auto config = juce::JSON::parse(configFile);
+                if (config.getProperty("id", {}).toString() != id) continue;
+                const auto extraction = juce::File(config.getProperty("communityExtractionPath", {}).toString());
+                const auto sequenceRoot = sequences.getFullPathName() + juce::File::getSeparatorString();
+                if (extraction.getFullPathName().startsWithIgnoreCase(sequenceRoot)
+                    && extraction.exists() && !extraction.deleteRecursively()) {
+                    result(nonce, false, "No se pudo quitar la copia extraida de esta secuencia."); return;
+                }
+                const auto communityId = config.getProperty("communityId", {}).toString();
+                const auto packagePath = config.getProperty("communityPackagePath", {}).toString();
+                if ((communityId.isNotEmpty() || packagePath.isNotEmpty())
+                    && !removeCommunityDownload(downloads, communityId, packagePath,
+                                                config.getProperty("name", {}).toString(), config.getProperty("artist", {}).toString())) {
+                    result(nonce, false, "No se pudo quitar el paquete descargado."); return;
+                }
+                const auto hash = config.getProperty("hash", {}).toString();
+                const auto cover = appDir().getChildFile("Covers").getChildFile(hash + ".txt");
+                if (cover.existsAsFile()) cover.deleteFile();
+                removed = folder.deleteRecursively();
+                break;
             }
             if (!removed) { result(nonce, false, "No se encontro el proyecto guardado."); return; }
         }
