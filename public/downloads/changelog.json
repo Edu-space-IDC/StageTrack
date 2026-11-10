@@ -1,14 +1,12 @@
 {
-  "version": "0.5.31",
-  "intro": "StageTracks 0.5.31 mejora el instalador, la importaci\u00f3n por arrastre y los medidores de audio.",
+  "version": "0.5.32",
+  "intro": "StageTracks 0.5.32 mejora la pantalla final del instalador.",
   "implementations": [
-    "El instalador conserva el tema oscuro con mejor jerarqu\u00eda visual, texto legible y esquinas redondeadas.",
-    "Arrastra archivos de audio al programa para importarlos en el proyecto abierto.",
-    "Los medidores de los faders se actualizan con una animaci\u00f3n m\u00e1s fluida y respuesta r\u00e1pida a los picos."
+    "El mensaje de instalaci\u00f3n completada ahora ocupa una pantalla limpia, sin elementos anteriores detr\u00e1s.",
+    "Se ajustaron la tipograf\u00eda, los espacios y la ruta para que todo sea m\u00e1s claro y legible."
   ],
   "fixes": [
-    "Se corrigi\u00f3 la capa del panel de instalaci\u00f3n que ocultaba el texto y la ruta.",
-    "Al eliminar proyectos comunitarios, ya no vuelven a aparecer al reiniciar StageTracks."
+    "La pantalla final reemplaza correctamente el contenido del formulario y mantiene el bot\u00f3n Finalizar en su lugar."
   ],
   "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"
 }

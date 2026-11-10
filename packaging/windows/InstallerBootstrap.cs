@@ -13,8 +13,8 @@ using Microsoft.Win32;
 [assembly: AssemblyTitle("StageTracks Setup")]
 [assembly: AssemblyProduct("StageTracks")]
 [assembly: AssemblyCompany("StageTracks")]
-[assembly: AssemblyVersion("0.5.31.0")]
-[assembly: AssemblyFileVersion("0.5.31.0")]
+[assembly: AssemblyVersion("0.5.32.0")]
+[assembly: AssemblyFileVersion("0.5.32.0")]
 
 internal static class InstallerBootstrap
 {
@@ -40,8 +40,10 @@ internal sealed class SetupForm : Form
     private readonly Label percent = new Label();
     private readonly ProgressBar progress = new ProgressBar();
     private readonly Label locationLabel = new Label();
+    private readonly Label setupHeading = new Label();
     private readonly Label explanation = new Label();
     private readonly Label successPath = new Label();
+    private readonly Panel setupCard = new Panel();
     private readonly Panel successPanel = new Panel();
     private readonly Button browseButton = new Button();
     private readonly Button installButton = new Button();
@@ -107,7 +109,6 @@ internal sealed class SetupForm : Form
         accent.BackColor = Color.FromArgb(53, 190, 126);
         header.Controls.Add(accent);
 
-        Panel setupCard = new Panel();
         setupCard.Location = new Point(20, 140);
         setupCard.Size = new Size(720, 180);
         setupCard.BackColor = Color.FromArgb(31, 34, 38);
@@ -150,13 +151,12 @@ internal sealed class SetupForm : Form
         header.Controls.Add(subtitle);
 
         Label version = new Label();
-        version.Text = "Windows x64 · versión 0.5.31";
+        version.Text = "Windows x64 · versión 0.5.32";
         version.ForeColor = Color.FromArgb(190, 202, 211);
         version.AutoSize = true;
         version.Location = new Point(108, 91);
         header.Controls.Add(version);
 
-        Label setupHeading = new Label();
         setupHeading.Text = "Elige dónde instalar StageTracks";
         setupHeading.Font = new Font("Segoe UI Semibold", 12F, FontStyle.Bold);
         setupHeading.ForeColor = Color.FromArgb(245, 247, 249);
@@ -227,38 +227,49 @@ internal sealed class SetupForm : Form
         launchAfterInstall.Location = new Point(28, 178);
         launchAfterInstall.Visible = false;
 
-        successPanel.Location = new Point(32, 150);
-        successPanel.Size = new Size(695, 275);
+        successPanel.Location = new Point(26, 142);
+        successPanel.Size = new Size(708, 274);
         successPanel.BackColor = Color.FromArgb(29, 41, 34);
         successPanel.Visible = false;
         Controls.Add(successPanel);
         ApplyRoundedCorners(successPanel, 16);
         Label successIcon = new Label();
         successIcon.Text = "✓";
-        successIcon.Font = new Font("Segoe UI", 36F, FontStyle.Bold);
+        successIcon.Font = new Font("Segoe UI", 32F, FontStyle.Bold);
         successIcon.ForeColor = Color.FromArgb(70, 205, 139);
         successIcon.Size = new Size(60, 64);
-        successIcon.Location = new Point(25, 24);
+        successIcon.Location = new Point(28, 27);
         successPanel.Controls.Add(successIcon);
         Label successTitle = new Label();
         successTitle.Text = "StageTracks está instalado";
-        successTitle.Font = new Font("Segoe UI Semibold", 17F, FontStyle.Bold);
+        successTitle.Font = new Font("Segoe UI Semibold", 16F, FontStyle.Bold);
         successTitle.ForeColor = Color.FromArgb(241, 245, 242);
         successTitle.AutoSize = true;
-        successTitle.Location = new Point(96, 31);
+        successTitle.Location = new Point(101, 29);
         successPanel.Controls.Add(successTitle);
         Label successCopy = new Label();
         successCopy.Text = "La instalación terminó correctamente. Ya puedes abrir el programa.";
+        successCopy.Font = new Font("Segoe UI", 9.5F);
         successCopy.ForeColor = Color.FromArgb(195, 207, 198);
-        successCopy.AutoSize = true;
-        successCopy.Location = new Point(98, 69);
+        successCopy.AutoSize = false;
+        successCopy.Location = new Point(102, 70);
+        successCopy.Size = new Size(570, 38);
         successPanel.Controls.Add(successCopy);
         successPath.Text = "Ubicación: " + defaultPath;
+        successPath.Font = new Font("Segoe UI", 9F);
         successPath.ForeColor = Color.FromArgb(168, 185, 174);
         successPath.AutoEllipsis = true;
-        successPath.Location = new Point(98, 98);
-        successPath.Size = new Size(550, 22);
+        successPath.Location = new Point(102, 116);
+        successPath.Size = new Size(570, 28);
         successPanel.Controls.Add(successPath);
+        Panel successDivider = new Panel();
+        successDivider.Location = new Point(26, 171);
+        successDivider.Size = new Size(656, 1);
+        successDivider.BackColor = Color.FromArgb(55, 75, 62);
+        successPanel.Controls.Add(successDivider);
+        launchAfterInstall.Font = new Font("Segoe UI", 9.5F);
+        launchAfterInstall.ForeColor = Color.FromArgb(225, 232, 227);
+        launchAfterInstall.Location = new Point(29, 198);
         successPanel.Controls.Add(launchAfterInstall);
 
         Panel footer = new Panel();
@@ -503,7 +514,7 @@ internal sealed class SetupForm : Form
             string executable = Path.Combine(installPath, "StageTracks.exe");
             string uninstall = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"" + Path.Combine(installPath, "uninstall.ps1") + "\"";
             key.SetValue("DisplayName", "StageTracks");
-            key.SetValue("DisplayVersion", "0.5.31");
+            key.SetValue("DisplayVersion", "0.5.32");
             key.SetValue("Publisher", "StageTracks");
             key.SetValue("InstallLocation", installPath);
             key.SetValue("DisplayIcon", Path.Combine(installPath, "app-icon.ico"));
@@ -550,6 +561,8 @@ internal sealed class SetupForm : Form
         status.Visible = false;
         progress.Visible = false;
         percent.Visible = false;
+        setupCard.Visible = false;
+        setupHeading.Visible = false;
         successPanel.Visible = true;
         successPanel.BringToFront();
         launchAfterInstall.Visible = true;
