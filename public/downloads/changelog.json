@@ -1,14 +1,14 @@
 {
-  "version": "0.5.30",
-  "intro": "Instalación más clara, importación por arrastre y mejoras de fluidez.",
+  "version": "0.5.31",
+  "intro": "StageTracks 0.5.31 mejora el instalador, la importaci\u00f3n por arrastre y los medidores de audio.",
   "implementations": [
-    "Arrastra secuencias .rpseq o .zip para abrirlas y archivos de audio para importarlos.",
-    "La animación de la línea de tiempo sigue la frecuencia de actualización de la pantalla.",
-    "El instalador ahora tiene mayor contraste, una ruta de instalación clara y una pantalla final más legible."
+    "El instalador conserva el tema oscuro con mejor jerarqu\u00eda visual, texto legible y esquinas redondeadas.",
+    "Arrastra archivos de audio al programa para importarlos en el proyecto abierto.",
+    "Los medidores de los faders se actualizan con una animaci\u00f3n m\u00e1s fluida y respuesta r\u00e1pida a los picos."
   ],
   "fixes": [
-    "Al eliminar una secuencia comunitaria también se elimina su paquete local, evitando que vuelva a aparecer al reiniciar.",
-    "La barra de título de StageTracks usa un color oscuro a juego con la ventana."
+    "Se corrigi\u00f3 la capa del panel de instalaci\u00f3n que ocultaba el texto y la ruta.",
+    "Al eliminar proyectos comunitarios, ya no vuelven a aparecer al reiniciar StageTracks."
   ],
   "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"
 }

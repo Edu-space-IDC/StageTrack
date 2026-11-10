@@ -4706,6 +4706,34 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           el.querySelector(".ppanread").textContent = panTxtT(p);
         }
         var mixRaf = 0;
+        // Track levels arrive at 20 Hz; interpolate on display frames for a
+        // fluid meter while keeping peak attacks immediate.
+        var meterRaf = 0, meterFrameTime = 0;
+        const activeMeters = new Set();
+        function setMeterTarget(node, target) {
+          if (!node) return;
+          node._meterTarget = Math.max(0, Math.min(100, Number(target) || 0));
+          if (node._meterValue == null) node._meterValue = 0;
+          activeMeters.add(node);
+          if (!meterRaf) meterRaf = requestAnimationFrame(animateMeters);
+        }
+        function animateMeters(time) {
+          meterRaf = 0;
+          const dt = Math.min(0.05, meterFrameTime ? (time - meterFrameTime) / 1000 : 1 / 60);
+          meterFrameTime = time;
+          activeMeters.forEach((node) => {
+            if (!node.isConnected) { activeMeters.delete(node); return; }
+            const current = node._meterValue || 0;
+            const target = node._meterTarget || 0;
+            const tau = target > current ? 0.018 : 0.095;
+            const next = current + (target - current) * (1 - Math.exp(-dt / tau));
+            node._meterValue = Math.abs(target - next) < 0.12 ? target : next;
+            node.style.height = node._meterValue + "%";
+            if (node._meterValue === target) activeMeters.delete(node);
+          });
+          if (activeMeters.size) meterRaf = requestAnimationFrame(animateMeters);
+          else meterFrameTime = 0;
+        }
         function renderMixer() {
           if (document.getElementById("app") || mixRaf) return;
           mixRaf = requestAnimationFrame(() => {
@@ -4839,12 +4867,10 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
                 paintPan(el, data.pan);
               }
               const peakDb = Number(data.peak) / 10,
-                ph = Math.round(
-                  peakDb <= -60
-                    ? 0
-                    : Math.max(0, Math.min(100, ((peakDb + 60) / 60) * 100)),
-                );
-              if (c.peak !== (c.peak = ph)) q.meter.style.height = ph + "%";
+                ph = peakDb <= -60
+                  ? 0
+                  : Math.max(0, Math.min(100, ((peakDb + 60) / 60) * 100));
+              setMeterTarget(q.meter, ph);
               if (t.master) {
                 const meterPct = (v) => {
                   const db = Number(v) / 10;
@@ -4852,8 +4878,8 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
                 };
                 const l = document.getElementById("pMasterMeterL"),
                   r = document.getElementById("pMasterMeterR");
-                if (l) l.style.height = meterPct(data.peakL) + "%";
-                if (r) r.style.height = meterPct(data.peakR) + "%";
+                setMeterTarget(l, meterPct(data.peakL));
+                setMeterTarget(r, meterPct(data.peakR));
               }
             }
           });

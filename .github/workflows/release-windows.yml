@@ -3,7 +3,7 @@ name: Build and publish Windows release
 on:
   push:
     tags:
-      - 'v0.5.30'
+      - 'v0.5.31'
 
 permissions:
   contents: write
@@ -102,5 +102,5 @@ jobs:
             'release-artifacts/Reaper Control Studio.exe' `
             'public/downloads/Reaper-Control-Studio-Reaper-files.zip' `
             --repo $env:GITHUB_REPOSITORY `
-            --title 'StageTracks 0.5.30' `
+            --title 'StageTracks 0.5.31' `
             --notes 'Refreshes the installer, aligns the Windows title bar with the app, smooths timeline playback, adds drag-and-drop import/open, and prevents deleted community projects from returning after restart.'
