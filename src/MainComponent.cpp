@@ -229,7 +229,9 @@ void MainComponent::onHostMessage(const juce::String& msg)
         juce::File oldExport;
         { const juce::ScopedLock lock(communityExportLock); oldExport = communityExportFile; communityExportFile = {}; }
         if (oldExport.existsAsFile()) oldExport.deleteFile();
-        const auto exportFile = folder.getChildFile(juce::Uuid().toString().removeCharacters("{}") + ".rpseq");
+        // The payload is a ZIP archive (.rpseq + audio/ + optional cover),
+        // so give it the portable extension expected by other DAWs.
+        const auto exportFile = folder.getChildFile(juce::Uuid().toString().removeCharacters("{}") + ".zip");
         juce::String error;
         if (!bridge->saveSequenceFile(exportFile, error)) {
             exportFile.deleteFile();

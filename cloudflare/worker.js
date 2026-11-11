@@ -39,9 +39,19 @@ async function getState(env) {
   if (!env.APPS_SCRIPT_URL || !env.API_TOKEN) return scriptCall(env, "load-state");
   const cache = caches.default, key = stateCacheKey(env);
   const cached = await cache.match(key);
-  if (cached) return cached.json();
-  const state = await scriptCall(env, "load-state");
-  await cache.put(key, new Response(JSON.stringify(state), { headers: { "Cache-Control": "public, max-age=60" } }));
+  const state = cached ? await cached.json() : await scriptCall(env, "load-state");
+  // Older community records already contain ZIP archives, but some were
+  // published with a .rpseq download name. Migrate their index entries lazily.
+  let migrated = false;
+  for (const item of state.sequences || []) {
+    const name = String(item.downloadName || `${item.name || "StageTracks"}.rpseq`);
+    if (!/\.zip$/i.test(name)) {
+      item.downloadName = name.replace(/\.[^.]*$/, "") + ".zip";
+      migrated = true;
+    }
+  }
+  if (migrated) await scriptCall(env, "save-sequences", { sequences: state.sequences });
+  if (!cached || migrated) await cache.put(key, new Response(JSON.stringify(state), { headers: { "Cache-Control": "public, max-age=60" } }));
   return state;
 }
 async function saveState(env, state) {
@@ -221,7 +231,7 @@ async function completeUpload(env, id, origin) {
     const bpm = info.bpm || Math.round(Number(meta.bpm));
     const meter = info.bpm ? info.meter : String(meta.meter || "4/4");
     if (!Number.isFinite(bpm) || bpm < 40 || bpm > 240 || !/^\d{1,2}\/(1|2|4|8|16|32)$/.test(meter)) throw new Error("Revisa el BPM y el compás.");
-    const ext = /\.zip$/i.test(pkg.name) ? ".zip" : ".rpseq";
+    const ext = ".zip";
     let coverDriveFileId = cover?.fileId || "";
     if (!coverDriveFileId && info.embeddedCover) {
       const embedded = info.embeddedCover, coverExt = embedded.mime === "image/jpeg" ? ".jpg" : embedded.mime === "image/png" ? ".png" : ".webp";
@@ -307,7 +317,7 @@ async function handle(request, env) {
       const upstream = await drivePublicFetch(request, item.packageDriveFileId);
       if (!upstream.ok && upstream.status !== 206) return json({ error: `Google Drive no pudo entregar la secuencia (${upstream.status}).` }, 502, origin);
       if ((upstream.headers.get("Content-Type") || "").toLowerCase().includes("text/html")) return json({ error: "Google Drive devolvió una página de confirmación en lugar del archivo." }, 502, origin);
-      const headers = new Headers(corsHeaders(origin, { "Cache-Control": "public, max-age=3600", "Accept-Ranges": "bytes", "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(item.downloadName || `${item.name}.rpseq`)}` }));
+      const headers = new Headers(corsHeaders(origin, { "Cache-Control": "public, max-age=3600", "Accept-Ranges": "bytes", "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(item.downloadName || `${item.name}.zip`)}` }));
       for (const key of ["Content-Type", "Content-Length", "Content-Range", "Accept-Ranges"]) if (upstream.headers.has(key)) headers.set(key, upstream.headers.get(key));
       return new Response(upstream.body, { status: upstream.status, headers });
     }

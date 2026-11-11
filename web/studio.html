@@ -8368,7 +8368,7 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
             let coverFile = data.get("cover");
             if (!coverFile?.size) coverFile = await defaultCoverPromise;
             const packageSize = Number(form.dataset.communityPackageSize);
-            const packageFile = packageSize ? { name: `${String(data.get("name") || "StageTracks")}.rpseq`, size: packageSize, hostExport: true } : selectedPackage;
+            const packageFile = packageSize ? { name: `${String(data.get("name") || "StageTracks")}.zip`, size: packageSize, hostExport: true } : selectedPackage;
             if (!packageFile?.size) { status.textContent = communityText("Selecciona el archivo de secuencia.", "Choose a sequence file."); return; }
             if (packageFile.size > maxCommunityPackageBytes) { status.textContent = communityText("El paquete supera el límite de 2 GB.", "The package exceeds the 2 GB limit."); return; }
             if (coverFile?.size > 8 * 1024 * 1024) { status.textContent = communityText("La carátula debe pesar hasta 8 MB.", "The cover image must be 8 MB or smaller."); return; }

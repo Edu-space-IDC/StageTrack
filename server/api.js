@@ -118,6 +118,24 @@ if (driveStorageEnabled) {
   if (pendingEntries.length || duplicateEntries.length) await driveStoreCall('save-sequences', { sequences: entries });
   feedbackEntries = Array.isArray(remoteState.feedback) ? remoteState.feedback : [];
 }
+// Every accepted package is a ZIP container (inspectArchive validates its ZIP
+// entries even when older clients named it .rpseq). Keep legacy community
+// downloads usable from other DAWs by exposing the archive with a .zip name.
+let packageNamesMigrated = false;
+for (const item of entries) {
+  const currentName = String(item.downloadName || `${item.name || 'StageTracks'}.rpseq`);
+  if (!/\.zip$/i.test(currentName)) {
+    item.downloadName = currentName.replace(/\.[^.]*$/, '') + '.zip';
+    packageNamesMigrated = true;
+  }
+}
+if (packageNamesMigrated) {
+  if (driveStorageEnabled) await driveStoreCall('save-sequences', { sequences: entries });
+  else {
+    await writeFile(indexFile + '.tmp', JSON.stringify(entries, null, 2));
+    await rename(indexFile + '.tmp', indexFile);
+  }
+}
 let writes = Promise.resolve();
 const persist = () => {
   writes = writes.then(async () => {
@@ -437,7 +455,7 @@ async function processSequenceUpload(req, res, next, packageUpload, coverUpload)
     const info = await inspectArchive(packageUpload.path);
     const bpm = info.bpm || Math.round(requestedBpm), meter = info.bpm ? info.meter : requestedMeter;
     if (!Number.isFinite(bpm) || bpm < 40 || bpm > 240 || !/^\d{1,2}\/(1|2|4|8|16|32)$/.test(meter)) throw new Error('Revisa el BPM y el compás.');
-    const id = randomUUID(), ext = path.extname(packageUpload.originalname).toLowerCase() === '.zip' ? '.zip' : '.rpseq';
+    const id = randomUUID(), ext = '.zip';
     itemId = id;
     const packageFile = `${id}${ext}`, downloadName = `${name.replace(/[\\/:*?"<>|]/g, '-').trim()}${ext}`;
     if (driveStorageEnabled) packageDriveFileId = await uploadFileToDrive(packageUpload.path, downloadName, 'application/octet-stream');

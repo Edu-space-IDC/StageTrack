@@ -96,7 +96,7 @@ function sequenceCard(item) {
   const downloads = document.createElement("div"); downloads.className = "meta"; downloads.textContent = `⬇ ${Number(item.downloads || 0).toLocaleString("es")}`;
   info.append(title, artist, downloads);
   const link = document.createElement("a"); link.className = "btn sm"; link.href = `${API}/api/sequences/${encodeURIComponent(item.id)}/download`;
-  const downloadName = String(item.downloadName || `${item.name || "StageTracks"}.rpseq`).replace(/[\\/:*?"<>|]/g, "-");
+  const downloadName = String(item.downloadName || `${item.name || "StageTracks"}.zip`).replace(/[\\/:*?"<>|]/g, "-");
   link.download = downloadName; link.target = "_blank"; link.rel = "noopener"; link.textContent = "Descargar"; link.setAttribute("aria-label", `Descargar ${item.name || "secuencia"}`);
   const downloadStatus = document.createElement("small"); downloadStatus.className = "meta"; downloadStatus.setAttribute("role", "status"); downloadStatus.setAttribute("aria-live", "polite");
   link.addEventListener("click", async (event) => {
