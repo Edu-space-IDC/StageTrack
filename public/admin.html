@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Administración · StageTracks</title>
+    <link rel="icon" type="image/png" href="/assets/app-icon.png" />
+    <style>
+      :root { color-scheme: dark; font: 15px/1.5 Inter, system-ui, sans-serif; background: #101416; color: #edf1f2; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; background: radial-gradient(ellipse at 85% 0%, #173c34 0, transparent 38%), #101416; }
+      button, input, select { font: inherit; }
+      button { cursor: pointer; }
+      .shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 32px 0 64px; }
+      header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 28px; }
+      .brand { color: #f0f4f3; text-decoration: none; font-size: 21px; font-weight: 800; letter-spacing: -.04em; }
+      .brand span { color: #57d7a0; }
+      h1 { margin: 0; font-size: clamp(28px, 5vw, 40px); letter-spacing: -.04em; }
+      h2 { margin: 0 0 18px; font-size: 20px; }
+      p { color: #aab7b2; }
+      .panel { border: 1px solid #34413d; border-radius: 18px; background: #171e1c; box-shadow: 0 18px 50px #0004; padding: 24px; }
+      .narrow { width: min(440px, 100%); margin: 10vh auto 0; }
+      .muted { color: #9eaaa6; font-size: 13px; }
+      label { display: grid; gap: 6px; color: #cbd5d1; font-size: 13px; font-weight: 600; }
+      input, select { width: 100%; border: 1px solid #3c4b46; border-radius: 9px; padding: 10px 11px; color: #f4f7f5; background: #101513; outline: none; }
+      input:focus, select:focus { border-color: #52c990; box-shadow: 0 0 0 3px #52c99026; }
+      input[type=file] { padding: 8px; }
+      .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+      .span-2 { grid-column: 1 / -1; }
+      .actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; flex-wrap: wrap; margin-top: 18px; }
+      .btn { border: 1px solid #3d5149; border-radius: 9px; background: #202b27; color: #eff8f3; padding: 9px 14px; font-weight: 700; }
+      .btn:hover { background: #293a33; }
+      .btn.primary { border-color: #42b981; background: #168354; }
+      .btn.danger { border-color: #78413f; color: #ffc3bc; background: #382322; }
+      .btn:disabled { opacity: .55; cursor: wait; }
+      .top-actions { display: flex; align-items: center; gap: 8px; }
+      .status { min-height: 22px; margin: 12px 0 0; color: #aab7b2; font-size: 13px; }
+      .status.error { color: #ff9b91; }
+      .status.success { color: #6fe0a5; }
+      .toolbar { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin: 22px 0 14px; }
+      .toolbar label { width: min(360px, 100%); }
+      .list { display: grid; gap: 10px; }
+      .row { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 16px; border: 1px solid #303c38; border-radius: 12px; background: #141a18; padding: 14px 16px; }
+      .row strong { display: block; overflow-wrap: anywhere; }
+      .row small { color: #9eaaa6; }
+      .row-actions { display: flex; gap: 7px; }
+      .row-actions .btn { padding: 7px 10px; }
+      .cover-preview { width: 76px; height: 76px; object-fit: cover; border-radius: 10px; border: 1px solid #3c4b46; background: #101513; }
+      .editor-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; margin-bottom: 18px; }
+      .editor-head .muted { margin: 5px 0 0; }
+      [hidden] { display: none !important; }
+      @media (max-width: 640px) { .shell { width: min(100% - 20px, 1120px); padding-top: 18px; } .panel { padding: 17px; } header { align-items: start; } .form-grid { grid-template-columns: 1fr; } .span-2 { grid-column: auto; } .toolbar { align-items: stretch; flex-direction: column; } .row { grid-template-columns: 1fr; } .row-actions { justify-content: flex-end; } }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header><a class="brand" href="/">Stage<span>Tracks</span> · Admin</a><div class="top-actions"><a class="btn" href="/">Volver al sitio</a><button class="btn" id="logout" hidden>Cerrar sesión</button></div></header>
+      <section class="panel narrow" id="loginPanel">
+        <h1>Administración</h1>
+        <p>PIN inicial: <strong>1234</strong>. Después del primer acceso, el panel te pedirá cambiarlo.</p>
+        <form id="loginForm"><label>PIN<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="current-password" required autofocus></label><div class="actions"><button class="btn primary" type="submit">Iniciar sesión</button></div></form>
+        <p class="status" id="loginStatus" role="status"></p>
+      </section>
+      <section class="panel narrow" id="changePinPanel" hidden>
+        <h1>Cambia el PIN</h1>
+        <p>Es el primer acceso. Elige un PIN nuevo para proteger el panel.</p>
+        <form id="changePinForm"><label>Nuevo PIN (4 a 12 dígitos)<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="new-password" required></label><label style="margin-top:12px">Confirma el PIN<input name="confirm" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="new-password" required></label><div class="actions"><button class="btn primary" type="submit">Guardar PIN</button></div></form>
+        <p class="status" id="pinStatus" role="status"></p>
+      </section>
+      <section id="adminPanel" hidden>
+        <div class="toolbar"><div><h1>Secuencias</h1><p class="muted">Edita los datos, reemplaza el ZIP o la carátula, publica una nueva secuencia o elimina una existente.</p></div><button class="btn primary" id="newSequence">＋ Nueva secuencia</button></div>
+        <div class="panel"><label>Buscar<input id="search" type="search" placeholder="Nombre, artista o estado"></label><div class="list" id="sequenceList" style="margin-top:16px"></div><p class="status" id="listStatus" role="status"></p></div>
+      </section>
+      <section class="panel" id="editorPanel" hidden style="margin-top:18px">
+        <div class="editor-head"><div><h2 id="editorTitle">Editar secuencia</h2><p class="muted">El ZIP debe incluir el archivo .rpseq y todos los audios que referencia.</p></div><button class="btn" id="closeEditor" type="button">Cerrar</button></div>
+        <form id="sequenceForm">
+          <div class="form-grid">
+            <label>Nombre<input name="name" maxlength="120" required></label>
+            <label>Artista o grupo<input name="artist" maxlength="120" required></label>
+            <label>Tonalidad<input name="key" maxlength="8" placeholder="C, Am…"></label>
+            <label>BPM<input name="bpm" type="number" min="40" max="240" required></label>
+            <label>Compás<select name="meter"><option>4/4</option><option>3/4</option><option>6/8</option><option>2/4</option><option>5/4</option><option>7/4</option><option>9/8</option><option>12/8</option></select></label>
+            <label>Género<input name="genre" maxlength="40" placeholder="Adoración, Rock…"></label>
+            <label>Carátula<input name="cover" type="file" accept="image/png,image/jpeg,image/webp"></label>
+            <img class="cover-preview" id="coverPreview" alt="Vista previa de carátula" hidden>
+            <label class="span-2">Reemplazar paquete ZIP (opcional)<input name="package" type="file" accept=".zip,application/zip"></label>
+          </div>
+          <p class="status" id="editorStatus" role="status"></p>
+          <div class="actions"><button class="btn" type="button" id="cancelEdit">Cancelar</button><button class="btn primary" type="submit" id="saveSequence">Guardar cambios</button></div>
+        </form>
+      </section>
+    </main>
+    <script src="/community-config.js"></script>
+    <script>
+      (() => {
+        const API = String(window.STAGETRACKS_COMMUNITY_API || window.location.origin).trim().replace(/\/+$/, "").replace(/\/api$/i, "");
+        const $ = (selector) => document.querySelector(selector), tokenKey = "stageTracksAdminSession";
+        let token = sessionStorage.getItem(tokenKey) || "", items = [], editing = null;
+        const loginPanel = $("#loginPanel"), changePinPanel = $("#changePinPanel"), adminPanel = $("#adminPanel"), editorPanel = $("#editorPanel");
+        function setStatus(element, message, kind = "") { element.textContent = message; element.className = `status ${kind}`; }
+        async function api(path, options = {}) {
+          const headers = new Headers(options.headers || {});
+          if (token) headers.set("Authorization", `Bearer ${token}`);
+          const response = await fetch(`${API}${path}`, { ...options, headers, cache: "no-store" });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) { if (response.status === 401) signOut(false); throw new Error(data.error || `La API respondió HTTP ${response.status}.`); }
+          return data;
+        }
+        function setToken(value) { token = value || ""; if (token) sessionStorage.setItem(tokenKey, token); else sessionStorage.removeItem(tokenKey); }
+        function signOut(notify = true) { setToken(""); items = []; editorPanel.hidden = true; adminPanel.hidden = true; changePinPanel.hidden = true; loginPanel.hidden = false; $("#logout").hidden = true; if (notify) setStatus($("#loginStatus"), "Sesión cerrada."); }
+        async function showAdmin() { loginPanel.hidden = true; changePinPanel.hidden = true; adminPanel.hidden = false; $("#logout").hidden = false; editorPanel.hidden = true; await loadSequences(); }
+        async function login(pin) {
+          const result = await api("/api/admin/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin }) });
+          setToken(result.token);
+          if (result.mustChangePin) { loginPanel.hidden = true; changePinPanel.hidden = false; $("#logout").hidden = false; $("#changePinForm").elements.pin.focus(); }
+          else await showAdmin();
+        }
+        $("#loginForm").onsubmit = async (event) => {
+          event.preventDefault(); const form = event.currentTarget, button = form.querySelector("button[type=submit]"); button.disabled = true;
+          setStatus($("#loginStatus"), "Validando PIN…");
+          try { await login(form.elements.pin.value); form.reset(); }
+          catch (error) { setStatus($("#loginStatus"), error.message, "error"); }
+          finally { button.disabled = false; }
+        };
+        $("#changePinForm").onsubmit = async (event) => {
+          event.preventDefault(); const form = event.currentTarget, button = form.querySelector("button[type=submit]");
+          if (form.elements.pin.value !== form.elements.confirm.value) { setStatus($("#pinStatus"), "Los PIN no coinciden.", "error"); return; }
+          button.disabled = true; setStatus($("#pinStatus"), "Actualizando PIN…");
+          try { const result = await api("/api/admin/change-pin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin: form.elements.pin.value }) }); setToken(result.token); form.reset(); await showAdmin(); }
+          catch (error) { setStatus($("#pinStatus"), error.message, "error"); }
+          finally { button.disabled = false; }
+        };
+        async function loadSequences() {
+          setStatus($("#listStatus"), "Cargando secuencias…");
+          try { const result = await api("/api/admin/sequences"); items = result.results || []; renderList(); setStatus($("#listStatus"), `${items.length} secuencia(s).`); }
+          catch (error) { setStatus($("#listStatus"), error.message, "error"); }
+        }
+        function renderList() {
+          const query = $("#search").value.trim().toLocaleLowerCase(), list = $("#sequenceList"); list.replaceChildren();
+          const filtered = items.filter((item) => `${item.name} ${item.artist} ${item.status}`.toLocaleLowerCase().includes(query));
+          for (const item of filtered) {
+            const row = document.createElement("article"); row.className = "row";
+            const info = document.createElement("div"), title = document.createElement("strong"), meta = document.createElement("small");
+            title.textContent = item.name || "Sin título"; meta.textContent = `${item.artist || "Artista desconocido"} · ${item.status || "sin estado"} · ${item.downloadName || "ZIP"}`; info.append(title, meta);
+            const controls = document.createElement("div"); controls.className = "row-actions";
+            const edit = document.createElement("button"); edit.className = "btn"; edit.type = "button"; edit.textContent = "Editar"; edit.onclick = () => openEditor(item);
+            const remove = document.createElement("button"); remove.className = "btn danger"; remove.type = "button"; remove.textContent = "Eliminar"; remove.onclick = () => deleteSequence(item);
+            controls.append(edit, remove); row.append(info, controls); list.append(row);
+          }
+          if (!filtered.length) { const empty = document.createElement("p"); empty.className = "muted"; empty.textContent = query ? "No encontramos coincidencias." : "Todavía no hay secuencias."; list.append(empty); }
+        }
+        function openEditor(item = null) {
+          editing = item; const form = $("#sequenceForm"); form.reset(); $("#editorTitle").textContent = item ? "Editar secuencia" : "Publicar secuencia";
+          $("#saveSequence").textContent = item ? "Guardar cambios" : "Publicar";
+          for (const field of ["name", "artist", "key", "bpm", "meter", "genre"]) form.elements[field].value = item?.[field] ?? ({ bpm: 120, meter: "4/4", genre: "Otro" }[field] || "");
+          const preview = $("#coverPreview"); preview.hidden = !item?.cover; preview.src = item?.cover ? (/^https?:/i.test(item.cover) ? item.cover : `${API}${item.cover}`) : "";
+          setStatus($("#editorStatus"), ""); editorPanel.hidden = false; editorPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+        function metadata(form) { return { name: form.elements.name.value.trim(), artist: form.elements.artist.value.trim(), key: form.elements.key.value.trim(), bpm: String(form.elements.bpm.value), meter: form.elements.meter.value, genre: form.elements.genre.value.trim() || "Otro" }; }
+        async function uploadPackage(meta, packageFile, coverFile, replaceId) {
+          const body = { ...meta, packageName: packageFile.name, packageSize: packageFile.size, coverName: coverFile?.name || "", coverSize: coverFile?.size || 0, adminPublish: !replaceId };
+          if (replaceId) body.updateSequenceId = replaceId;
+          const session = await api("/api/sequences/uploads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+          let sent = 0; const files = [{ field: "package", file: packageFile }, ...(coverFile ? [{ field: "cover", file: coverFile }] : [])], total = packageFile.size + (coverFile?.size || 0);
+          for (const entry of files) {
+            const count = Math.ceil(entry.file.size / session.chunkSize);
+            for (let part = 0; part < count; part++) {
+              const blob = entry.file.slice(part * session.chunkSize, Math.min(entry.file.size, (part + 1) * session.chunkSize));
+              await new Promise((resolve, reject) => {
+                const request = new XMLHttpRequest(); request.open("PUT", `${API}/api/sequences/uploads/${session.uploadId}/${entry.field}/${part}`); request.setRequestHeader("Content-Type", "application/octet-stream"); request.setRequestHeader("Authorization", `Bearer ${token}`); request.timeout = 10 * 60 * 1000;
+                request.upload.onprogress = (event) => { const current = sent + (event.lengthComputable ? event.loaded : 0); setStatus($("#editorStatus"), `Subiendo paquete… ${Math.min(100, Math.round(current / total * 100))}%`); };
+                request.onload = () => { let data = {}; try { data = JSON.parse(request.responseText || "{}"); } catch {} if (request.status < 200 || request.status >= 300) reject(new Error(data.error || `La API respondió HTTP ${request.status}.`)); else { sent += blob.size; resolve(); } };
+                request.onerror = () => reject(new Error("Se perdió la conexión durante la carga.")); request.ontimeout = () => reject(new Error("La carga tardó demasiado. Puedes volver a intentarlo.")); request.send(blob);
+              });
+            }
+          }
+          setStatus($("#editorStatus"), "Validando ZIP y guardando en Drive…");
+          return await api(`/api/sequences/uploads/${session.uploadId}/complete`, { method: "POST" });
+        }
+        $("#sequenceForm").onsubmit = async (event) => {
+          event.preventDefault(); const form = event.currentTarget, button = $("#saveSequence"), meta = metadata(form), packageFile = form.elements.package.files[0] || null, coverFile = form.elements.cover.files[0] || null;
+          if (!editing && !packageFile) { setStatus($("#editorStatus"), "Selecciona el paquete ZIP de la secuencia.", "error"); return; }
+          if (packageFile && !/\.zip$/i.test(packageFile.name)) { setStatus($("#editorStatus"), "El paquete debe ser un archivo .zip.", "error"); return; }
+          if (packageFile?.size > 2 * 1024 ** 3) { setStatus($("#editorStatus"), "El ZIP supera el límite de 2 GB.", "error"); return; }
+          if (coverFile?.size > 8 * 1024 ** 2) { setStatus($("#editorStatus"), "La carátula supera el límite de 8 MB.", "error"); return; }
+          button.disabled = true;
+          try {
+            if (packageFile) await uploadPackage(meta, packageFile, coverFile, editing?.id || "");
+            else {
+              const body = new FormData(); for (const [key, value] of Object.entries(meta)) body.set(key, value); if (coverFile) body.set("cover", coverFile);
+              await api(`/api/admin/sequences/${encodeURIComponent(editing.id)}`, { method: "PUT", body });
+            }
+            editorPanel.hidden = true; await loadSequences(); setStatus($("#listStatus"), "Cambios guardados en la comunidad.", "success");
+          } catch (error) { setStatus($("#editorStatus"), error.message, "error"); }
+          finally { button.disabled = false; }
+        };
+        async function deleteSequence(item) {
+          if (!confirm(`¿Eliminar «${item.name}» de la comunidad? También se borrarán su paquete y su carátula de Drive.`)) return;
+          try { await api(`/api/admin/sequences/${encodeURIComponent(item.id)}`, { method: "DELETE" }); await loadSequences(); setStatus($("#listStatus"), "Secuencia eliminada.", "success"); }
+          catch (error) { setStatus($("#listStatus"), error.message, "error"); }
+        }
+        $("#search").oninput = renderList; $("#newSequence").onclick = () => openEditor(); $("#closeEditor").onclick = $("#cancelEdit").onclick = () => { editorPanel.hidden = true; };
+        $("#logout").onclick = async () => { try { if (token) await api("/api/admin/logout", { method: "POST" }); } catch {} signOut(); };
+        if (token) showAdmin().catch((error) => { signOut(false); setStatus($("#loginStatus"), error.message, "error"); });
+      })();
+    </script>
+  </body>
+</html>

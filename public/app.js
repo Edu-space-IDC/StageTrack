@@ -138,9 +138,7 @@ function sequenceCard(item) {
     }
   });
   const actions = document.createElement("div"); actions.style.cssText = "display:flex;gap:8px;flex-wrap:wrap";
-  const edit = document.createElement("button"); edit.type = "button"; edit.className = "btn o sm"; edit.textContent = "Editar";
-  edit.setAttribute("aria-label", `Editar ${item.name || "secuencia"}`); edit.onclick = () => openSequenceEditor(item);
-  actions.append(link, edit, downloadStatus);
+  actions.append(link, downloadStatus);
   card.append(cover, info, actions); return card;
 }
 const editDialog = $("#editSequenceDialog"), editForm = $("#editSequenceForm"), editStatus = $("#editSequenceStatus");

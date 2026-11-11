@@ -163,6 +163,17 @@ async function beginDriveUpload(env, name, mimeType, size) {
 }
 async function beginUpload(request, env, origin) {
   const body = await request.json();
+  const updateSequenceId = String(body.updateSequenceId || "");
+  const adminPublish = body.adminPublish === true;
+  if (updateSequenceId || adminPublish) {
+    const access = await adminSession(request, env);
+    if (!access) return json({ error: "Inicia sesión como administrador para subir archivos." }, 401, origin);
+    if (access.mustChange) return json({ error: "Cambia el PIN inicial antes de usar el panel." , code: "PIN_CHANGE_REQUIRED" }, 403, origin);
+    if (updateSequenceId) {
+      const state = await getState(env);
+      if (!state.sequences.some((item) => item.id === updateSequenceId)) return json({ error: "No encontramos esa secuencia." }, 404, origin);
+    }
+  }
   const packageSize = Number(body.packageSize), coverSize = Number(body.coverSize || 0);
   if (!Number.isSafeInteger(packageSize) || packageSize < 1 || packageSize > MAX_PACKAGE_BYTES) return json({ error: "El paquete debe pesar hasta 2 GB." }, 413, origin);
   if (!Number.isSafeInteger(coverSize) || coverSize < 0 || coverSize > MAX_COVER_BYTES) return json({ error: "La carátula debe pesar hasta 8 MB." }, 413, origin);
@@ -176,6 +187,7 @@ async function beginUpload(request, env, origin) {
   }
   const metadata = { ...body };
   for (const field of ["packageSize", "coverSize", "packageName", "coverName"]) delete metadata[field];
+  metadata.adminAction = Boolean(updateSequenceId || adminPublish);
   await env.COMMUNITY_KV.put(`upload:${id}`, JSON.stringify({ id, metadata, files, createdAt: Date.now() }), { expirationTtl: SESSION_TTL });
   return json({ uploadId: id, chunkSize: CHUNK_BYTES }, 201, origin);
 }
@@ -183,6 +195,10 @@ async function uploadChunk(request, env, id, field, part, origin) {
   const session = await env.COMMUNITY_KV.get(`upload:${id}`, "json");
   const file = session?.files?.[field], partNumber = Number(part);
   if (!session || !file) return json({ error: "La sesión de carga venció. Inicia la publicación otra vez." }, 404, origin);
+  if (session.metadata?.adminAction) {
+    const access = await adminSession(request, env);
+    if (!access || access.mustChange) return json({ error: "La sesión de administrador venció. Inicia sesión de nuevo." }, 401, origin);
+  }
   if (file.fileId) return json({ received: file.size, total: file.size }, 200, origin);
   if (!Number.isSafeInteger(partNumber) || partNumber < 0) return json({ error: "Número de bloque inválido." }, 400, origin);
   const offset = partNumber * CHUNK_BYTES;
@@ -213,9 +229,13 @@ async function uploadChunk(request, env, id, field, part, origin) {
   const detail = await upstream.text();
   return json({ error: `Google Drive rechazó el bloque (${upstream.status}). ${detail.slice(0, 300)}` }, 502, origin);
 }
-async function completeUpload(env, id, origin) {
+async function completeUpload(request, env, id, origin) {
   const key = `upload:${id}`, session = await env.COMMUNITY_KV.get(key, "json");
   if (!session) return json({ error: "La sesión de carga venció." }, 404, origin);
+  if (session.metadata?.adminAction) {
+    const access = await adminSession(request, env);
+    if (!access || access.mustChange) return json({ error: "La sesión de administrador venció. Inicia sesión de nuevo." }, 401, origin);
+  }
   const pkg = session.files.package, cover = session.files.cover;
   if (!pkg.fileId || pkg.received !== pkg.size || (cover && (!cover.fileId || cover.received !== cover.size))) return json({ error: "La carga no terminó de llegar a Google Drive." }, 400, origin);
   const meta = session.metadata;
@@ -231,7 +251,13 @@ async function completeUpload(env, id, origin) {
     const bpm = info.bpm || Math.round(Number(meta.bpm));
     const meter = info.bpm ? info.meter : String(meta.meter || "4/4");
     if (!Number.isFinite(bpm) || bpm < 40 || bpm > 240 || !/^\d{1,2}\/(1|2|4|8|16|32)$/.test(meter)) throw new Error("Revisa el BPM y el compás.");
-    const ext = ".zip";
+    const ext = ".zip", updateSequenceId = String(meta.updateSequenceId || "");
+    const state = updateSequenceId ? await getState(env) : null;
+    const existingIndex = updateSequenceId ? state.sequences.findIndex((row) => row.id === updateSequenceId) : -1;
+    const existing = existingIndex >= 0 ? state.sequences[existingIndex] : null;
+    if (updateSequenceId && !existing) throw new Error("No encontramos esa secuencia.");
+    const duplicateEntry = duplicate(state?.sequences || [], name, artist, keyValue, updateSequenceId);
+    if (duplicateEntry) throw new Error("Ya existe otra secuencia con ese nombre y autor o tonalidad.");
     let coverDriveFileId = cover?.fileId || "";
     if (!coverDriveFileId && info.embeddedCover) {
       const embedded = info.embeddedCover, coverExt = embedded.mime === "image/jpeg" ? ".jpg" : embedded.mime === "image/png" ? ".png" : ".webp";
@@ -243,9 +269,20 @@ async function completeUpload(env, id, origin) {
       coverDriveFileId = uploaded.id; ownedFileIds.add(uploaded.id);
       await scriptCall(env, "finish-upload", { fileId: uploaded.id });
     }
-    item = { id: crypto.randomUUID(), name, artist, bpm, meter, key: keyValue, genre: String(meta.genre || "").slice(0, 40), cover: "", packageFile: "", packageDriveFileId: pkg.fileId, coverDriveFileId, downloadName: `${name.replace(/[\\/:*?"<>|]/g, "-")}${ext}`, fileSize: pkg.size, songCount: info.songCount, downloads: 0, status: "approved", createdAt: new Date().toISOString() };
+    if (!coverDriveFileId && existing && !info.embeddedCover) coverDriveFileId = existing.coverDriveFileId || "";
+    item = existing
+      ? { ...existing, name, artist, bpm, meter, key: keyValue, genre: String(meta.genre || "Otro").slice(0, 40), packageDriveFileId: pkg.fileId, coverDriveFileId, downloadName: `${name.replace(/[\\/:*?"<>|]/g, "-")}${ext}`, fileSize: pkg.size, songCount: info.songCount }
+      : { id: crypto.randomUUID(), name, artist, bpm, meter, key: keyValue, genre: String(meta.genre || "").slice(0, 40), cover: "", packageFile: "", packageDriveFileId: pkg.fileId, coverDriveFileId, downloadName: `${name.replace(/[\\/:*?"<>|]/g, "-")}${ext}`, fileSize: pkg.size, songCount: info.songCount, downloads: 0, status: "approved", createdAt: new Date().toISOString() };
     await scriptCall(env, "publish-files", { fileIds: [pkg.fileId, coverDriveFileId].filter(Boolean) });
-    await scriptCall(env, "publish-sequence", { item });
+    if (existing) {
+      state.sequences[existingIndex] = item;
+      await saveState(env, state);
+      for (const oldId of [existing.packageDriveFileId, existing.coverDriveFileId]) {
+        if (oldId && oldId !== pkg.fileId && oldId !== coverDriveFileId) await scriptCall(env, "delete-file", { fileId: oldId }).catch(() => {});
+      }
+    } else {
+      await scriptCall(env, "publish-sequence", { item });
+    }
   } catch (error) {
     await Promise.all([...ownedFileIds].map((fileId) => scriptCall(env, "delete-file", { fileId }).catch(() => {})));
     await env.COMMUNITY_KV.delete(key).catch(() => {});
@@ -287,16 +324,75 @@ async function updateSequence(request, env, id, origin) {
   if (oldCover) await scriptCall(env, "delete-file", { fileId: oldCover }).catch(() => {});
   return json({ ok: true, message: "Cambios guardados y visibles para todos." }, 200, origin);
 }
-function adminAuthorized(request, env) {
-  const expected = String(env.COMMUNITY_ADMIN_TOKEN || ""), supplied = String(request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
-  return expected.length > 0 && supplied === expected;
-}
 async function rateAllowed(request, env, name, maximum, windowSeconds) {
   const ip = request.headers.get("CF-Connecting-IP") || "unknown", key = `rate:${name}:${ip}`;
   const current = Number(await env.COMMUNITY_KV.get(key)) || 0;
   if (current >= maximum) return false;
   await env.COMMUNITY_KV.put(key, String(current + 1), { expirationTtl: windowSeconds });
   return true;
+}
+function base64Url(bytes) {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+function fromBase64Url(value) {
+  const base64 = String(value).replace(/-/g, "+").replace(/_/g, "/");
+  return Uint8Array.from(atob(base64 + "=".repeat((4 - base64.length % 4) % 4)), (char) => char.charCodeAt(0));
+}
+async function hashAdminPin(pin, salt) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: fromBase64Url(salt), iterations: 120000, hash: "SHA-256" }, key, 256);
+  return base64Url(new Uint8Array(bits));
+}
+async function saveAdminPin(env, pin, version, mustChange = false) {
+  const salt = base64Url(crypto.getRandomValues(new Uint8Array(16)));
+  const hash = await hashAdminPin(pin, salt);
+  const record = { salt, hash, version, mustChange };
+  await env.COMMUNITY_KV.put("admin:pin", JSON.stringify(record));
+  return record;
+}
+async function createAdminSession(env, version, mustChange) {
+  const token = base64Url(crypto.getRandomValues(new Uint8Array(32)));
+  await env.COMMUNITY_KV.put(`admin:session:${token}`, JSON.stringify({ version, mustChange }), { expirationTtl: 8 * 60 * 60 });
+  return token;
+}
+async function adminSession(request, env, allowPinChange = false) {
+  const supplied = String(request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+  const legacy = String(env.COMMUNITY_ADMIN_TOKEN || "");
+  if (legacy && supplied === legacy) return { legacy: true, mustChange: false };
+  if (!/^[A-Za-z0-9_-]{40,60}$/.test(supplied)) return null;
+  const session = await env.COMMUNITY_KV.get(`admin:session:${supplied}`, "json");
+  if (!session) return null;
+  const pin = await env.COMMUNITY_KV.get("admin:pin", "json");
+  if (!pin || Number(session.version) !== Number(pin.version)) return null;
+  if (session.mustChange && !allowPinChange) return { ...session, mustChange: true };
+  return session;
+}
+async function adminLogin(request, env, origin) {
+  if (!await rateAllowed(request, env, "admin-login", 5, 60)) return json({ error: "Demasiados intentos. Espera un minuto." }, 429, origin);
+  const body = await request.json(), pinValue = String(body.pin || "");
+  if (!/^\d{4,12}$/.test(pinValue)) return json({ error: "El PIN debe tener entre 4 y 12 dígitos." }, 400, origin);
+  let record = await env.COMMUNITY_KV.get("admin:pin", "json");
+  if (!record) {
+    if (pinValue !== "1234") return json({ error: "PIN incorrecto." }, 401, origin);
+    record = await saveAdminPin(env, "1234", 1, true);
+  } else if (await hashAdminPin(pinValue, record.salt) !== record.hash) {
+    return json({ error: "PIN incorrecto." }, 401, origin);
+  }
+  const token = await createAdminSession(env, record.version, Boolean(record.mustChange));
+  return json({ token, mustChangePin: Boolean(record.mustChange) }, 200, origin);
+}
+async function changeAdminPin(request, env, origin) {
+  const current = await adminSession(request, env, true);
+  if (!current || current.legacy) return json({ error: "Inicia sesión con el PIN del panel." }, 401, origin);
+  const body = await request.json(), nextPin = String(body.pin || "");
+  if (!/^\d{4,12}$/.test(nextPin) || nextPin === "1234") return json({ error: "El nuevo PIN debe tener entre 4 y 12 dígitos y ser distinto del PIN inicial." }, 400, origin);
+  const record = await env.COMMUNITY_KV.get("admin:pin", "json");
+  if (!record || Number(current.version) !== Number(record.version)) return json({ error: "La sesión venció. Inicia sesión de nuevo." }, 401, origin);
+  const updated = await saveAdminPin(env, nextPin, Number(record.version) + 1, false);
+  const token = await createAdminSession(env, updated.version, false);
+  return json({ token, mustChangePin: false, message: "PIN actualizado." }, 200, origin);
 }
 async function handle(request, env) {
   const origin = allowedOrigin(request, env);
@@ -322,7 +418,12 @@ async function handle(request, env) {
       return new Response(upstream.body, { status: upstream.status, headers });
     }
     const editMatch = path.match(/^\/api\/sequences\/([^/]+)$/);
-    if (request.method === "PUT" && editMatch) return await updateSequence(request, env, decodeURIComponent(editMatch[1]), origin);
+    if (request.method === "PUT" && editMatch) {
+      const access = await adminSession(request, env);
+      if (!access) return json({ error: "Inicia sesión como administrador para editar secuencias." }, 401, origin);
+      if (access.mustChange) return json({ error: "Cambia el PIN inicial antes de usar el panel.", code: "PIN_CHANGE_REQUIRED" }, 403, origin);
+      return await updateSequence(request, env, decodeURIComponent(editMatch[1]), origin);
+    }
     if (request.method === "GET" && path.startsWith("/media/")) {
       const fileId = decodeURIComponent(path.slice("/media/".length)), state = await getState(env);
       if (!state.sequences.some((item) => item.status === "approved" && item.coverDriveFileId === fileId)) return json({ error: "No encontramos esa carátula." }, 404, origin);
@@ -337,7 +438,7 @@ async function handle(request, env) {
     const chunkMatch = path.match(/^\/api\/sequences\/uploads\/([^/]+)\/(package|cover)\/(\d+)$/);
     if (request.method === "PUT" && chunkMatch) return await uploadChunk(request, env, decodeURIComponent(chunkMatch[1]), chunkMatch[2], chunkMatch[3], origin);
     const completeMatch = path.match(/^\/api\/sequences\/uploads\/([^/]+)\/complete$/);
-    if (request.method === "POST" && completeMatch) return await completeUpload(env, decodeURIComponent(completeMatch[1]), origin);
+    if (request.method === "POST" && completeMatch) return await completeUpload(request, env, decodeURIComponent(completeMatch[1]), origin);
     const statusMatch = path.match(/^\/api\/sequences\/uploads\/([^/]+)\/status$/);
     if (request.method === "GET" && statusMatch) {
       const session = await env.COMMUNITY_KV.get(`upload:${decodeURIComponent(statusMatch[1])}`, "json");
@@ -356,11 +457,27 @@ async function handle(request, env) {
       const result = await scriptCall(env, "email-feedback", { id: feedback.id, message, createdAt: feedback.createdAt });
       return json({ ok: true, emailed: result.emailed === true, message: "Gracias. Recibimos tu sugerencia." }, 201, origin);
     }
+    if (request.method === "POST" && path === "/api/admin/login") return await adminLogin(request, env, origin);
+    if (request.method === "POST" && path === "/api/admin/change-pin") return await changeAdminPin(request, env, origin);
+    if (request.method === "POST" && path === "/api/admin/logout") {
+      const access = await adminSession(request, env, true);
+      if (!access) return json({ error: "La sesión ya venció." }, 401, origin);
+      if (!access.legacy) {
+        const supplied = String(request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+        await env.COMMUNITY_KV.delete(`admin:session:${supplied}`);
+      }
+      return json({ ok: true }, 200, origin);
+    }
     if (path.startsWith("/api/admin/")) {
-      if (!adminAuthorized(request, env)) return json({ error: "Token de moderación inválido." }, 401, origin);
+      const access = await adminSession(request, env);
+      if (!access) return json({ error: "Inicia sesión como administrador." }, 401, origin);
+      if (access.mustChange) return json({ error: "Cambia el PIN inicial antes de usar el panel.", code: "PIN_CHANGE_REQUIRED" }, 403, origin);
       const state = await getState(env);
+      if (request.method === "GET" && path === "/api/admin/sequences") return json({ results: state.sequences }, 200, origin);
       if (request.method === "GET" && path === "/api/admin/pending") return json({ results: state.sequences.filter((item) => item.status === "pending") }, 200, origin);
       if (request.method === "GET" && path === "/api/admin/feedback") return json({ results: state.feedback || [] }, 200, origin);
+      const editAdminSequence = path.match(/^\/api\/admin\/sequences\/([^/]+)$/);
+      if (request.method === "PUT" && editAdminSequence) return await updateSequence(request, env, decodeURIComponent(editAdminSequence[1]), origin);
       const feedbackDelete = path.match(/^\/api\/admin\/feedback\/([^/]+)$/);
       if (request.method === "DELETE" && feedbackDelete) {
         const index = (state.feedback || []).findIndex((item) => item.id === decodeURIComponent(feedbackDelete[1]));
