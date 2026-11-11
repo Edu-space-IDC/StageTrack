@@ -342,7 +342,8 @@ function fromBase64Url(value) {
 }
 async function hashAdminPin(pin, salt) {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: fromBase64Url(salt), iterations: 120000, hash: "SHA-256" }, key, 256);
+  // Cloudflare Workers caps PBKDF2 at 100,000 iterations.
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: fromBase64Url(salt), iterations: 100000, hash: "SHA-256" }, key, 256);
   return base64Url(new Uint8Array(bits));
 }
 async function saveAdminPin(env, pin, version, mustChange = false) {
