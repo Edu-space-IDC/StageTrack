@@ -910,12 +910,14 @@ bool PlayerBridge::saveSequenceFile(const juce::File& destination, juce::String&
         if (comma > 0 && juce::Base64::convertFromBase64(coverOutput, song->cover.substring(comma + 1))) {
             coverImage.append(coverOutput.getData(), coverOutput.getDataSize());
             const auto extension = song->cover.startsWith("data:image/png") ? juce::String("png") : song->cover.startsWith("data:image/webp") ? juce::String("webp") : juce::String("jpg");
-            coverPath = "cover." + extension;
+            coverPath = "cover/cover." + extension;
             songObject->setProperty("cover", coverPath);
         }
     }
     const auto manifest = juce::JSON::toString(juce::var(root), true);
-    archive.addEntry(std::make_unique<juce::MemoryInputStream>(manifest.toRawUTF8(), manifest.getNumBytesAsUTF8(), true), 6, "setlist.rpseq", juce::Time::getCurrentTime());
+    auto manifestName = song->name.replaceCharacters("\\/:*?\"<>|", "---------").trim().substring(0, 100);
+    if (manifestName.isEmpty()) manifestName = "StageTracks";
+    archive.addEntry(std::make_unique<juce::MemoryInputStream>(manifest.toRawUTF8(), manifest.getNumBytesAsUTF8(), true), 6, manifestName + ".rpseq", juce::Time::getCurrentTime());
     for (const auto& source : song->sources) {
         const juce::File media(source.path);
         if (!media.existsAsFile()) continue;

@@ -13,8 +13,8 @@ using Microsoft.Win32;
 [assembly: AssemblyTitle("StageTracks Setup")]
 [assembly: AssemblyProduct("StageTracks")]
 [assembly: AssemblyCompany("StageTracks")]
-[assembly: AssemblyVersion("0.5.32.0")]
-[assembly: AssemblyFileVersion("0.5.32.0")]
+[assembly: AssemblyVersion("0.5.33.0")]
+[assembly: AssemblyFileVersion("0.5.33.0")]
 
 internal static class InstallerBootstrap
 {
@@ -151,7 +151,7 @@ internal sealed class SetupForm : Form
         header.Controls.Add(subtitle);
 
         Label version = new Label();
-        version.Text = "Windows x64 · versión 0.5.32";
+        version.Text = "Windows x64 · versión 0.5.33";
         version.ForeColor = Color.FromArgb(190, 202, 211);
         version.AutoSize = true;
         version.Location = new Point(108, 91);
@@ -460,6 +460,7 @@ internal sealed class SetupForm : Form
             CopyResource(assembly, "StageTracks.uninstall.ps1", Path.Combine(installPath, "uninstall.ps1"));
             CopyResource(assembly, "StageTracks.app-icon.ico", Path.Combine(installPath, "app-icon.ico"));
             CreateShortcuts();
+            RegisterSequenceFileAssociation();
             RegisterUninstaller();
             SetProgress(100, "StageTracks quedó instalado.");
             BeginInvoke((MethodInvoker)delegate { InstallationCompleted(); });
@@ -514,7 +515,7 @@ internal sealed class SetupForm : Form
             string executable = Path.Combine(installPath, "StageTracks.exe");
             string uninstall = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"" + Path.Combine(installPath, "uninstall.ps1") + "\"";
             key.SetValue("DisplayName", "StageTracks");
-            key.SetValue("DisplayVersion", "0.5.32");
+            key.SetValue("DisplayVersion", "0.5.33");
             key.SetValue("Publisher", "StageTracks");
             key.SetValue("InstallLocation", installPath);
             key.SetValue("DisplayIcon", Path.Combine(installPath, "app-icon.ico"));
@@ -524,6 +525,62 @@ internal sealed class SetupForm : Form
         }
         finally { key.Close(); }
     }
+
+    private void RegisterSequenceFileAssociation()
+    {
+        const string progId = "StageTracks.Sequence";
+        const string extensionPath = "Software\\Classes\\.rpseq";
+        const string backupPath = "Software\\StageTracks\\FileAssociationBackup";
+        const string capabilitiesPath = "Software\\StageTracks\\Capabilities";
+        string iconPath = Path.Combine(installPath, "app-icon.ico");
+        string executable = Path.Combine(installPath, "StageTracks.exe");
+
+        using (RegistryKey extension = Registry.CurrentUser.CreateSubKey(extensionPath))
+        using (RegistryKey backup = Registry.CurrentUser.CreateSubKey(backupPath))
+        {
+            if (extension == null || backup == null) throw new InvalidOperationException("No se pudo registrar el tipo de archivo .rpseq.");
+            if (backup.GetValue("Saved") == null)
+            {
+                object previous = extension.GetValue("");
+                backup.SetValue("HadDefault", previous == null ? 0 : 1, RegistryValueKind.DWord);
+                if (previous != null) backup.SetValue("OriginalDefault", previous.ToString());
+                backup.SetValue("Saved", 1, RegistryValueKind.DWord);
+            }
+            extension.SetValue("", progId, RegistryValueKind.String);
+            using (RegistryKey openWith = extension.CreateSubKey("OpenWithProgids"))
+                if (openWith != null) openWith.SetValue(progId, "", RegistryValueKind.String);
+        }
+
+        using (RegistryKey type = Registry.CurrentUser.CreateSubKey("Software\\Classes\\" + progId))
+        {
+            if (type == null) throw new InvalidOperationException("No se pudo registrar StageTracks como aplicación para secuencias.");
+            type.SetValue("", "StageTracks", RegistryValueKind.String);
+            type.SetValue("FriendlyTypeName", "StageTracks", RegistryValueKind.String);
+            using (RegistryKey icon = type.CreateSubKey("DefaultIcon"))
+                if (icon != null) icon.SetValue("", iconPath + ",0", RegistryValueKind.String);
+            using (RegistryKey command = type.CreateSubKey("shell\\open\\command"))
+                if (command != null) command.SetValue("", "\"" + executable + "\" \"%1\"", RegistryValueKind.String);
+        }
+
+        using (RegistryKey registered = Registry.CurrentUser.CreateSubKey("Software\\RegisteredApplications"))
+            if (registered != null) registered.SetValue("StageTracks", capabilitiesPath, RegistryValueKind.String);
+        using (RegistryKey capabilities = Registry.CurrentUser.CreateSubKey(capabilitiesPath))
+        {
+            if (capabilities != null)
+            {
+                capabilities.SetValue("ApplicationName", "StageTracks", RegistryValueKind.String);
+                capabilities.SetValue("ApplicationDescription", "Reproduce secuencias de StageTracks", RegistryValueKind.String);
+                capabilities.SetValue("ApplicationIcon", iconPath + ",0", RegistryValueKind.String);
+                using (RegistryKey associations = capabilities.CreateSubKey("FileAssociations"))
+                    if (associations != null) associations.SetValue(".rpseq", progId, RegistryValueKind.String);
+            }
+        }
+
+        SHChangeNotify(0x08000000, 0x0000, IntPtr.Zero, IntPtr.Zero);
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Auto, PreserveSig = true)]
+    private static extern void SHChangeNotify(uint eventId, uint flags, IntPtr item1, IntPtr item2);
 
     private static void MakeShortcut(string shortcutPath, string executable, string iconPath)
     {

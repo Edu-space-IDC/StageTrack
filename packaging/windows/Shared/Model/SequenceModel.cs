@@ -32,7 +32,7 @@ public sealed class SequenceDoc
 public sealed class SongModel
 {
     public string Name { get; set; } = "";
-    /// <summary>Ruta relativa dentro del paquete (Covers/01.png) o null si no hay carátula.</summary>
+    /// <summary>Ruta relativa dentro del paquete (cover/01.png) o null si no hay carátula.</summary>
     public string? Cover { get; set; }
     public string? SourceProject { get; set; }
     public double Tempo { get; set; } = 120;
@@ -99,7 +99,7 @@ public sealed class ItemModel
     public double FadeIn { get; set; }
     public double FadeOut { get; set; }
     public bool Mute { get; set; }
-    /// <summary>Ruta relativa dentro del paquete (Audio/...). Null si falta el archivo.</summary>
+    /// <summary>Ruta relativa dentro del paquete (audio/...). Null si falta el archivo.</summary>
     public string? File { get; set; }
     public string? OriginalFile { get; set; }
     public bool Missing { get; set; }

@@ -311,7 +311,7 @@ internal sealed class MainWindow : Form
         var defaultName = SequenceExporter.SafeName(string.IsNullOrWhiteSpace(request?.Name) ? (songs[0].Name ?? "Secuencia") : request!.Name!);
         using var dialog = new SaveFileDialog
         {
-            Title = "Exportar secuencia para REAPER Playback",
+            Title = "Exportar secuencia StageTracks",
             Filter = "Paquete de secuencia (*.zip)|*.zip",
             DefaultExt = "zip",
             AddExtension = true,

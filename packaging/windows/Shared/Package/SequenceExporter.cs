@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using RpSeq.Core.Model;
@@ -14,7 +15,7 @@ public sealed class ExportReport
     public List<string> Skipped { get; } = new();
 }
 
-/// <summary>Genera NombreSecuencia.zip con NombreSecuencia.rpseq + Audio/ + Covers/.</summary>
+/// <summary>Genera NombreSecuencia.zip con NombreSecuencia.rpseq + audio/ + cover/.</summary>
 public static class SequenceExporter
 {
     public sealed record SongInput(string Name, string ProjectPath, string? Cover);
@@ -39,7 +40,7 @@ public static class SequenceExporter
         if (File.Exists(tmp)) File.Delete(tmp);
 
         var written = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); // origen → ruta en zip
-        var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var usedEntries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.ReadWrite))
         using (var zip = new ZipArchive(fs, ZipArchiveMode.Create))
@@ -61,7 +62,6 @@ public static class SequenceExporter
                 song.SourceProject = null; // no exponemos rutas del equipo de origen
                 song.Cover = WriteCover(zip, input.Cover, n);
 
-                var folder = $"Audio/{n:00}-{SafeName(song.Name)}";
                 foreach (var track in song.Tracks)
                 {
                     foreach (var item in track.Items)
@@ -73,11 +73,21 @@ public static class SequenceExporter
                         }
                         if (!written.TryGetValue(item.SourcePath, out var entryPath))
                         {
-                            var fileName = SafeName(Path.GetFileName(item.SourcePath));
-                            entryPath = $"{folder}/{fileName}";
-                            var k = 2;
-                            while (!usedNames.Add(entryPath))
-                                entryPath = $"{folder}/{Path.GetFileNameWithoutExtension(fileName)}_{k++}{Path.GetExtension(fileName)}";
+                            var fileName = Path.GetFileName(item.SourcePath);
+                            if (string.IsNullOrWhiteSpace(fileName))
+                            {
+                                report.Missing.Add($"{song.Name} · {item.OriginalFile}");
+                                continue;
+                            }
+                            entryPath = $"audio/{fileName}";
+                            // Keep the source filename intact if two different folders
+                            // contain files with the same basename.
+                            if (!usedEntries.Add(entryPath))
+                            {
+                                entryPath = $"audio/{CollisionFolder(item.SourcePath)}/{fileName}";
+                                if (!usedEntries.Add(entryPath))
+                                    throw new InvalidDataException($"Hay dos audios con el mismo nombre y ruta de paquete: {fileName}");
+                            }
                             progress?.Invoke($"Copiando {fileName}…");
                             var level = Stored.Contains(Path.GetExtension(fileName)) ? CompressionLevel.NoCompression : CompressionLevel.Fastest;
                             zip.CreateEntryFromFile(item.SourcePath, entryPath, level);
@@ -102,7 +112,7 @@ public static class SequenceExporter
         return report;
     }
 
-    /// <summary>Guarda la carátula (data URI o URL http/https) en Covers/NN.ext y devuelve la ruta relativa.</summary>
+    /// <summary>Guarda la carátula (data URI o URL http/https) en cover/NN.ext y devuelve la ruta relativa.</summary>
     private static string? WriteCover(ZipArchive zip, string? cover, int n)
     {
         if (string.IsNullOrWhiteSpace(cover) || cover == "-") return null;
@@ -128,12 +138,18 @@ public static class SequenceExporter
                 ext = mt.Contains("jpeg") ? ".jpg" : mt.Contains("webp") ? ".webp" : mt.Contains("gif") ? ".gif" : ".png";
             }
             if (bytes == null || bytes.Length == 0) return null;
-            var path = $"Covers/{n:00}{ext}";
+            var path = $"cover/{n:00}{ext}";
             var e = zip.CreateEntry(path, CompressionLevel.NoCompression);
             using var s = e.Open();
             s.Write(bytes, 0, bytes.Length);
             return path;
         }
         catch { return null; }
+    }
+
+    private static string CollisionFolder(string path)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(path).ToUpperInvariant()));
+        return "source-" + Convert.ToHexString(hash.AsSpan(0, 6)).ToLowerInvariant();
     }
 }

@@ -1,12 +1,12 @@
 {
-  "version": "0.5.32",
-  "intro": "StageTracks 0.5.32 mejora la pantalla final del instalador.",
+  "version": "0.5.33",
+  "intro": "StageTracks 0.5.33 mejora la exportación de secuencias y la asociación de archivos.",
   "implementations": [
-    "El mensaje de instalaci\u00f3n completada ahora ocupa una pantalla limpia, sin elementos anteriores detr\u00e1s.",
-    "Se ajustaron la tipograf\u00eda, los espacios y la ruta para que todo sea m\u00e1s claro y legible."
+    "Los paquetes exportados incluyen el manifiesto con el nombre de la canción y la carátula en cover/.",
+    "Los archivos .rpseq se registran con el tipo e icono de StageTracks."
   ],
   "fixes": [
-    "La pantalla final reemplaza correctamente el contenido del formulario y mantiene el bot\u00f3n Finalizar en su lugar."
+    "Se corrigió el nombre genérico setlist.rpseq dentro de los paquetes exportados."
   ],
   "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"
 }
