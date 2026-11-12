@@ -3,7 +3,7 @@ name: Build and publish Windows release
 on:
   push:
     tags:
-      - 'v0.5.33'
+      - 'v0.5.34'
 
 permissions:
   contents: write
@@ -102,5 +102,5 @@ jobs:
             'release-artifacts/Reaper Control Studio.exe' `
             'public/downloads/Reaper-Control-Studio-Reaper-files.zip' `
             --repo $env:GITHUB_REPOSITORY `
-            --title 'StageTracks 0.5.33' `
-            --notes 'Exports sequence packages with the song title as the .rpseq manifest filename, stores cover art in cover/, and registers .rpseq files with the StageTracks type and icon.'
+            --title 'StageTracks 0.5.34' `
+            --notes 'Shows live update download progress in the app and uses an animated progress indicator when the server does not report the installer size.'

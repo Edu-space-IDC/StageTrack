@@ -9987,20 +9987,21 @@ html.stagetracks-native #rcsL #rl_nativeSplash { display:flex; }
           if (!panel) {
             panel = document.createElement("div"); panel.id = "stagetracksUpdateProgressToast"; panel.setAttribute("role", "status");
             panel.style.cssText = "position:fixed;z-index:12060;right:20px;bottom:20px;width:min(360px,calc(100vw - 40px));box-sizing:border-box;padding:14px;border:1px solid #3889d866;border-radius:13px;background:#17212af5;box-shadow:0 12px 38px #000a;color:#edf5fc;font:13px system-ui,sans-serif";
-            panel.innerHTML = '<strong data-update-progress-label style="display:block;margin-bottom:9px">Descargando actualización…</strong><div style="height:8px;overflow:hidden;border-radius:99px;background:#30363b"><div data-update-progress-fill style="width:0%;height:100%;border-radius:99px;background:#36b878;transition:width .18s ease"></div></div>';
+            panel.innerHTML = '<strong data-update-progress-label style="display:block;margin-bottom:9px">Descargando actualización…</strong><div data-update-progress-track style="height:8px;overflow:hidden;border-radius:99px;background:#30363b"><div data-update-progress-fill style="width:0%;height:100%;border-radius:99px;background:#36b878;transition:width .18s ease"></div></div>';
             document.body.appendChild(panel);
           }
           const label = panel.querySelector("[data-update-progress-label]"), fill = panel.querySelector("[data-update-progress-fill]");
           const safeMessage = repairVisibleText(String(message || "Descargando actualización..."));
           if (label) label.textContent = safeMessage;
           const failed = Number(percent) <= -2, unknown = Number(percent) === -1;
-          if (fill) { fill.style.width = unknown ? "35%" : `${Math.max(0, Math.min(100, Number(percent) || 0))}%`; fill.style.background = failed ? "#d15b5b" : unknown ? "#438bd2" : "#36b878"; }
+          if (fill) { fill.style.width = unknown ? "38%" : `${Math.max(0, Math.min(100, Number(percent) || 0))}%`; fill.style.background = failed ? "#d15b5b" : unknown ? "#438bd2" : "#36b878"; fill.style.animation = unknown ? "stagetracks-update-indeterminate 1.1s ease-in-out infinite alternate" : "none"; }
+          if (!document.getElementById("stagetracks-update-progress-style")) { const style = document.createElement("style"); style.id = "stagetracks-update-progress-style"; style.textContent = "@keyframes stagetracks-update-indeterminate{from{transform:translateX(-45%)}to{transform:translateX(165%)}}"; document.head.appendChild(style); }
           const settingsProgress = document.getElementById("stagetracksUpdateProgressSettings");
           if (settingsProgress) {
             settingsProgress.hidden = false;
             const settingsLabel = settingsProgress.querySelector("[data-update-progress-label]"), settingsFill = settingsProgress.querySelector("[data-update-progress-fill]");
             if (settingsLabel) settingsLabel.textContent = safeMessage;
-            if (settingsFill) { settingsFill.style.width = unknown ? "35%" : `${Math.max(0, Math.min(100, Number(percent) || 0))}%`; settingsFill.style.background = failed ? "#d15b5b" : unknown ? "#438bd2" : "#36b878"; }
+            if (settingsFill) { settingsFill.style.width = unknown ? "38%" : `${Math.max(0, Math.min(100, Number(percent) || 0))}%`; settingsFill.style.background = failed ? "#d15b5b" : unknown ? "#438bd2" : "#36b878"; settingsFill.style.animation = unknown ? "stagetracks-update-indeterminate 1.1s ease-in-out infinite alternate" : "none"; }
           }
           if (Number(percent) === 100) setTimeout(() => panel?.remove(), 8000);
         };

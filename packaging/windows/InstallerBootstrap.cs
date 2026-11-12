@@ -13,8 +13,8 @@ using Microsoft.Win32;
 [assembly: AssemblyTitle("StageTracks Setup")]
 [assembly: AssemblyProduct("StageTracks")]
 [assembly: AssemblyCompany("StageTracks")]
-[assembly: AssemblyVersion("0.5.33.0")]
-[assembly: AssemblyFileVersion("0.5.33.0")]
+[assembly: AssemblyVersion("0.5.34.0")]
+[assembly: AssemblyFileVersion("0.5.34.0")]
 
 internal static class InstallerBootstrap
 {
@@ -151,7 +151,7 @@ internal sealed class SetupForm : Form
         header.Controls.Add(subtitle);
 
         Label version = new Label();
-        version.Text = "Windows x64 · versión 0.5.33";
+        version.Text = "Windows x64 · versión 0.5.34";
         version.ForeColor = Color.FromArgb(190, 202, 211);
         version.AutoSize = true;
         version.Location = new Point(108, 91);
@@ -515,7 +515,7 @@ internal sealed class SetupForm : Form
             string executable = Path.Combine(installPath, "StageTracks.exe");
             string uninstall = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"" + Path.Combine(installPath, "uninstall.ps1") + "\"";
             key.SetValue("DisplayName", "StageTracks");
-            key.SetValue("DisplayVersion", "0.5.33");
+            key.SetValue("DisplayVersion", "0.5.34");
             key.SetValue("Publisher", "StageTracks");
             key.SetValue("InstallLocation", installPath);
             key.SetValue("DisplayIcon", Path.Combine(installPath, "app-icon.ico"));

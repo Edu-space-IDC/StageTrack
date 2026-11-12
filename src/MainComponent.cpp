@@ -256,7 +256,7 @@ void MainComponent::downloadUpdateInstaller(const juce::String& url, bool autoIn
         return;
     }
     updateDownloadInProgress = true;
-    if (bridge) bridge->queueScript("window.receiveStageTracksUpdateProgress?.(0, 'Conectando con GitHub…')");
+    showUpdateProgress(0, "Conectando con GitHub…");
     const auto folder = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
                             .getChildFile("StageTracks").getChildFile("Updates");
     folder.createDirectory();
@@ -266,9 +266,7 @@ void MainComponent::downloadUpdateInstaller(const juce::String& url, bool autoIn
         juce::String error;
         auto reportProgress = [safe](int percent, const juce::String& message) {
             juce::MessageManager::callAsync([safe, percent, message] {
-                if (safe == nullptr || safe->bridge == nullptr) return;
-                const auto script = "window.receiveStageTracksUpdateProgress?.(" + juce::String(percent) + "," + juce::JSON::toString(juce::var(message)) + ")";
-                safe->bridge->queueScript(script);
+                if (safe != nullptr) safe->showUpdateProgress(percent, message);
             });
         };
         const auto temporary = installer.getSiblingFile(installer.getFileName() + ".part");
@@ -292,7 +290,7 @@ void MainComponent::downloadUpdateInstaller(const juce::String& url, bool autoIn
                     if (totalBytes > 0) {
                         const int percent = (int) juce::jlimit<int64_t>(0, 99, downloaded * 100 / totalBytes);
                         if (percent != lastPercent) { lastPercent = percent; reportProgress(percent, "Descargando instalador... " + juce::String(percent) + "%"); }
-                    } else if (downloaded % (5 * 1024 * 1024) < bytes) {
+                    } else if (downloaded % (1024 * 1024) < bytes) {
                         reportProgress(-1, "Descargando instalador... " + juce::String(downloaded / (1024 * 1024)) + " MB");
                     }
                 }
@@ -311,11 +309,11 @@ void MainComponent::downloadUpdateInstaller(const juce::String& url, bool autoIn
             if (safe == nullptr) return;
             safe->updateDownloadInProgress = false;
             if (error.isNotEmpty()) { if (safe->bridge) safe->bridge->toast(error, true); return; }
-            if (safe->bridge) safe->bridge->queueScript("window.receiveStageTracksUpdateProgress?.(100, 'Descarga completa; abriendo el instalador…')");
+            safe->showUpdateProgress(100, "Descarga completa; abriendo el instalador…");
             if (!installer.startAsProcess(autoInstall ? "--update" : juce::String())) {
                 if (safe->bridge) {
                     const auto message = juce::String("Windows no pudo abrir el instalador descargado.");
-                    safe->bridge->queueScript("window.receiveStageTracksUpdateProgress?.(-2," + juce::JSON::toString(juce::var(message)) + ")");
+                    safe->showUpdateProgress(-2, message);
                     safe->bridge->toast(message, true);
                 }
                 return;
@@ -323,6 +321,14 @@ void MainComponent::downloadUpdateInstaller(const juce::String& url, bool autoIn
             if (safe->bridge) safe->bridge->toast("Instalador abierto. Guarda tu secuencia y confirma el cierre para actualizar StageTracks.", false);
         });
     }).detach();
+}
+
+void MainComponent::showUpdateProgress(int percent, const juce::String& message)
+{
+    if (browser == nullptr) return;
+    const auto script = "if(typeof window.receiveStageTracksUpdateProgress==='function')window.receiveStageTracksUpdateProgress("
+                        + juce::String(percent) + "," + juce::JSON::toString(juce::var(message)) + ");";
+    browser->evaluateJavascript(script);
 }
 
 void MainComponent::openAudioSettings()

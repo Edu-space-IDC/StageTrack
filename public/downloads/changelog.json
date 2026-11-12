@@ -1,12 +1,12 @@
 {
-  "version": "0.5.33",
-  "intro": "StageTracks 0.5.33 mejora la exportación de secuencias y la asociación de archivos.",
+  "version": "0.5.34",
+  "intro": "StageTracks 0.5.34 muestra el progreso de descarga al actualizar.",
   "implementations": [
-    "Los paquetes exportados incluyen el manifiesto con el nombre de la canción y la carátula en cover/.",
-    "Los archivos .rpseq se registran con el tipo e icono de StageTracks."
+    "La barra de actualización ahora refleja el progreso recibido por la aplicación.",
+    "Cuando el servidor no indica el tamaño total, muestra los MB descargados y una barra animada."
   ],
   "fixes": [
-    "Se corrigió el nombre genérico setlist.rpseq dentro de los paquetes exportados."
+    "Se corrigió la falta de actualizaciones visibles durante la descarga del instalador."
   ],
   "feedbackUrl": "https://stagetrack-project.vercel.app/?feedback=1#feedback"
 }

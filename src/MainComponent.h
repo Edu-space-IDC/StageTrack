@@ -27,6 +27,7 @@ private:
     void pickToSave();
     void pickToExportSequence(const juce::String& suggestedName);
     void downloadUpdateInstaller(const juce::String& url, bool autoInstall);
+    void showUpdateProgress(int percent, const juce::String& message);
     static juce::File audioStateFile();
 
     AudioEngine engine;
