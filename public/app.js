@@ -66,7 +66,7 @@ const revealObserver = new IntersectionObserver((entries) => entries.forEach((en
   if (entry.isIntersecting) { entry.target.classList.add("on"); revealObserver.unobserve(entry.target); }
 }), { threshold: .15 });
 const reveal = () => document.querySelectorAll(".rv:not(.on)").forEach((element, index) => {
-  element.style.transitionDelay = `${index % 4 * 90}ms`; revealObserver.observe(element);
+  element.style.transitionDelay = `${index % 4 * 70}ms`; revealObserver.observe(element);
 });
 
 function artworkLookup(title, artist) {
@@ -251,7 +251,13 @@ function route() {
 addEventListener("hashchange", route);
 
 const themeButton = $("#th");
-function setTheme(theme) { document.documentElement.dataset.theme = theme; themeButton.textContent = theme === "dark" ? "☀️" : "🌙"; try { localStorage.setItem("th", theme); } catch {} }
+function setTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  themeButton.textContent = theme === "dark" ? "☀️" : "🌙";
+  const themeColor = document.querySelector('meta[name="theme-color"]');
+  if (themeColor) themeColor.content = theme === "dark" ? "#0e131b" : "#f2f6fb";
+  try { localStorage.setItem("th", theme); } catch {}
+}
 let theme = "light"; try { theme = localStorage.getItem("th") || "light"; } catch {} setTheme(theme);
 themeButton.onclick = () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
 
@@ -404,7 +410,12 @@ document.addEventListener("pointermove", (event) => {
   const card = event.target.closest?.(".c"); if (!card) return;
   const rect = card.getBoundingClientRect(); card.style.setProperty("--mx", `${event.clientX - rect.left}px`); card.style.setProperty("--my", `${event.clientY - rect.top}px`);
 });
-addEventListener("scroll", () => { $("#pg").style.transform = `scaleX(${scrollY / Math.max(1, document.documentElement.scrollHeight - innerHeight)})`; }, { passive: true });
+const pageNav = document.querySelector("nav");
+addEventListener("scroll", () => {
+  $("#pg").style.transform = `scaleX(${scrollY / Math.max(1, document.documentElement.scrollHeight - innerHeight)})`;
+  pageNav.classList.toggle("is-scrolled", scrollY > 12);
+}, { passive: true });
+pageNav.classList.toggle("is-scrolled", scrollY > 12);
 fetch("/downloads/release.json").then((response) => response.ok ? response.json() : null).then((release) => {
   const configured = window.STAGETRACKS_DOWNLOADS || {};
   const local = location.hostname === "localhost" || location.hostname === "127.0.0.1";

@@ -7,6 +7,12 @@
       content="width=device-width,initial-scale=1,viewport-fit=cover"
     />
     <title>StageTracks — By Juan Camilo Mina</title>
+    <meta name="description" content="StageTracks: secuencias en vivo para Windows, pads incorporados, ruteo de audio y una comunidad para compartir canciones." />
+    <meta name="theme-color" content="#f2f6fb" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="StageTracks — Secuencias en vivo para Windows" />
+    <meta property="og:description" content="Reproduce, organiza y comparte secuencias en vivo con StageTracks." />
+    <meta property="og:image" content="/assets/original-2.webp" />
     <link
       href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;800&family=Inter:wght@400;500&display=swap"
       rel="stylesheet"
@@ -17,11 +23,11 @@
   <body>
     <div id="pg"></div>
     <!-- LOGO: cambia el src de <img class="logo"> para usar otro logo -->
-    <nav>
+    <nav aria-label="Navegación principal">
       <a class="lg" href="#"
         ><img class="logo" src="/assets/app-icon.png" alt="" />StageTracks</a
       >
-      <ul id="navMenu">
+      <ul id="navMenu" aria-label="Secciones del sitio">
         <li><a href="#caracteristicas">Características</a></li>
         <li><a href="#reaper">Extensión a Reaper</a></li>
         <li><a href="#secuencias">Comunidad</a></li>
@@ -40,10 +46,11 @@
         aria-expanded="false"
         aria-controls="navMenu"
       >
-        &#8942;
+        <span></span><span></span><span></span>
       </button>
     </nav>
 
+    <main id="pageMain">
     <div id="hm">
       <header class="hero">
         <div>
@@ -165,6 +172,7 @@
               <img
                 src="/assets/original-3.webp"
                 alt="Panel de pads de StageTracks"
+                loading="lazy"
               />
             </div>
           </div>
@@ -262,8 +270,7 @@
       </section>
     </div>
 
-    <main id="vs">
-      <section>
+    <section id="vs">
         <h2>Secuencias de la comunidad</h2>
         <p class="ld">
           Busca, filtra y descarga secuencias para importarlas en StageTracks.
@@ -289,7 +296,7 @@
         </div>
         <h3 id="tt" style="margin-bottom: 16px">Más descargados</h3>
         <div class="g w" id="res"></div>
-      </section>
+    </section>
     </main>
 
     <footer>
