@@ -406,3 +406,68 @@ section > h2::before, section .two h2::before {
   .rv { filter: none; transform: none; }
   .c::after { transition: none; }
 }
+
+/* Acerca de: historia del proyecto como pieza central de la página. */
+#acerca.about-section {
+  position: relative; overflow: hidden; padding-block: clamp(88px, 11vw, 150px);
+  background: radial-gradient(ellipse at 50% 32%, var(--color-accent-glow), transparent 55%),
+    color-mix(in srgb, var(--color-surface) 55%, var(--color-bg));
+  text-align: center;
+}
+#acerca.about-section::before, #acerca.about-section::after {
+  position: absolute; width: min(42vw, 560px); aspect-ratio: 1; border: 1px solid color-mix(in srgb, var(--color-accent) 12%, transparent);
+  border-radius: 50%; content: ""; pointer-events: none;
+}
+#acerca.about-section::before { top: 8%; left: -26%; box-shadow: 0 0 0 44px color-mix(in srgb, var(--color-accent) 2%, transparent); }
+#acerca.about-section::after { right: -25%; bottom: -20%; box-shadow: 0 0 0 58px color-mix(in srgb, var(--color-accent) 2%, transparent); }
+.about-shell { position: relative; z-index: 1; width: min(100%, 930px); margin-inline: auto; }
+.about-heading { margin: 0 auto 38px; }
+.about-kicker { display: inline-flex; align-items: center; gap: 9px; margin-bottom: 19px; padding: 8px 13px; border: 1px solid color-mix(in srgb, var(--color-accent) 35%, var(--color-border)); border-radius: 999px; background: color-mix(in srgb, var(--color-surface) 72%, transparent); color: var(--color-accent); font-size: .75rem; font-weight: 700; letter-spacing: .075em; }
+.about-kicker i { width: 7px; height: 7px; border-radius: 50%; background: var(--color-accent); box-shadow: 0 0 0 4px var(--color-accent-glow); }
+.about-heading h2 { max-width: none; margin: 0 0 12px; font-size: clamp(2.5rem, 6.5vw, 5rem); letter-spacing: -.075em; }
+.about-heading h2::before { display: none; }
+.about-heading h2 span { display: inline-block; background: linear-gradient(100deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 50%, var(--color-text)), var(--color-accent)); background-size: 200% 100%; background-clip: text; color: transparent; transition: letter-spacing .35s var(--ease-out), background-position .5s ease; }
+.about-heading h2:hover span { letter-spacing: -.045em; background-position: 100% 0; }
+.about-heading > p { margin: 0; color: var(--color-muted); font-size: clamp(1rem, 2vw, 1.18rem); }
+.about-card { position: relative; overflow: hidden; max-width: 820px; margin: 0 auto; padding: clamp(28px, 5vw, 56px); border: 1px solid color-mix(in srgb, var(--color-accent) 23%, var(--color-border)); border-radius: 24px; background: color-mix(in srgb, var(--color-surface) 82%, transparent); box-shadow: 0 26px 80px var(--color-shadow), inset 0 1px 0 color-mix(in srgb, var(--color-white) 7%, transparent); transition: transform .45s var(--ease-out), border-color .35s ease, box-shadow .45s var(--ease-out); }
+.about-card::before { position: absolute; inset: 0; background: radial-gradient(500px circle at var(--about-x, 50%) var(--about-y, 0%), var(--color-accent-glow), transparent 67%); content: ""; opacity: 0; pointer-events: none; transition: opacity .35s ease; }
+.about-card > * { position: relative; }
+.about-card:hover { transform: translateY(-4px); border-color: color-mix(in srgb, var(--color-accent) 52%, var(--color-border)); box-shadow: 0 34px 90px var(--color-shadow), 0 0 54px color-mix(in srgb, var(--color-accent-glow) 45%, transparent); }
+.about-card:hover::before { opacity: 1; }
+.about-emblem { position: relative; display: grid; width: 112px; aspect-ratio: 1; place-items: center; margin: 0 auto 28px; }
+.about-emblem img { position: relative; z-index: 1; width: 62px; height: 62px; border: 1px solid color-mix(in srgb, var(--color-accent) 45%, var(--color-border)); border-radius: 19px; box-shadow: 0 10px 38px var(--color-accent-glow); transition: transform .45s var(--ease-out), box-shadow .45s ease; }
+.about-card:hover .about-emblem img { transform: scale(1.08) rotate(-5deg); box-shadow: 0 12px 44px color-mix(in srgb, var(--color-accent-glow) 80%, transparent); }
+.about-orbit { position: absolute; inset: 6px; border: 1px solid color-mix(in srgb, var(--color-accent) 26%, transparent); border-radius: 50%; transition: transform .7s var(--ease-out); }
+.about-orbit-two { inset: 18px -4px; transform: rotate(-34deg); border-style: dashed; opacity: .7; }
+.about-card:hover .about-orbit-one { transform: rotate(36deg) scale(1.08); }
+.about-card:hover .about-orbit-two { transform: rotate(0) scale(1.06); }
+.about-spark { position: absolute; top: 2px; right: 2px; color: var(--color-accent); font-size: 1.4rem; transition: transform .35s var(--ease-out); }
+.about-card:hover .about-spark { transform: translate(3px, -3px) rotate(14deg); }
+.about-copy { max-width: 68ch; margin-inline: auto; color: var(--color-muted); font-size: clamp(.98rem, 1.6vw, 1.08rem); line-height: 1.85; }
+.about-copy p { margin: 0 0 16px; }
+.about-copy p:last-child { margin-bottom: 0; }
+.about-copy .about-lead { margin-bottom: 18px; color: var(--color-text); font: 600 clamp(1.18rem, 2.6vw, 1.55rem)/1.5 Sora, Inter, sans-serif; letter-spacing: -.035em; }
+.about-pillars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 18px auto 0; }
+.about-pillar { display: grid; gap: 6px; padding: 20px 14px; border: 1px solid var(--color-border); border-radius: 13px; background: color-mix(in srgb, var(--color-surface) 65%, transparent); text-align: left; transition: transform .3s var(--ease-out), border-color .3s ease, background .3s ease; }
+.about-pillar:hover { transform: translateY(-4px); border-color: color-mix(in srgb, var(--color-accent) 54%, var(--color-border)); background: color-mix(in srgb, var(--color-accent-glow) 48%, var(--color-surface)); }
+.about-pillar > span { color: var(--color-accent); font: 600 .72rem Inter, sans-serif; letter-spacing: .12em; }
+.about-pillar b { font: 600 .91rem Sora, Inter, sans-serif; }
+.about-pillar small { color: var(--color-muted); font-size: .78rem; }
+.about-link { display: inline-flex; align-items: center; gap: 10px; margin-top: 26px; color: var(--color-accent); font-weight: 700; text-decoration: none; transition: gap .25s var(--ease-out), color .25s ease; }
+.about-link:hover { gap: 15px; color: var(--color-text); }
+.about-link span { font-size: 1.15em; }
+@media (max-width: 700px) {
+  #acerca.about-section { padding-block: 78px; }
+  .about-heading { margin-bottom: 26px; }
+  .about-kicker { max-width: 100%; font-size: .66rem; }
+  .about-card { padding: 28px 21px; border-radius: 18px; }
+  .about-emblem { width: 94px; margin-bottom: 20px; }
+  .about-emblem img { width: 54px; height: 54px; }
+  .about-pillars { grid-template-columns: 1fr; gap: 9px; }
+  .about-pillar { grid-template-columns: 34px 1fr; align-items: center; padding: 13px 15px; }
+  .about-pillar small { grid-column: 2; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .about-heading h2 span { background-position: 0 0; }
+  .about-card:hover, .about-pillar:hover { transform: none; }
+}

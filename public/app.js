@@ -407,8 +407,11 @@ form.onsubmit = (event) => { event.preventDefault(); publishSelectedSequence(); 
 $("#continueUpload").onclick = () => publishSelectedSequence({ background: true });
 
 document.addEventListener("pointermove", (event) => {
-  const card = event.target.closest?.(".c"); if (!card) return;
-  const rect = card.getBoundingClientRect(); card.style.setProperty("--mx", `${event.clientX - rect.left}px`); card.style.setProperty("--my", `${event.clientY - rect.top}px`);
+  const card = event.target.closest?.(".c, .about-card"); if (!card) return;
+  const rect = card.getBoundingClientRect();
+  const about = card.matches(".about-card");
+  card.style.setProperty(about ? "--about-x" : "--mx", `${event.clientX - rect.left}px`);
+  card.style.setProperty(about ? "--about-y" : "--my", `${event.clientY - rect.top}px`);
 });
 const pageNav = document.querySelector("nav");
 addEventListener("scroll", () => {
